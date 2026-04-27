@@ -1,22 +1,77 @@
 ﻿<Window x:Class="DoorSim.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:DoorSim"
         xmlns:viewModels="clr-namespace:DoorSim.ViewModels"
-        mc:Ignorable="d"
-        d:DataContext="{d:DesignInstance Type=viewModels:MainViewModel, IsDesignTimeCreatable=True}"
-        Title="DoorSim - Softwire Door Simulation &amp; Testing Tool" Height="450" Width="800">
-    <Window.DataContext>
-        <viewModels:MainViewModel/>
-    </Window.DataContext>
-    <Grid>
+        Title="DoorSim - Softwire Door Simulation &amp; Testing Tool"
+        Height="600"
+        Width="1000"
+        Background="#1E1E1E"
+        Foreground="White">
 
-        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-            <TextBlock Text="{Binding StatusText}"
-               FontSize="20"/>
-        </StackPanel>
+    <Window.Resources>
+        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#005A9E"/>
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#005A9E"/>
+        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="White"/>
 
-    </Grid>
+        <Style TargetType="MenuItem">
+            <Setter Property="Background" Value="#252526"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#3F3F46"/>
+        </Style>
+    </Window.Resources>
+
+    <DockPanel>
+
+        <!-- TOP MENU WITH SEPARATOR -->
+        <Border DockPanel.Dock="Top"
+                BorderBrush="#3F3F46"
+                BorderThickness="0,0,0,1">
+
+            <Menu Background="#252526"
+                  Foreground="White">
+
+                <MenuItem Header="_Connect"
+                          Command="{Binding ConnectCommand}"
+                          IsEnabled="{Binding CanConnect}"/>
+
+                <MenuItem Header="_View"
+                          IsEnabled="{Binding IsConnected}">
+                    <MenuItem Header="_Single Door"/>
+                    <MenuItem Header="_Two Doors"/>
+                </MenuItem>
+
+                <MenuItem Header="_Help"/>
+                <MenuItem Header="_About"/>
+
+            </Menu>
+        </Border>
+
+        <!-- BOTTOM STATUS BAR WITH SEPARATOR -->
+        <Border DockPanel.Dock="Bottom"
+                BorderBrush="#3F3F46"
+                BorderThickness="0,1,0,0">
+
+            <StatusBar Background="#252526"
+                       Foreground="White">
+
+                <StatusBarItem>
+                    <TextBlock Text="{Binding StatusText}"
+                               Foreground="{Binding StatusColor}"
+                               FontWeight="SemiBold"
+                               Margin="5,0,0,0"/>
+                </StatusBarItem>
+
+            </StatusBar>
+        </Border>
+
+        <!-- MAIN CONTENT -->
+        <Grid>
+            <TextBlock Text="{Binding MainMessage}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       FontSize="22"
+                       Foreground="#CCCCCC"/>
+        </Grid>
+
+    </DockPanel>
 </Window>
