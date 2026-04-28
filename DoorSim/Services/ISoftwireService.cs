@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using DoorSim.Models;
 
 namespace DoorSim.Services;
 
@@ -20,4 +21,6 @@ public interface ISoftwireService
     Task<bool> LoginAsync(string hostname, string username, string password);
 
     Task<bool> CheckConnectionAsync();
+
+    Task<List<SoftwireDoor>> GetDoorsAsync();
 }

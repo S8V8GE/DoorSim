@@ -6,6 +6,8 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.Tasks;
+using DoorSim.Models;
+using System.Text.Json;
 
 namespace DoorSim.Services;
 
@@ -106,5 +108,54 @@ public class SoftwireService : ISoftwireService
         {
             return false;
         }
+    }
+
+    // Retrieves doors from Softwire.
+    // First gets the door list, then follows each Href to retrieve full door details.
+    public async Task<List<SoftwireDoor>> GetDoorsAsync()
+    {
+        var doors = new List<SoftwireDoor>();
+
+        if (_client == null)
+            return doors;
+
+        var listResponse = await _client.GetAsync("/Doors/");
+
+        if (!listResponse.IsSuccessStatusCode)
+            return doors;
+
+        var listJson = await listResponse.Content.ReadAsStringAsync();
+
+        using var listDocument = JsonDocument.Parse(listJson);
+
+        foreach (var item in listDocument.RootElement.EnumerateArray())
+        {
+            if (!item.TryGetProperty("Href", out var hrefProperty))
+                continue;
+
+            var href = hrefProperty.GetString();
+
+            if (string.IsNullOrWhiteSpace(href))
+                continue;
+
+            var doorResponse = await _client.GetAsync(href);
+
+            if (!doorResponse.IsSuccessStatusCode)
+                continue;
+
+            var doorJson = await doorResponse.Content.ReadAsStringAsync();
+
+            using var doorDocument = JsonDocument.Parse(doorJson);
+            var door = doorDocument.RootElement;
+
+            doors.Add(new SoftwireDoor
+            {
+                Id = door.TryGetProperty("Id", out var id) ? id.GetString() ?? "" : "",
+                Name = door.TryGetProperty("Name", out var name) ? name.GetString() ?? "" : "",
+                DoorIsLocked = door.TryGetProperty("IsLocked", out var locked) && locked.GetBoolean()
+            });
+        }
+
+        return doors.OrderBy(d => d.Name).ToList();
     }
 }

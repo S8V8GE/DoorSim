@@ -1,0 +1,77 @@
+﻿<UserControl x:Class="DoorSim.Views.DoorSelectorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#1E1E1E"
+             Foreground="White">
+
+    <UserControl.Resources>
+
+        <!-- Dropdown item style -->
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Background" Value="#2D2D30"/>
+            <Setter Property="Foreground" Value="White"/>
+
+            <Style.Triggers>
+                <!-- Hover -->
+                <Trigger Property="IsHighlighted" Value="True">
+                    <Setter Property="Background" Value="#007ACC"/>
+                    <Setter Property="Foreground" Value="White"/>
+                </Trigger>
+
+                <!-- Selected -->
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#007ACC"/>
+                    <Setter Property="Foreground" Value="White"/>
+                    <Setter Property="FontWeight" Value="Bold"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- ComboBox (closed state text fix) -->
+        <Style TargetType="ComboBox">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="#2D2D30"/>
+            <Setter Property="BorderBrush" Value="#555555"/>
+        </Style>
+
+    </UserControl.Resources>
+
+    <!--
+    Door selector bar.
+
+    Responsible for:
+    - Showing available doors loaded from Softwire
+    - Allowing the user to select the active door
+
+    This view binds to DoorsViewModel.
+    -->
+    <Border Background="#1F3A5F"
+            BorderBrush="#3F3F46"
+            BorderThickness="0,0,0,1"
+            Padding="8,4">
+
+        <StackPanel Orientation="Horizontal"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+
+            <TextBlock Text="{Binding DoorCount, StringFormat='Select a door ({0}):'}"
+                       FontWeight="SemiBold"
+                       Foreground="White"
+                       VerticalAlignment="Center"
+                       Margin="0,0,10,0"/>
+
+            <ComboBox Width="300"
+                      ItemsSource="{Binding Doors}"
+                      SelectedItem="{Binding SelectedDoor}"
+                      DisplayMemberPath="Name"
+                      Background="White"
+                      Foreground="#1E1E1E"
+                      BorderBrush="#555555"
+                      Padding="6"
+                      FontWeight="SemiBold"
+                      HorizontalContentAlignment="Left"
+                      VerticalContentAlignment="Center"/>
+
+        </StackPanel>
+    </Border>
+</UserControl>

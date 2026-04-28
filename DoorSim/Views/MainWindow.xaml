@@ -17,7 +17,9 @@
         xmlns:views="clr-namespace:DoorSim.Views"
         Title="DoorSim - Softwire Door Simulation &amp; Testing Tool"
         Height="800"
+        MinHeight="800"
         Width="800"
+        MinWidth="800"
         Background="#1E1E1E"
         Foreground="White"
         Icon="/Images/AppIcon.ico">
@@ -55,122 +57,168 @@
         - Bottom status bar
         - Central content area filling remaining space
     -->
-    <DockPanel>
+    <Border BorderBrush="#3F3F46"
+        BorderThickness="1"
+        Margin="6"
+        Background="#1E1E1E">
+        
+        <DockPanel>
 
-        <!--
-            Top navigation menu.
+            <!--
+                Top navigation menu.
 
-            Contains:
-            - Connect → triggers connection to Softwire
-            - View → switches between single/two door views (enabled only when connected)
-            - Help/About → informational views
+                Contains:
+                - Connect → triggers connection to Softwire
+                - View → switches between single/two door views (enabled only when connected)
+                - Help/About → informational views
 
-            Visibility and behaviour controlled via MainViewModel bindings.
-        -->
-        <Border DockPanel.Dock="Top"
-                BorderBrush="#3F3F46"
-                BorderThickness="0,0,0,1">
+                Visibility and behaviour controlled via MainViewModel bindings.
+            -->
+            <Border DockPanel.Dock="Top"
+                    BorderBrush="#3F3F46"
+                    BorderThickness="0,0,0,1">
 
-            <Menu Background="#252526"
-                  Foreground="White">
+                <Menu Background="#252526"
+                      Foreground="White">
 
-                <!--
-                    Connect command:
-                    - Opens connection dialog
-                    - Attempts login to Softwire
-                    - Disabled once connected (CanConnect = false)
-                -->
-                <MenuItem Header="_Connect"
-                          Command="{Binding ConnectCommand}"
-                          IsEnabled="{Binding CanConnect}"/>
+                    <!--
+                        Connect command:
+                        - Opens connection dialog
+                        - Attempts login to Softwire
+                        - Disabled once connected (CanConnect = false)
+                    -->
+                    <MenuItem Header="_Connect"
+                              Command="{Binding ConnectCommand}"
+                              IsEnabled="{Binding CanConnect}"/>
 
-                <!--
-                    View selection:
-                    - Will control layout of door simulation (single vs two door view)
-                    - Only enabled when a valid Softwire connection exists
-                -->
-                <MenuItem Header="_View"
-                          IsEnabled="{Binding IsConnected}">
-                    <MenuItem Header="_Single Door"/>
-                    <MenuItem Header="_Two Doors"/>
-                </MenuItem>
+                    <!--
+                        View selection:
+                        - Will control layout of door simulation (single vs two door view)
+                        - Only enabled when a valid Softwire connection exists
+                    -->
+                    <MenuItem Header="_View"
+                              IsEnabled="{Binding IsConnected}">
+                        <MenuItem Header="_Single Door"/>
+                        <MenuItem Header="_Two Doors"/>
+                    </MenuItem>
 
-                <MenuItem Header="_Help"/>
-                <MenuItem Header="_About"/>
+                    <MenuItem Header="_Help"/>
+                    <MenuItem Header="_About"/>
 
-            </Menu>
-        </Border>
+                </Menu>
+            </Border>
 
         
-        <!--
-            Status bar (bottom of application).
+            <!--
+                Status bar (bottom of application).
 
-            Displays:
-            - Current connection state (text)
-            - Colour-coded status (green = connected, red = not connected)
+                Displays:
+                - Current connection state (text)
+                - Colour-coded status (green = connected, red = not connected)
 
-            Driven entirely by MainViewModel bindings.
-        -->
-        <Border DockPanel.Dock="Bottom"
-                BorderBrush="#3F3F46"
-                BorderThickness="0,1,0,0">
+                Driven entirely by MainViewModel bindings.
+            -->
+            <Border DockPanel.Dock="Bottom"
+                    BorderBrush="#3F3F46"
+                    BorderThickness="0,1,0,0">
 
-            <StatusBar Background="#252526"
-                       Foreground="White">
+                <StatusBar Background="#252526"
+                           Foreground="White">
 
-                <!--
-                    Status display:
-                    - Text comes from StatusText
-                    - Colour comes from StatusColor (dynamic)
-                -->
-                <StatusBarItem>
-                    <TextBlock Text="{Binding StatusText}"
-                               Foreground="{Binding StatusColor}"
-                               FontWeight="SemiBold"
-                               Margin="5,0,0,0"/>
-                </StatusBarItem>
+                    <!--
+                        Status display:
+                        - Text comes from StatusText
+                        - Colour comes from StatusColor (dynamic)
+                    -->
+                    <StatusBarItem>
+                        <TextBlock Text="{Binding StatusText}"
+                                   Foreground="{Binding StatusColor}"
+                                   FontWeight="SemiBold"
+                                   Margin="5,0,0,0"/>
+                    </StatusBarItem>
 
-            </StatusBar>
-        </Border>
+                </StatusBar>
+            </Border>
     
         
-        <!--
-            Main content area.
-            - Displays a simple instruction message
-            - Will host dynamic views (door selection, simulation UI, etc.)
-        -->
-        <Grid>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="220"/>
-            </Grid.RowDefinitions>
+            <!--
+                Main content area.
+                - Displays a simple instruction message
+                - Will host dynamic views (door selection, simulation UI, etc.)
+            -->
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="220"/>
+                </Grid.RowDefinitions>
 
-            <TextBlock Grid.Row="0"
-               Text="{Binding MainMessage}"
-               HorizontalAlignment="Center"
-               VerticalAlignment="Center"
-               FontSize="22"
-               Foreground="#CCCCCC"
-               TextWrapping="Wrap"
-               TextAlignment="Center"
-               MaxWidth="850"/>
+                <!-- Door selector bar -->
+                <views:DoorSelectorView Grid.Row="0"
+                            DataContext="{Binding Doors}">
+                    <views:DoorSelectorView.Style>
+                        <Style TargetType="views:DoorSelectorView">
+                            <Setter Property="Visibility" Value="Collapsed"/>
 
-            <views:CardholdersView Grid.Row="1"
-                       DataContext="{Binding Cardholders}">
-                <views:CardholdersView.Style>
-                    <Style TargetType="views:CardholdersView">
-                        <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding DataContext.IsConnected, RelativeSource={RelativeSource AncestorType=Window}}"
+                                 Value="True">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </views:DoorSelectorView.Style>
+                </views:DoorSelectorView>
 
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding DataContext.IsConnected, RelativeSource={RelativeSource AncestorType=Window}}"
-                             Value="True">
-                                <Setter Property="Visibility" Value="Visible"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </views:CardholdersView.Style>
-            </views:CardholdersView>
-        </Grid>
+                <!-- Door display area -->
+                <Grid Grid.Row="1">
 
-    </DockPanel>
+                    <TextBlock Text="{Binding MainMessage}"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   FontSize="22"
+                   Foreground="#CCCCCC"
+                   TextWrapping="Wrap"
+                   TextAlignment="Center"
+                   MaxWidth="850"/>
+
+                    <views:SingleDoorView DataContext="{Binding Doors}">
+                        <views:SingleDoorView.Style>
+                            <Style TargetType="views:SingleDoorView">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasSelectedDoor}"
+                                 Value="True">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </views:SingleDoorView.Style>
+                    </views:SingleDoorView>
+
+                </Grid>
+
+                <!-- Cardholders panel -->
+                <views:CardholdersView Grid.Row="2"
+                               DataContext="{Binding Cardholders}">
+                    <views:CardholdersView.Style>
+                        <Style TargetType="views:CardholdersView">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding DataContext.IsConnected, RelativeSource={RelativeSource AncestorType=Window}}"
+                                     Value="True">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </views:CardholdersView.Style>
+                </views:CardholdersView>
+            </Grid>
+
+        </DockPanel>
+        
+    </Border>
+    
 </Window>

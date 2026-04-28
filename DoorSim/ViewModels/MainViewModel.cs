@@ -41,6 +41,9 @@ public partial class MainViewModel : ObservableObject
     // ViewModel for the cardholders panel
     public CardholdersViewModel Cardholders { get; } = new CardholdersViewModel();
 
+    // ViewModel for the door selector and door display area
+    public DoorsViewModel Doors { get; } = new DoorsViewModel();
+
     // Indicates whether the application is currently connected to Softwire
     [ObservableProperty]
     private bool isConnected;
@@ -79,12 +82,23 @@ public partial class MainViewModel : ObservableObject
         Cardholders.LoadCardholders(cards);
     }
 
+    // Refreshes the door list from Softwire, updates the Doors panel,
+    // and returns the number of doors found.
+    private async Task<int> RefreshDoorsAsync()
+    {
+        var doors = await _softwireService.GetDoorsAsync();
+
+        Doors.LoadDoors(doors);
+
+        return doors.Count;
+    }
+
     // Starts a timer that checks connection status every 5 seconds
     private void StartConnectionMonitoring()
     {
         _connectionTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromSeconds(5)
+            Interval = TimeSpan.FromSeconds(3)
         };
 
         _connectionTimer.Tick += async (s, e) =>
@@ -108,8 +122,19 @@ public partial class MainViewModel : ObservableObject
             }
             else
             {
-                // Connection is still valid, so refresh cardholders from SQL
+                // Connection is still valid, so refresh live data (cardholders from SQL and doors from Softwire)
                 await RefreshCardholdersAsync();
+
+                var doorCount = await RefreshDoorsAsync();
+
+                if (doorCount == 0)
+                {
+                    MainMessage = "Connected to Softwire, but no doors are configured. Please create a door in Config Tool, using Softwire simulated hardware.";
+                }
+                else
+                {
+                    MainMessage = $"Connected to Softwire and loaded {doorCount} doors, select a door to begin.";
+                }
             }
         };
 
@@ -165,10 +190,20 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
-            // Query SQL and show how many cardholders were found.
+            // Load cardholders from SQL and pass them to the CardholdersViewModel.
             await RefreshCardholdersAsync();
 
-            MainMessage = "Connected. Select a door to begin.";
+            // Load doors from Softwire and pass them to the DoorsViewModel.
+            var doorCount = await RefreshDoorsAsync();
+
+            if (doorCount == 0)
+            {
+                MainMessage = "Connected to Softwire, but no doors are configured. Please create a door in Config Tool, using Softwire simulated hardware.";
+            }
+            else
+            {
+                MainMessage = $"Connected to Softwire and loaded {doorCount} doors, select a door to begin.";
+            }
         }
         catch (Exception ex)
         {
