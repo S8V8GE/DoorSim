@@ -9,12 +9,16 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <None Remove="Images\AppIcon.ico" />
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Images\" />
-    <Folder Include="Models\" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Images\AppIcon.ico" />
   </ItemGroup>
 
 </Project>

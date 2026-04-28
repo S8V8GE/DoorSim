@@ -1,12 +1,38 @@
-﻿<Window x:Class="DoorSim.MainWindow"
+﻿<!--
+        Main application window (View).
+
+        Responsible for:
+        - Overall layout of the application
+        - Top navigation (Connect, View, Help, About)
+        - Status display (connected / not connected)
+        - Hosting the main content area (which will later show doors)
+
+        This View binds to MainViewModel.cs, which controls all behaviour and state.
+-->
+
+<Window x:Class="DoorSim.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:viewModels="clr-namespace:DoorSim.ViewModels"
+        xmlns:views="clr-namespace:DoorSim.Views"
         Title="DoorSim - Softwire Door Simulation &amp; Testing Tool"
-        Height="600"
-        Width="1000"
+        Height="800"
+        Width="800"
         Background="#1E1E1E"
-        Foreground="White">
+        Foreground="White"
+        Icon="/Images/AppIcon.ico">
+
+
+    <!--
+        Local UI styling for this window.
+
+        Defines:
+        - Highlight colours (attempt to override default menu selection colours)
+        - Basic MenuItem styling (background, text, borders)
+
+        Note: WPF MenuItem styling is partially controlled by its template,
+        so not all colour changes take effect here...
+    -->
 
     <Window.Resources>
         <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#005A9E"/>
@@ -20,9 +46,27 @@
         </Style>
     </Window.Resources>
 
+
+    <!--
+        Root layout container.
+
+        DockPanel allows:
+        - Top menu bar
+        - Bottom status bar
+        - Central content area filling remaining space
+    -->
     <DockPanel>
 
-        <!-- TOP MENU WITH SEPARATOR -->
+        <!--
+            Top navigation menu.
+
+            Contains:
+            - Connect → triggers connection to Softwire
+            - View → switches between single/two door views (enabled only when connected)
+            - Help/About → informational views
+
+            Visibility and behaviour controlled via MainViewModel bindings.
+        -->
         <Border DockPanel.Dock="Top"
                 BorderBrush="#3F3F46"
                 BorderThickness="0,0,0,1">
@@ -30,10 +74,21 @@
             <Menu Background="#252526"
                   Foreground="White">
 
+                <!--
+                    Connect command:
+                    - Opens connection dialog
+                    - Attempts login to Softwire
+                    - Disabled once connected (CanConnect = false)
+                -->
                 <MenuItem Header="_Connect"
                           Command="{Binding ConnectCommand}"
                           IsEnabled="{Binding CanConnect}"/>
 
+                <!--
+                    View selection:
+                    - Will control layout of door simulation (single vs two door view)
+                    - Only enabled when a valid Softwire connection exists
+                -->
                 <MenuItem Header="_View"
                           IsEnabled="{Binding IsConnected}">
                     <MenuItem Header="_Single Door"/>
@@ -46,7 +101,16 @@
             </Menu>
         </Border>
 
-        <!-- BOTTOM STATUS BAR WITH SEPARATOR -->
+        
+        <!--
+            Status bar (bottom of application).
+
+            Displays:
+            - Current connection state (text)
+            - Colour-coded status (green = connected, red = not connected)
+
+            Driven entirely by MainViewModel bindings.
+        -->
         <Border DockPanel.Dock="Bottom"
                 BorderBrush="#3F3F46"
                 BorderThickness="0,1,0,0">
@@ -54,6 +118,11 @@
             <StatusBar Background="#252526"
                        Foreground="White">
 
+                <!--
+                    Status display:
+                    - Text comes from StatusText
+                    - Colour comes from StatusColor (dynamic)
+                -->
                 <StatusBarItem>
                     <TextBlock Text="{Binding StatusText}"
                                Foreground="{Binding StatusColor}"
@@ -63,14 +132,44 @@
 
             </StatusBar>
         </Border>
-
-        <!-- MAIN CONTENT -->
+    
+        
+        <!--
+            Main content area.
+            - Displays a simple instruction message
+            - Will host dynamic views (door selection, simulation UI, etc.)
+        -->
         <Grid>
-            <TextBlock Text="{Binding MainMessage}"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       FontSize="22"
-                       Foreground="#CCCCCC"/>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="220"/>
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0"
+               Text="{Binding MainMessage}"
+               HorizontalAlignment="Center"
+               VerticalAlignment="Center"
+               FontSize="22"
+               Foreground="#CCCCCC"
+               TextWrapping="Wrap"
+               TextAlignment="Center"
+               MaxWidth="850"/>
+
+            <views:CardholdersView Grid.Row="1"
+                       DataContext="{Binding Cardholders}">
+                <views:CardholdersView.Style>
+                    <Style TargetType="views:CardholdersView">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding DataContext.IsConnected, RelativeSource={RelativeSource AncestorType=Window}}"
+                             Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </views:CardholdersView.Style>
+            </views:CardholdersView>
         </Grid>
 
     </DockPanel>
