@@ -148,14 +148,116 @@ public class SoftwireService : ISoftwireService
             using var doorDocument = JsonDocument.Parse(doorJson);
             var door = doorDocument.RootElement;
 
+            bool hasDoorSensor = false;
+            string doorSensorPath = "";
+            bool hasLock = false;
+
+            // Look through Roles to find OpenSensor
+            if (door.TryGetProperty("Roles", out var roles))
+            {
+                foreach (var role in roles.EnumerateArray())
+                {
+                    if (role.TryGetProperty("Type", out var type))
+                    {
+                        if (type.TryGetProperty("OpenSensor", out var openSensor))
+                        {
+                            hasDoorSensor = true;
+
+                            if (openSensor.TryGetProperty("Device", out var device))
+                            {
+                                doorSensorPath = device.GetString() ?? "";
+                            }
+                        }
+
+                        if (type.TryGetProperty("Strike", out var strike))
+                        {
+                            hasLock = true;
+                        }
+                    }
+                }
+            }
+
             doors.Add(new SoftwireDoor
             {
+                Href = href,
                 Id = door.TryGetProperty("Id", out var id) ? id.GetString() ?? "" : "",
                 Name = door.TryGetProperty("Name", out var name) ? name.GetString() ?? "" : "",
-                DoorIsLocked = door.TryGetProperty("IsLocked", out var locked) && locked.GetBoolean()
+                DoorIsLocked = door.TryGetProperty("IsLocked", out var locked) && locked.GetBoolean(),
+                UnlockedForMaintenance = door.TryGetProperty("UnlockedForMaintenance", out var maintenance)
+                         && maintenance.GetBoolean(),
+                HasDoorSensor = hasDoorSensor,
+                HasLock = hasLock,
+                DoorSensorDevicePath = doorSensorPath
             });
         }
 
         return doors.OrderBy(d => d.Name).ToList();
     }
+
+    // Retrieves the current active/inactive state of a Softwire input device.
+    // For door sensors, Active usually means the input is active/open.
+    public async Task<bool> GetInputStateAsync(string devicePath)
+    {
+        if (_client == null || string.IsNullOrWhiteSpace(devicePath))
+            return false;
+
+        var response = await _client.GetAsync(devicePath);
+
+        if (!response.IsSuccessStatusCode)
+            return false;
+
+        var json = await response.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        if (root.TryGetProperty("Input", out var input) &&
+            input.TryGetProperty("Active", out var active))
+        {
+            return active.GetBoolean();
+        }
+
+        return false;
+    }
+
+    // Sets the state of a simulated Softwire input.
+    // Used to simulate opening/closing a door sensor.
+    public async Task<bool> SetInputStateAsync(string inputPointer, string state)
+    {
+        if (_client == null || string.IsNullOrWhiteSpace(inputPointer))
+            return false;
+
+        var match = System.Text.RegularExpressions.Regex.Match(
+            inputPointer,
+            @"/Devices/Bus/(.+)/Iface/([^/]+)/(.*)");
+
+        if (!match.Success)
+            return false;
+
+        var bus = match.Groups[1].Value;
+        var iface = match.Groups[2].Value;
+
+        var uri = $"/{bus}/{iface}/Input";
+
+        var body = new
+        {
+            Input = inputPointer,
+            State = new Dictionary<string, object[]>
+            {
+                [state] = Array.Empty<object>()
+            }
+        };
+
+        var json = JsonSerializer.Serialize(body);
+
+        var content = new StringContent(
+            json,
+            Encoding.UTF8,
+            "application/json");
+
+        var response = await _client.PutAsync(uri, content);
+
+        return response.IsSuccessStatusCode;
+    }
+
 }

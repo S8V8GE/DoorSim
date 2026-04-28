@@ -5,6 +5,7 @@ using DoorSim.Views;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
+using System.IO;
 
 namespace DoorSim.ViewModels;
 
@@ -29,9 +30,6 @@ public partial class MainViewModel : ObservableObject
     // Reference to the main window (used to own popup dialogs)
     private readonly Window _owner;
 
-    // Timer used to periodically check Softwire connection
-    private DispatcherTimer? _connectionTimer;
-
     // Service used to retrieve cardholders from the Directory SQL database
     private readonly CardholderSqlService _cardholderSqlService = new CardholderSqlService();
 
@@ -43,6 +41,12 @@ public partial class MainViewModel : ObservableObject
 
     // ViewModel for the door selector and door display area
     public DoorsViewModel Doors { get; } = new DoorsViewModel();
+
+    // Timer used to periodically check Softwire connection and update cardholders and doors (slow updates - every 3 seconds as below)
+    private DispatcherTimer? _connectionTimer;
+
+    // Timer for polling the selected door state (fast updates - every 1 second as below, hoping I dont either melt the VM or crash Softwire... If this comment still exists all was ok...)
+    private DispatcherTimer? _selectedDoorTimer;
 
     // Indicates whether the application is currently connected to Softwire
     [ObservableProperty]
@@ -141,6 +145,46 @@ public partial class MainViewModel : ObservableObject
         _connectionTimer.Start();
     }
 
+    // Starts a fast timer to refresh the selected door state every second
+    private void StartSelectedDoorMonitoring()
+    {
+        _selectedDoorTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(1)
+        };
+
+        _selectedDoorTimer.Tick += async (s, e) =>
+        {
+            if (!IsConnected || Doors.SelectedDoor == null)
+                return;
+
+            // TODO: Replace with real API call for single door
+            var updatedDoors = await _softwireService.GetDoorsAsync();
+
+            var updated = updatedDoors
+                .FirstOrDefault(d => d.Id == Doors.SelectedDoor.Id);
+
+            if (updated != null)
+            {
+                var isOpen = false;
+
+                if (!string.IsNullOrWhiteSpace(Doors.SelectedDoor.DoorSensorDevicePath))
+                {
+                    isOpen = await _softwireService.GetInputStateAsync(
+                        Doors.SelectedDoor.DoorSensorDevicePath);
+                }
+
+                Doors.UpdateSelectedDoorState(updated.DoorIsLocked, isOpen);
+            }
+            else
+            {
+                Doors.SelectedDoor = null;
+            }
+        };
+
+        _selectedDoorTimer.Start();
+    }
+
     // --- Commands (triggered by user actions in the UI) ---
     // Opens the connection dialog, attempts to log in to Softwire,
     // and updates the UI based on success or failure.
@@ -212,6 +256,9 @@ public partial class MainViewModel : ObservableObject
         }
 
         // Start connection monitoring only after the initial load attempt
+        // this one will check every 3 seconds that the connection to Softwire is still alive, and updates the cardholders and doors if it is. If the connection is lost, it resets the UI to the disconnected state.
         StartConnectionMonitoring();
+        // this one will check every second for updates to the selected door (e.g., if it was locked/unlocked from another client or the Config Tool), and updates the door state in the UI accordingly.
+        StartSelectedDoorMonitoring();
     }
 }

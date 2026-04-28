@@ -8,6 +8,7 @@ public class SoftwireDoor
     // Door Id and Name
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
+    public string Href { get; set; } = string.Empty;
 
     // Door Hardware
     public bool HasDoorSensor { get; set; }
@@ -22,6 +23,11 @@ public class SoftwireDoor
     // Door status
     public bool DoorSensorIsOpen { get; set; }
     public bool DoorIsLocked { get; set; }
+    public bool UnlockedForMaintenance { get; set; }
+
+    // Softwire input path for the door sensor.
+    // Example: /Devices/Bus/Sim/Port_A/Iface/1/Input/IN_01
+    public string DoorSensorDevicePath { get; set; } = string.Empty;
 
     // Controls how the door appears in ComboBoxes
     public override string ToString() 

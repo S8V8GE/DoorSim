@@ -1,6 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using DoorSim.Models;
 using System.Collections.ObjectModel;
+using System.Windows.Media;
 
 namespace DoorSim.ViewModels;
 
@@ -38,31 +39,66 @@ public partial class DoorsViewModel : ObservableObject
     [ObservableProperty]
     private int doorCount;
 
+    // Colors... cause we like colors!
+    private static readonly Brush GoodBrush = new SolidColorBrush(Color.FromRgb(40, 200, 120)); // green
+    private static readonly Brush BadBrush = new SolidColorBrush(Color.FromRgb(220, 80, 80));  // red
+    private static readonly Brush WarningBrush = new SolidColorBrush(Color.FromRgb(255, 165, 0)); // orange
+    private static readonly Brush NeutralBrush = new SolidColorBrush(Color.FromRgb(200, 200, 200)); // default
+
+    // Image shown for the selected door.
+    // Later this will reflect the real door sensor state from Softwire.
+    public string DoorImagePath
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return "";
+
+            return SelectedDoor.DoorSensorIsOpen
+                ? "/Images/Door_Open.png"
+                : "/Images/Door_Closed.png";
+        }
+    }
+
     // Loads doors into the ViewModel and preserves selection if possible
     public void LoadDoors(IEnumerable<SoftwireDoor> loadedDoors)
     {
-        // Store the previously selected door ID (if any)
-        // This allows us to restore selection after a refresh
-        var previousSelectedDoorId = SelectedDoor?.Id;
+        var previousSelectedDoor = SelectedDoor;
+        var previousSelectedDoorId = previousSelectedDoor?.Id;
 
-        // Replace the collection with a sorted list of doors
         Doors = new ObservableCollection<SoftwireDoor>(
             loadedDoors.OrderBy(d => d.Name));
 
-        // Update flag indicating whether any doors exist
         HasDoors = Doors.Any();
         DoorCount = Doors.Count;
 
-        // Attempt to restore previously selected door
         if (!string.IsNullOrWhiteSpace(previousSelectedDoorId))
         {
-            SelectedDoor = Doors.FirstOrDefault(d => d.Id == previousSelectedDoorId);
+            var refreshedSelectedDoor = Doors.FirstOrDefault(d => d.Id == previousSelectedDoorId);
+
+            if (refreshedSelectedDoor != null && previousSelectedDoor != null)
+            {
+                // Preserve fast-polled live state so the image does not flicker
+                refreshedSelectedDoor.DoorSensorIsOpen = previousSelectedDoor.DoorSensorIsOpen;
+
+                // Preserve current display state until the 1-second poll updates it
+                refreshedSelectedDoor.DoorIsLocked = previousSelectedDoor.DoorIsLocked;
+                refreshedSelectedDoor.UnlockedForMaintenance = previousSelectedDoor.UnlockedForMaintenance;
+            }
+
+            SelectedDoor = refreshedSelectedDoor;
         }
         else
         {
-            // No previous selection → leave unselected
             SelectedDoor = null;
         }
+
+        OnPropertyChanged(nameof(DoorImagePath));
+        OnPropertyChanged(nameof(DoorLockStatusText));
+        OnPropertyChanged(nameof(DoorSensorStatusText));
+        OnPropertyChanged(nameof(DoorActionTooltip));
+        OnPropertyChanged(nameof(DoorLockStatusColor));
+        OnPropertyChanged(nameof(DoorSensorStatusColor));
     }
 
     // Automatically called when SelectedDoor changes
@@ -70,5 +106,122 @@ public partial class DoorsViewModel : ObservableObject
     {
         // Update UI flag based on whether a door is selected
         HasSelectedDoor = value != null;
+
+        // Refresh anything that depends on the selected door
+        OnPropertyChanged(nameof(DoorImagePath));
+        OnPropertyChanged(nameof(DoorLockStatusText));
+        OnPropertyChanged(nameof(DoorSensorStatusText));
+        OnPropertyChanged(nameof(DoorActionTooltip));
+        OnPropertyChanged(nameof(DoorLockStatusColor));
+        OnPropertyChanged(nameof(DoorSensorStatusColor));
+    }
+
+    // Updates live state for the selected door and refreshes dependent UI properties
+    public void UpdateSelectedDoorState(bool doorIsLocked, bool doorSensorIsOpen)
+    {
+        if (SelectedDoor == null)
+            return;
+
+        var changed = false;
+
+        if (SelectedDoor.DoorIsLocked != doorIsLocked)
+        {
+            SelectedDoor.DoorIsLocked = doorIsLocked;
+            changed = true;
+        }
+
+        if (SelectedDoor.DoorSensorIsOpen != doorSensorIsOpen)
+        {
+            SelectedDoor.DoorSensorIsOpen = doorSensorIsOpen;
+            changed = true;
+        }
+
+        if (!changed)
+            return;
+
+        OnPropertyChanged(nameof(DoorImagePath));
+        OnPropertyChanged(nameof(DoorLockStatusText));
+        OnPropertyChanged(nameof(DoorSensorStatusText));
+        OnPropertyChanged(nameof(DoorActionTooltip));
+        OnPropertyChanged(nameof(DoorLockStatusColor));
+        OnPropertyChanged(nameof(DoorSensorStatusColor));
+    }
+
+    public string DoorLockStatusText
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return "";
+
+            if (!SelectedDoor.HasLock)
+                return "No door lock configured";
+
+            if (SelectedDoor.UnlockedForMaintenance)
+                return "Maintenance mode";
+
+            return SelectedDoor.DoorIsLocked ? "Locked" : "Unlocked";
+        }
+    }
+
+    public string DoorSensorStatusText
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return "";
+
+            if (!SelectedDoor.HasDoorSensor)
+                return "No door sensor configured";
+
+            return SelectedDoor.DoorSensorIsOpen ? "Open" : "Closed";
+        }
+    }
+
+    public string DoorActionTooltip
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return "";
+
+            if (!SelectedDoor.HasDoorSensor)
+                return "No door sensor configured";
+
+            return SelectedDoor.DoorSensorIsOpen
+                ? "Close door"
+                : "Open door";
+        }
+    }
+
+    public Brush DoorLockStatusColor
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return NeutralBrush;
+
+            if (!SelectedDoor.HasLock)
+                return WarningBrush;
+
+            if (SelectedDoor.UnlockedForMaintenance)
+                return WarningBrush;
+
+            return SelectedDoor.DoorIsLocked ? BadBrush : GoodBrush;
+        }
+    }
+
+    public Brush DoorSensorStatusColor
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return NeutralBrush;
+
+            if (!SelectedDoor.HasDoorSensor)
+                return WarningBrush;
+
+            return SelectedDoor.DoorSensorIsOpen ? BadBrush : GoodBrush;
+        }
     }
 }

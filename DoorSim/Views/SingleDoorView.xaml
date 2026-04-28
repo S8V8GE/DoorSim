@@ -4,39 +4,91 @@
              Background="#1E1E1E"
              Foreground="White">
 
-    <!--
-    Single door display view.
+    <Grid Margin="20">
 
-    Responsible for:
-    - Showing the currently selected door
-    - Later displaying door hardware visually
-      (readers, REX, break glass, lock, sensor, etc.)
-
-    This is currently a placeholder.
-    -->
-
-    <Grid>
         <Border BorderBrush="#3F3F46"
                 BorderThickness="1"
                 CornerRadius="6"
                 Padding="20"
-                Margin="20"
                 HorizontalAlignment="Stretch"
                 VerticalAlignment="Stretch">
 
-            <StackPanel HorizontalAlignment="Center">
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Top">
 
+                <!-- Door name -->
                 <TextBlock Text="{Binding SelectedDoor.Name}"
-                           FontSize="26"
+                           FontSize="30"
                            FontWeight="Bold"
                            Foreground="#CCCCCC"
                            HorizontalAlignment="Center"/>
 
-                <TextBlock Text="Single door visual will appear here"
-                           FontSize="16"
-                           Foreground="#888888"
-                           Margin="0,12,0,0"
-                           HorizontalAlignment="Center"/>
+                <!-- Door status area -->
+                <Grid HorizontalAlignment="Center"
+                      Margin="0,12,0,0">
+
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="120"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Door Lock -->
+                    <TextBlock Grid.Row="0"
+                               Grid.Column="0"
+                               Text="Door Lock:"
+                               FontSize="14"
+                               FontWeight="Bold"
+                               Foreground="#CCCCCC"
+                               Margin="0,0,8,5"/>
+
+                    <TextBlock Grid.Row="0"
+                               Grid.Column="1"
+                               Text="{Binding DoorLockStatusText}"
+                               FontSize="14"
+                               Foreground="{Binding DoorLockStatusColor}"
+                               Margin="0,0,0,5"/>       
+
+                    <!-- Door Sensor -->
+                    <TextBlock Grid.Row="1"
+                               Grid.Column="0"
+                               Text="Door Sensor:"
+                               FontSize="14"
+                               FontWeight="Bold"
+                               Foreground="#CCCCCC"
+                               Margin="0,0,8,0"/>
+
+                    <TextBlock Grid.Row="1"
+                               Grid.Column="1"
+                               Text="{Binding DoorSensorStatusText}"
+                               FontSize="14"
+                               Foreground="{Binding DoorSensorStatusColor}"/>
+
+                </Grid>
+
+                <Image x:Name="DoorImage"
+                       Source="{Binding DoorImagePath}"
+                       Width="220"
+                       Height="220"
+                       Margin="0,30,0,0"
+                       Stretch="Uniform"
+                       Cursor="Hand"
+                       MouseLeftButtonUp="DoorImage_MouseLeftButtonUp"
+                       MouseLeave="DoorImage_MouseLeave"
+                       RenderOptions.BitmapScalingMode="HighQuality"
+                       SnapsToDevicePixels="True">
+
+                    <Image.ToolTip>
+                        <ToolTip DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                            <TextBlock Text="{Binding DoorActionTooltip}"/>
+                        </ToolTip>
+                    </Image.ToolTip>
+
+                </Image>
 
             </StackPanel>
         </Border>

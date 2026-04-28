@@ -10,6 +10,8 @@
 
   <ItemGroup>
     <None Remove="Images\AppIcon.ico" />
+    <None Remove="Images\Door_Closed.png" />
+    <None Remove="Images\Door_Open.png" />
   </ItemGroup>
 
   <ItemGroup>
@@ -19,6 +21,8 @@
 
   <ItemGroup>
     <Resource Include="Images\AppIcon.ico" />
+    <Resource Include="Images\Door_Closed.png" />
+    <Resource Include="Images\Door_Open.png" />
   </ItemGroup>
 
 </Project>

@@ -23,4 +23,9 @@ public interface ISoftwireService
     Task<bool> CheckConnectionAsync();
 
     Task<List<SoftwireDoor>> GetDoorsAsync();
+
+    Task<bool> GetInputStateAsync(string devicePath);
+
+    Task<bool> SetInputStateAsync(string inputPointer, string state);
+
 }
