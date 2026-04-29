@@ -180,12 +180,25 @@
                                     VerticalAlignment="Bottom"
                                     Visibility="{Binding InReaderVisibility}">
 
-                            <Image Source="{Binding ReaderImagePath}"
-                                   Width="90"
-                                   Height="90"
-                                   Stretch="Uniform"
-                                   RenderOptions.BitmapScalingMode="HighQuality"
-                                   SnapsToDevicePixels="True"/>
+                            <Grid Width="90"
+                                    Height="90">
+
+                                <Image Source="{Binding ReaderImagePath}"
+                                       Width="90"
+                                       Height="90"
+                                       Stretch="Uniform"
+                                       RenderOptions.BitmapScalingMode="HighQuality"
+                                       SnapsToDevicePixels="True"/>
+
+                                <!-- Reader LED overlay -->
+                                <Border Width="35"
+                                        Height="12"
+                                        CornerRadius="3"
+                                        Background="Red"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Top"
+                                        Margin="0,12,0,0"/>
+                            </Grid>
 
                             <TextBlock Text="In Reader"
                                        FontWeight="Bold"
@@ -240,12 +253,25 @@
                                     VerticalAlignment="Bottom"
                                     Visibility="{Binding OutReaderVisibility}">
 
-                            <Image Source="{Binding ReaderImagePath}"
-                                   Width="90"
-                                   Height="90"
-                                   Stretch="Uniform"
-                                   RenderOptions.BitmapScalingMode="HighQuality"
-                                   SnapsToDevicePixels="True"/>
+                            <Grid Width="90"
+                                  Height="90">
+
+                                <Image Source="{Binding ReaderImagePath}"
+                                       Width="90"
+                                       Height="90"
+                                       Stretch="Uniform"
+                                       RenderOptions.BitmapScalingMode="HighQuality"
+                                       SnapsToDevicePixels="True"/>
+
+                                <!-- Reader LED overlay -->
+                                <Border Width="35"
+                                        Height="12"
+                                        CornerRadius="3"
+                                        Background="Red"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Top"
+                                        Margin="0,12,0,0"/>
+                            </Grid>
 
                             <TextBlock Text="Out Reader"
                                        FontWeight="Bold"
