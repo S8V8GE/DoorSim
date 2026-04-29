@@ -51,7 +51,7 @@
                                Text="{Binding DoorLockStatusText}"
                                FontSize="14"
                                Foreground="{Binding DoorLockStatusColor}"
-                               Margin="0,0,0,5"/>       
+                               Margin="0,0,0,5"/>
 
                     <!-- Door Sensor -->
                     <TextBlock Grid.Row="1"
@@ -70,25 +70,221 @@
 
                 </Grid>
 
-                <Image x:Name="DoorImage"
-                       Source="{Binding DoorImagePath}"
-                       Width="220"
-                       Height="220"
-                       Margin="0,30,0,0"
-                       Stretch="Uniform"
-                       Cursor="Hand"
-                       MouseLeftButtonUp="DoorImage_MouseLeftButtonUp"
-                       MouseLeave="DoorImage_MouseLeave"
-                       RenderOptions.BitmapScalingMode="HighQuality"
-                       SnapsToDevicePixels="True">
+                <!-- ############################### START OF HARDWARE LAYOUT ############################### -->
 
-                    <Image.ToolTip>
-                        <ToolTip DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
-                            <TextBlock Text="{Binding DoorActionTooltip}"/>
-                        </ToolTip>
-                    </Image.ToolTip>
+                <!-- Hardware layout area -->
+                <Grid Margin="0,50,0,0"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Top">  
 
-                </Image>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="200"/>
+                        <ColumnDefinition Width="230"/>
+                        <ColumnDefinition Width="200"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- No-side REX:
+                         Appears above the normal left-side devices.
+                         Kept separate from the main left-side device row so it does not push the door/readers down. -->
+                    <StackPanel Grid.Column="0"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Margin="0,-40,12,0"
+                                Visibility="{Binding NoSideRexVisibility}">
+
+                        <Image Source="{Binding RexImagePath}"
+                               Width="78"
+                               Height="90"
+                               Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               SnapsToDevicePixels="True"/>
+
+                        <TextBlock Text="REX (No Side)"
+                                   FontWeight="Bold"
+                                   Foreground="#CCCCCC"
+                                   HorizontalAlignment="Center"/>
+
+                        <TextBlock Text="Online"
+                                   Foreground="#CCCCCC"
+                                   HorizontalAlignment="Center"/>
+                    </StackPanel>
+
+                    <!-- Breakglass:
+                         Positioned manually above Out Reader.
+                         Mirrors the no-side REX layout on the opposite side. -->
+                    <StackPanel Grid.Column="2"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Top"
+                                Margin="15,-40,0,0"
+                                Visibility="{Binding BreakGlassVisibility}">
+
+                        <Image Source="{Binding BreakGlassImagePath}"
+                               Width="78"
+                               Height="90"
+                               Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               SnapsToDevicePixels="True"/>
+
+                        <TextBlock Text="Breakglass"
+                                   FontWeight="Bold"
+                                   Foreground="#CCCCCC"
+                                   HorizontalAlignment="Center"/>
+
+                        <TextBlock Text="Normal"
+                                   Foreground="#CCCCCC"
+                                   HorizontalAlignment="Center"/>
+                    </StackPanel>
+
+                    <!-- Left side devices -->
+                    <Grid Grid.Column="0"
+                          VerticalAlignment="Top"
+                          Margin="0,85,6,0"
+                          HorizontalAlignment="Right">
+
+                        <!-- Fixed slots prevent devices moving unpredictably when one is missing.
+                             Column 0 = outside position
+                             Column 1 = closest to the door -->
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="90"/>
+                            <ColumnDefinition Width="90"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- In REX:
+                             If In Reader exists, REX appears outside.
+                             If no In Reader exists, REX moves into the near-door slot. -->
+                        <StackPanel Grid.Column="{Binding InRexColumn}"
+                                    Margin="0"
+                                    VerticalAlignment="Bottom"
+                                    Visibility="{Binding InRexVisibility}">
+
+                            <Image Source="{Binding RexImagePath}"
+                                   Width="78"
+                                   Height="90"
+                                   Stretch="Uniform"
+                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                   SnapsToDevicePixels="True"/>
+
+                            <TextBlock Text="In REX"
+                                       FontWeight="Bold"
+                                       Foreground="#CCCCCC"
+                                       HorizontalAlignment="Center"/>
+
+                            <TextBlock Text="Online"
+                                       Foreground="#CCCCCC"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
+
+                        <!-- In Reader:
+                            Always occupies the near-door slot when present. -->
+                        <StackPanel Grid.Column="1"
+                                    VerticalAlignment="Bottom"
+                                    Visibility="{Binding InReaderVisibility}">
+
+                            <Image Source="{Binding ReaderImagePath}"
+                                   Width="90"
+                                   Height="90"
+                                   Stretch="Uniform"
+                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                   SnapsToDevicePixels="True"/>
+
+                            <TextBlock Text="In Reader"
+                                       FontWeight="Bold"
+                                       Foreground="#CCCCCC"
+                                       HorizontalAlignment="Center"/>
+
+                            <TextBlock Text="Online"
+                                       Foreground="#CCCCCC"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Door image: always centred and high(ish) -->
+                    <Image Grid.Column="1"
+                           x:Name="DoorImage"
+                           Source="{Binding DoorImagePath}"
+                           Width="220"
+                           Height="220"
+                           Margin="0,15,0,0"
+                           Stretch="Uniform"
+                           Cursor="Hand"
+                           MouseLeftButtonUp="DoorImage_MouseLeftButtonUp"
+                           MouseLeave="DoorImage_MouseLeave"
+                           RenderOptions.BitmapScalingMode="HighQuality"
+                           SnapsToDevicePixels="True">
+
+                        <Image.ToolTip>
+                            <ToolTip DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                <TextBlock Text="{Binding DoorActionTooltip}"/>
+                            </ToolTip>
+                        </Image.ToolTip>
+                    </Image>
+
+                    <!-- Right side devices -->
+                    <Grid Grid.Column="2"
+                          VerticalAlignment="Top"
+                          Margin="8,85,0,0"
+                          HorizontalAlignment="Left">
+
+                        <!-- Fixed slots prevent devices moving unpredictably when one is missing.
+                             Column 0 = closest to the door
+                             Column 1 = outside position -->
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="90"/>
+                            <ColumnDefinition Width="90"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Out Reader:
+                             Always occupies the near-door slot when present. -->
+                        <StackPanel Grid.Column="0"
+                                    Margin="0"
+                                    VerticalAlignment="Bottom"
+                                    Visibility="{Binding OutReaderVisibility}">
+
+                            <Image Source="{Binding ReaderImagePath}"
+                                   Width="90"
+                                   Height="90"
+                                   Stretch="Uniform"
+                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                   SnapsToDevicePixels="True"/>
+
+                            <TextBlock Text="Out Reader"
+                                       FontWeight="Bold"
+                                       Foreground="#CCCCCC"
+                                       HorizontalAlignment="Center"/>
+
+                            <TextBlock Text="Online"
+                                       Foreground="#CCCCCC"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
+
+                        <!-- Out REX:
+                             If Out Reader exists, REX appears outside.
+                             If no Out Reader exists, REX moves into the near-door slot. -->
+                        <StackPanel Grid.Column="{Binding OutRexColumn}"
+                                    VerticalAlignment="Bottom"
+                                    Visibility="{Binding OutRexVisibility}">
+
+                            <Image Source="{Binding RexImagePath}"
+                                   Width="78"
+                                   Height="90"
+                                   Stretch="Uniform"
+                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                   SnapsToDevicePixels="True"/>
+
+                            <TextBlock Text="Out REX"
+                                       FontWeight="Bold"
+                                       Foreground="#CCCCCC"
+                                       HorizontalAlignment="Center"/>
+
+                            <TextBlock Text="Online"
+                                       Foreground="#CCCCCC"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+
+                </Grid>
+
+                <!-- ############################### END OF HARDWARE LAYOUT ############################### -->
 
             </StackPanel>
         </Border>

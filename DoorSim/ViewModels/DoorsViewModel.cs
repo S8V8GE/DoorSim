@@ -2,6 +2,7 @@
 using DoorSim.Models;
 using System.Collections.ObjectModel;
 using System.Windows.Media;
+using System.Windows;
 
 namespace DoorSim.ViewModels;
 
@@ -39,7 +40,48 @@ public partial class DoorsViewModel : ObservableObject
     [ObservableProperty]
     private int doorCount;
 
-    // Colors... cause we like colors!
+    // --- Device visibility ---
+    public Visibility InReaderVisibility =>
+        SelectedDoor?.HasReaderSideIn == true ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility OutReaderVisibility =>
+        SelectedDoor?.HasReaderSideOut == true ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility InRexVisibility =>
+        SelectedDoor?.HasRexSideIn == true ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility OutRexVisibility =>
+        SelectedDoor?.HasRexSideOut == true ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility NoSideRexVisibility =>
+        SelectedDoor?.HasRexNoSide == true ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility BreakGlassVisibility =>
+    SelectedDoor?.HasBreakGlass == true ? Visibility.Visible : Visibility.Collapsed;
+
+    // --- Device layout slots ---
+    //
+    // Left side layout:
+    // Column 0 = outside position
+    // Column 1 = closest to the door
+    //
+    // If an In Reader exists, In REX stays outside.
+    // If no In Reader exists, In REX moves closest to the door.
+    public int InRexColumn =>
+        SelectedDoor?.HasReaderSideIn == true ? 0 : 1;
+
+    // Right side layout:
+    // Column 0 = closest to the door
+    // Column 1 = outside position
+    //
+    // If an Out Reader exists, Out REX stays outside.
+    // If no Out Reader exists, Out REX moves closest to the door.
+    public int OutRexColumn =>
+        SelectedDoor?.HasReaderSideOut == true ? 1 : 0;
+
+    // --- Device image paths ---
+    public string ReaderImagePath => "/Images/Reader.png";
+
+    public string RexImagePath => "/Images/REX_Normal.png";
+
+    public string BreakGlassImagePath => "/Images/Breakglass_Normal.png";
+
+    // Colors... cause we like colors, don't we Barry :)
     private static readonly Brush GoodBrush = new SolidColorBrush(Color.FromRgb(40, 200, 120)); // green
     private static readonly Brush BadBrush = new SolidColorBrush(Color.FromRgb(220, 80, 80));  // red
     private static readonly Brush WarningBrush = new SolidColorBrush(Color.FromRgb(255, 165, 0)); // orange
@@ -114,6 +156,17 @@ public partial class DoorsViewModel : ObservableObject
         OnPropertyChanged(nameof(DoorActionTooltip));
         OnPropertyChanged(nameof(DoorLockStatusColor));
         OnPropertyChanged(nameof(DoorSensorStatusColor));
+        OnPropertyChanged(nameof(InReaderVisibility));
+        OnPropertyChanged(nameof(OutReaderVisibility));
+        OnPropertyChanged(nameof(InRexVisibility));
+        OnPropertyChanged(nameof(OutRexVisibility));
+        OnPropertyChanged(nameof(NoSideRexVisibility));
+        OnPropertyChanged(nameof(ReaderImagePath));
+        OnPropertyChanged(nameof(RexImagePath));
+        OnPropertyChanged(nameof(BreakGlassVisibility));
+        OnPropertyChanged(nameof(BreakGlassImagePath));
+        OnPropertyChanged(nameof(InRexColumn));
+        OnPropertyChanged(nameof(OutRexColumn));
     }
 
     // Updates live state for the selected door and refreshes dependent UI properties
@@ -207,7 +260,7 @@ public partial class DoorsViewModel : ObservableObject
             if (SelectedDoor.UnlockedForMaintenance)
                 return WarningBrush;
 
-            return SelectedDoor.DoorIsLocked ? BadBrush : GoodBrush;
+            return SelectedDoor.DoorIsLocked ? GoodBrush : BadBrush;
         }
     }
 

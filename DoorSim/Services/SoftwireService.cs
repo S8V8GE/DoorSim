@@ -23,9 +23,7 @@ namespace DoorSim.Services;
 // knowing how the HTTP communication works.
 
 
-// Concrete implementation of ISoftwireService.
-// Encapsulates all HTTP logic required to interact with Softwire.
-public class SoftwireService : ISoftwireService
+public class SoftwireService : ISoftwireService 
 {
     // --- Internal HTTP state ---
     // These maintain the connection/session with Softwire.
@@ -110,26 +108,46 @@ public class SoftwireService : ISoftwireService
         }
     }
 
-    // Retrieves doors from Softwire.
-    // First gets the door list, then follows each Href to retrieve full door details.
+    // Retrieves doors from Softwire and maps the raw JSON into clean SoftwireDoor objects.
+    //
+    // Softwire door data is split across:
+    // - The door list endpoint (/Doors/)
+    // - Each door detail endpoint (Href)
+    // - The Roles array inside each door detail response
+    //
+    // This method extracts high-level door information plus hardware role information
+    // such as lock, door sensor, readers, and reader modes.
     public async Task<List<SoftwireDoor>> GetDoorsAsync()
     {
+        // Collection that will hold all parsed doors returned to the UI.
         var doors = new List<SoftwireDoor>();
 
+        // If we are not connected (no HTTP client), return an empty list.
+        // Prevents null reference issues and keeps calling code simple.
         if (_client == null)
             return doors;
 
+        // Step 1: Retrieve the list of doors from Softwire.
+        // This endpoint only returns summary objects (including Href),
+        // not the full door configuration.
         var listResponse = await _client.GetAsync("/Doors/");
 
+        // If the request failed, return an empty list.
+        // We don't throw here because the UI handles "no doors" gracefully.
         if (!listResponse.IsSuccessStatusCode)
             return doors;
 
+        // Read and parse the door list JSON response.
         var listJson = await listResponse.Content.ReadAsStringAsync();
 
         using var listDocument = JsonDocument.Parse(listJson);
 
+        // Step 2: Iterate through each door summary.
+        // Each item contains an Href that points to full door details.
         foreach (var item in listDocument.RootElement.EnumerateArray())
         {
+            // Extract the Href for the full door configuration.
+            // If missing, skip this entry.
             if (!item.TryGetProperty("Href", out var hrefProperty))
                 continue;
 
@@ -138,27 +156,63 @@ public class SoftwireService : ISoftwireService
             if (string.IsNullOrWhiteSpace(href))
                 continue;
 
+            // Step 3: Retrieve the full door configuration using the Href.
             var doorResponse = await _client.GetAsync(href);
 
+            // Skip this door if the detail request failed.
             if (!doorResponse.IsSuccessStatusCode)
                 continue;
 
             var doorJson = await doorResponse.Content.ReadAsStringAsync();
 
+            // Parse the full door JSON.
+            // This contains Roles, hardware mappings, and state information.
             using var doorDocument = JsonDocument.Parse(doorJson);
             var door = doorDocument.RootElement;
 
+            // Hardware role flags and device paths extracted from the Roles array. These are reset for each door being parsed.
+            // Door Sensor
             bool hasDoorSensor = false;
             string doorSensorPath = "";
+
+            // Lock/Strike
             bool hasLock = false;
 
-            // Look through Roles to find OpenSensor
+            // Readers (Side A/In and Side B/Out)
+            bool hasReaderSideIn = false;
+            bool hasReaderSideOut = false;
+            string readerSideInPath = "";
+            string readerSideOutPath = "";
+            bool inReaderRequiresCardAndPin = false;
+            bool outReaderRequiresCardAndPin = false;
+
+            // REX (Request to Exit) devices
+            bool hasRexSideIn = false;
+            bool hasRexSideOut = false;
+            bool hasRexNoSide = false;
+            string rexSideInPath = "";
+            string rexSideOutPath = "";
+            string rexNoSidePath = "";
+
+            // Breakglass (ManualStation - whatever that naming is?)
+            bool hasBreakGlass = false;
+            string breakGlassPath = "";
+
+            // Inspect each role assigned to the door.
+            // Roles describe which Softwire devices are acting as:
+            // - OpenSensor
+            // - Strike
+            // - ReaderAuth
+            // - REX
+            // - Breakglass / Manual station
             if (door.TryGetProperty("Roles", out var roles))
             {
                 foreach (var role in roles.EnumerateArray())
                 {
                     if (role.TryGetProperty("Type", out var type))
                     {
+                        // Door sensor role.
+                        // Provides the input path used later to read open/closed state.
                         if (type.TryGetProperty("OpenSensor", out var openSensor))
                         {
                             hasDoorSensor = true;
@@ -169,14 +223,124 @@ public class SoftwireService : ISoftwireService
                             }
                         }
 
+                        // Strike role.
+                        // Indicates that the door has a lock/strike configured.
                         if (type.TryGetProperty("Strike", out var strike))
                         {
                             hasLock = true;
+                        }
+
+                        // Reader role.
+                        // Provides the reader device path, side (A/In or B/Out),
+                        // and whether the reader is configured for Card + PIN.
+                        if (type.TryGetProperty("ReaderAuth", out var readerAuth))
+                        {
+                            var side = "";
+
+                            // Softwire uses Side A/B.
+                            // In this app I interpret A as In and B as Out.
+                            if (role.TryGetProperty("Side", out var roleSide))
+                            {
+                                if (roleSide.TryGetProperty("A", out _))
+                                    side = "A";
+
+                                if (roleSide.TryGetProperty("B", out _))
+                                    side = "B";
+                            }
+
+                            var readerPath = "";
+
+                            if (readerAuth.TryGetProperty("HardwareReader", out var hardwareReader))
+                            {
+                                readerPath = hardwareReader.GetString() ?? "";
+                            }
+
+                            // ReaderMode tells us whether this reader is Normal, CardAndPin, etc.
+                            var requiresCardAndPin = false;
+
+                            if (readerAuth.TryGetProperty("ReaderMode", out var readerMode))
+                            {
+                                requiresCardAndPin = readerMode.TryGetProperty("CardAndPin", out _);
+                            }
+
+                            if (side == "A")
+                            {
+                                hasReaderSideIn = true;
+                                readerSideInPath = readerPath;
+                                inReaderRequiresCardAndPin = requiresCardAndPin;
+                            }
+
+                            if (side == "B")
+                            {
+                                hasReaderSideOut = true;
+                                readerSideOutPath = readerPath;
+                                outReaderRequiresCardAndPin = requiresCardAndPin;
+                            }
+                        }
+
+                        // REX role.
+                        // Provides the input path used to simulate request-to-exit.
+                        // REX may be assigned to Side A, Side B, or no side (NA).
+                        if (type.TryGetProperty("REX", out var rex))
+                        {
+                            var side = "";
+
+                            // Softwire uses Side A/B/NA.
+                            // In this app I interpret A as In, B as Out, and NA as no side.
+                            if (role.TryGetProperty("Side", out var roleSide))
+                            {
+                                if (roleSide.TryGetProperty("A", out _))
+                                    side = "A";
+
+                                if (roleSide.TryGetProperty("B", out _))
+                                    side = "B";
+
+                                if (roleSide.TryGetProperty("NA", out _))
+                                    side = "NA";
+                            }
+
+                            var rexPath = "";
+
+                            if (rex.TryGetProperty("Device", out var device))
+                            {
+                                rexPath = device.GetString() ?? "";
+                            }
+
+                            if (side == "A")
+                            {
+                                hasRexSideIn = true;
+                                rexSideInPath = rexPath;
+                            }
+
+                            if (side == "B")
+                            {
+                                hasRexSideOut = true;
+                                rexSideOutPath = rexPath;
+                            }
+
+                            if (side == "NA")
+                            {
+                                hasRexNoSide = true;
+                                rexNoSidePath = rexPath;
+                            }
+                        }
+
+                        // Breakglass / manual station role.
+                        // Provides the input path used to detect or simulate emergency door release.
+                        if (type.TryGetProperty("ManualStation", out var manualStation))
+                        {
+                            hasBreakGlass = true;
+
+                            if (manualStation.TryGetProperty("Device", out var device))
+                            {
+                                breakGlassPath = device.GetString() ?? "";
+                            }
                         }
                     }
                 }
             }
 
+            // Convert the parsed JSON values into a clean UI-friendly model.
             doors.Add(new SoftwireDoor
             {
                 Href = href,
@@ -187,7 +351,21 @@ public class SoftwireService : ISoftwireService
                          && maintenance.GetBoolean(),
                 HasDoorSensor = hasDoorSensor,
                 HasLock = hasLock,
-                DoorSensorDevicePath = doorSensorPath
+                DoorSensorDevicePath = doorSensorPath,
+                HasReaderSideIn = hasReaderSideIn,
+                HasReaderSideOut = hasReaderSideOut,
+                ReaderSideInDevicePath = readerSideInPath,
+                ReaderSideOutDevicePath = readerSideOutPath,
+                InReaderRequiresCardAndPin = inReaderRequiresCardAndPin,
+                OutReaderRequiresCardAndPin = outReaderRequiresCardAndPin,
+                HasRexSideIn = hasRexSideIn,
+                HasRexSideOut = hasRexSideOut,
+                HasRexNoSide = hasRexNoSide,
+                RexSideInDevicePath = rexSideInPath,
+                RexSideOutDevicePath = rexSideOutPath,
+                RexNoSideDevicePath = rexNoSidePath,
+                HasBreakGlass = hasBreakGlass,
+                BreakGlassDevicePath = breakGlassPath
             });
         }
 
@@ -195,7 +373,12 @@ public class SoftwireService : ISoftwireService
     }
 
     // Retrieves the current active/inactive state of a Softwire input device.
-    // For door sensors, Active usually means the input is active/open.
+    //
+    // For door sensors:
+    // - Active usually means the door sensor input is active/open
+    // - Inactive usually means closed/normal
+    //
+    // Softwire returns this under: Input.Active
     public async Task<bool> GetInputStateAsync(string devicePath)
     {
         if (_client == null || string.IsNullOrWhiteSpace(devicePath))
@@ -220,8 +403,12 @@ public class SoftwireService : ISoftwireService
         return false;
     }
 
-    // Sets the state of a simulated Softwire input.
-    // Used to simulate opening/closing a door sensor.
+    // Softwire expects simulated input state changes to be sent to:
+    // /{bus}/{iface}/Input
+    //
+    // Example:
+    // Input pointer: /Devices/Bus/Sim/Port_A/Iface/1/Input/IN_01
+    // PUT URI:       /Sim/Port_A/1/Input
     public async Task<bool> SetInputStateAsync(string inputPointer, string state)
     {
         if (_client == null || string.IsNullOrWhiteSpace(inputPointer))
@@ -259,5 +446,9 @@ public class SoftwireService : ISoftwireService
 
         return response.IsSuccessStatusCode;
     }
+
+
+
+
 
 }

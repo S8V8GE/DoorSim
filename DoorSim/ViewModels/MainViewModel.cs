@@ -97,7 +97,7 @@ public partial class MainViewModel : ObservableObject
         return doors.Count;
     }
 
-    // Starts a timer that checks connection status every 5 seconds
+    // Starts a timer that checks connection status and refreshes doors/cardholders every 3 seconds
     private void StartConnectionMonitoring()
     {
         _connectionTimer = new DispatcherTimer
