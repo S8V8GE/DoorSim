@@ -2,15 +2,15 @@
 
 // Represents a door retrieved from Softwire.
 // This is the high-level door object used by the UI.
-// It will expand as I start to map more Softwire role/device information... WIP - JS 28th May 2026
+// It will expand as I start to map more Softwire role/device information... WIP - JS 29th May 2026
 public class SoftwireDoor
 {
-    // Door Id and Name
+    // Basic door identity returned by Softwire (Href used for API calls)
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Href { get; set; } = string.Empty;
 
-    // Door Hardware
+    // Hardware roles detected from the Softwire door Roles array
     public bool HasDoorSensor { get; set; }
     public bool HasLock { get; set; }
     public bool HasReaderSideIn { get; set; }
@@ -20,17 +20,26 @@ public class SoftwireDoor
     public bool HasRexNoSide { get; set; } 
     public bool HasBreakGlass { get; set; }
 
-    // are readers Card + PIN?
+    // Reader configuration (True when the reader mode is Card + PIN, False otherwise)
     public bool InReaderRequiresCardAndPin { get; set; }
     public bool OutReaderRequiresCardAndPin { get; set; }
 
-    // Door status
+    // Live door state
     public bool DoorSensorIsOpen { get; set; }
+    public bool DoorSensorIsShunted { get; set; }
     public bool DoorIsLocked { get; set; }
     public bool UnlockedForMaintenance { get; set; }
 
-    // Softwire input paths for door hardware. Example: /Devices/Bus/Sim/Port_A/Iface/1/Input/IN_01
-    
+    // Live REX input state
+    public bool RexSideInIsActive { get; set; }
+    public bool RexSideInIsShunted { get; set; }
+    public bool RexSideOutIsActive { get; set; }
+    public bool RexSideOutIsShunted { get; set; }
+    public bool RexNoSideIsActive { get; set; }
+    public bool RexNoSideIsShunted { get; set; }
+
+    // Softwire device paths used to query or change hardware state (Example: /Devices/Bus/Sim/Port_A/Iface/1/Input/IN_01)
+
     // Door Sensor
     public string DoorSensorDevicePath { get; set; } = string.Empty;
     
@@ -51,5 +60,4 @@ public class SoftwireDoor
     {
         return Name;
     }
-
 }

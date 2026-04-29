@@ -19,6 +19,12 @@ namespace DoorSim.ViewModels;
 // - SingleDoorView (visual representation of the selected door)
 public partial class DoorsViewModel : ObservableObject
 {
+    /*
+      #############################################################################
+                   Observable Properties for Door List and Selection
+      #############################################################################
+    */
+
     // Collection of all doors available from Softwire
     [ObservableProperty]
     private ObservableCollection<SoftwireDoor> doors = new ObservableCollection<SoftwireDoor>();
@@ -40,7 +46,26 @@ public partial class DoorsViewModel : ObservableObject
     [ObservableProperty]
     private int doorCount;
 
-    // --- Device visibility ---
+
+    /*
+      #############################################################################
+                                    Shared brushes
+      #############################################################################
+    */
+
+    // Shared UI colours used for live hardware status
+    private static readonly Brush GoodBrush = new SolidColorBrush(Color.FromRgb(40, 200, 120)); // green
+    private static readonly Brush BadBrush = new SolidColorBrush(Color.FromRgb(220, 80, 80));  // red
+    private static readonly Brush WarningBrush = new SolidColorBrush(Color.FromRgb(255, 165, 0)); // orange
+    private static readonly Brush NeutralBrush = new SolidColorBrush(Color.FromRgb(200, 200, 200)); // default
+
+
+    /*
+      #############################################################################
+                           Visibility properties for devices
+      #############################################################################
+    */
+
     public Visibility InReaderVisibility =>
         SelectedDoor?.HasReaderSideIn == true ? Visibility.Visible : Visibility.Collapsed;
     public Visibility OutReaderVisibility =>
@@ -54,41 +79,39 @@ public partial class DoorsViewModel : ObservableObject
     public Visibility BreakGlassVisibility =>
     SelectedDoor?.HasBreakGlass == true ? Visibility.Visible : Visibility.Collapsed;
 
-    // --- Device layout slots ---
-    //
+
+    /*
+      #############################################################################
+                           Layout slot properties for devices
+      #############################################################################
+    */
+
     // Left side layout:
-    // Column 0 = outside position
-    // Column 1 = closest to the door
-    //
-    // If an In Reader exists, In REX stays outside.
-    // If no In Reader exists, In REX moves closest to the door.
+    // Column 0 = outside position && Column 1 = closest to the door
+    // If an In Reader exists, In REX stays outside. If no In Reader exists, In REX moves closest to the door.
     public int InRexColumn =>
         SelectedDoor?.HasReaderSideIn == true ? 0 : 1;
 
     // Right side layout:
-    // Column 0 = closest to the door
-    // Column 1 = outside position
-    //
-    // If an Out Reader exists, Out REX stays outside.
-    // If no Out Reader exists, Out REX moves closest to the door.
+    // Column 0 = closest to the door && Column 1 = outside position
+    // If an Out Reader exists, Out REX stays outside. If no Out Reader exists, Out REX moves closest to the door.
     public int OutRexColumn =>
         SelectedDoor?.HasReaderSideOut == true ? 1 : 0;
 
-    // --- Device image paths ---
+
+    /*
+      #############################################################################
+                          Image path properties for devices
+      #############################################################################
+    */
+
+    // TEMP
     public string ReaderImagePath => "/Images/Reader.png";
 
-    public string RexImagePath => "/Images/REX_Normal.png";
-
+    // TEMP
     public string BreakGlassImagePath => "/Images/Breakglass_Normal.png";
 
-    // Colors... cause we like colors, don't we Barry :)
-    private static readonly Brush GoodBrush = new SolidColorBrush(Color.FromRgb(40, 200, 120)); // green
-    private static readonly Brush BadBrush = new SolidColorBrush(Color.FromRgb(220, 80, 80));  // red
-    private static readonly Brush WarningBrush = new SolidColorBrush(Color.FromRgb(255, 165, 0)); // orange
-    private static readonly Brush NeutralBrush = new SolidColorBrush(Color.FromRgb(200, 200, 200)); // default
-
-    // Image shown for the selected door.
-    // Later this will reflect the real door sensor state from Softwire.
+    // DONE....;
     public string DoorImagePath
     {
         get
@@ -101,6 +124,310 @@ public partial class DoorsViewModel : ObservableObject
                 : "/Images/Door_Closed.png";
         }
     }
+
+    public string InRexImagePath
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return "/Images/REX_Normal.png";
+
+            return SelectedDoor.RexSideInIsActive
+                ? "/Images/REX_Active.png"
+                : "/Images/REX_Normal.png";
+        }
+    }
+
+    public string OutRexImagePath
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return "/Images/REX_Normal.png";
+
+            return SelectedDoor.RexSideOutIsActive
+                ? "/Images/REX_Active.png"
+                : "/Images/REX_Normal.png";
+        }
+    }
+
+    public string NoSideRexImagePath
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return "/Images/REX_Normal.png";
+
+            return SelectedDoor.RexNoSideIsActive
+                ? "/Images/REX_Active.png"
+                : "/Images/REX_Normal.png";
+        }
+    }
+
+
+    /*
+      #############################################################################
+                          Status text properties for devices
+      #############################################################################
+    */
+
+    public string DoorLockStatusText
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return "";
+
+            if (!SelectedDoor.HasLock)
+                return "No door lock configured";
+
+            if (SelectedDoor.UnlockedForMaintenance)
+                return "Maintenance mode";
+
+            return SelectedDoor.DoorIsLocked ? "Locked" : "Unlocked";
+        }
+    }
+
+    public string DoorSensorStatusText
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return "";
+
+            if (!SelectedDoor.HasDoorSensor)
+                return "No door sensor configured";
+
+            if (SelectedDoor.DoorSensorIsShunted)
+                return "Shunted";
+
+            return SelectedDoor.DoorSensorIsOpen ? "Open" : "Closed";
+        }
+    }
+
+    public string InRexStatusText
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return "";
+
+            if (!SelectedDoor.HasRexSideIn)
+                return "";
+
+            if (SelectedDoor.RexSideInIsShunted)
+                return "Shunted";
+
+            return SelectedDoor.RexSideInIsActive ? "Active" : "Normal";
+        }
+    }
+
+    public string OutRexStatusText
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return "";
+
+            if (!SelectedDoor.HasRexSideOut)
+                return "";
+
+            if (SelectedDoor.RexSideOutIsShunted)
+                return "Shunted";
+
+            return SelectedDoor.RexSideOutIsActive ? "Active" : "Normal";
+        }
+    }
+
+    public string NoSideRexStatusText
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return "";
+
+            if (!SelectedDoor.HasRexNoSide)
+                return "";
+
+            if (SelectedDoor.RexNoSideIsShunted)
+                return "Shunted";
+
+            return SelectedDoor.RexNoSideIsActive ? "Active" : "Normal";
+        }
+    }
+
+
+    /*
+      #############################################################################
+                       Status colour properties for devices
+      #############################################################################
+    */
+
+    public Brush DoorLockStatusColor
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return NeutralBrush;
+
+            if (!SelectedDoor.HasLock)
+                return WarningBrush;
+
+            if (SelectedDoor.UnlockedForMaintenance)
+                return WarningBrush;
+
+            return SelectedDoor.DoorIsLocked ? GoodBrush : BadBrush;
+        }
+    }
+
+    public Brush DoorSensorStatusColor
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return NeutralBrush;
+
+            if (!SelectedDoor.HasDoorSensor)
+                return WarningBrush;
+
+            if (SelectedDoor.DoorSensorIsShunted)
+                return WarningBrush;
+
+            return SelectedDoor.DoorSensorIsOpen ? BadBrush : GoodBrush;
+        }
+    }
+
+    public Brush InRexStatusColor
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return NeutralBrush;
+
+            if (SelectedDoor.RexSideInIsShunted)
+                return WarningBrush;
+
+            return SelectedDoor.RexSideInIsActive ? BadBrush : GoodBrush;
+        }
+    }
+
+    public Brush OutRexStatusColor
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return NeutralBrush;
+
+            if (SelectedDoor.RexSideOutIsShunted)
+                return WarningBrush;
+
+            return SelectedDoor.RexSideOutIsActive ? BadBrush : GoodBrush;
+        }
+    }
+
+    public Brush NoSideRexStatusColor
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return NeutralBrush;
+
+            if (SelectedDoor.RexNoSideIsShunted)
+                return WarningBrush;
+
+            return SelectedDoor.RexNoSideIsActive ? BadBrush : GoodBrush;
+        }
+    }
+
+
+    /*
+      #############################################################################
+                         Tooltip properties for devices
+      #############################################################################
+    */
+
+    public string DoorActionTooltip
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return "";
+
+            if (!SelectedDoor.HasDoorSensor)
+                return "No door sensor configured";
+
+            if (SelectedDoor.DoorSensorIsShunted)
+                return "Door sensor is shunted";
+
+            return SelectedDoor.DoorSensorIsOpen
+                ? "Close door"
+                : "Open door";
+        }
+    }
+
+    public string InRexActionTooltip
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return "";
+
+            if (!SelectedDoor.HasRexSideIn)
+                return "";
+
+            if (SelectedDoor.RexSideInIsShunted)
+                return "In REX is shunted";
+
+            return SelectedDoor.RexSideInIsActive
+                ? "Release In REX"
+                : "Press In REX";
+        }
+    }
+
+    public string OutRexActionTooltip
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return "";
+
+            if (!SelectedDoor.HasRexSideOut)
+                return "";
+
+            if (SelectedDoor.RexSideOutIsShunted)
+                return "Out REX is shunted";
+
+            return SelectedDoor.RexSideOutIsActive
+                ? "Release Out REX"
+                : "Press Out REX";
+        }
+    }
+
+    public string NoSideRexActionTooltip
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return "";
+
+            if (!SelectedDoor.HasRexNoSide)
+                return "";
+
+            if (SelectedDoor.RexNoSideIsShunted)
+                return "REX is shunted";
+
+            return SelectedDoor.RexNoSideIsActive
+                ? "Release REX"
+                : "Press REX";
+        }
+    }
+
+
+    /*
+      #############################################################################
+                         Load doors and preserve selection logic
+      #############################################################################
+    */
 
     // Loads doors into the ViewModel and preserves selection if possible
     public void LoadDoors(IEnumerable<SoftwireDoor> loadedDoors)
@@ -120,12 +447,25 @@ public partial class DoorsViewModel : ObservableObject
 
             if (refreshedSelectedDoor != null && previousSelectedDoor != null)
             {
-                // Preserve fast-polled live state so the image does not flicker
+                // Preserve fast-polled live state so the image/status does not flicker
                 refreshedSelectedDoor.DoorSensorIsOpen = previousSelectedDoor.DoorSensorIsOpen;
+                refreshedSelectedDoor.DoorSensorIsShunted = previousSelectedDoor.DoorSensorIsShunted;
 
                 // Preserve current display state until the 1-second poll updates it
                 refreshedSelectedDoor.DoorIsLocked = previousSelectedDoor.DoorIsLocked;
                 refreshedSelectedDoor.UnlockedForMaintenance = previousSelectedDoor.UnlockedForMaintenance;
+
+                // Preserve In REX live state so it does not flicker during the 3-second door list refresh
+                refreshedSelectedDoor.RexSideInIsActive = previousSelectedDoor.RexSideInIsActive;
+                refreshedSelectedDoor.RexSideInIsShunted = previousSelectedDoor.RexSideInIsShunted;
+
+                // Preserve Out REX live state so it does not flicker during the 3-second door list refresh
+                refreshedSelectedDoor.RexSideOutIsActive = previousSelectedDoor.RexSideOutIsActive;
+                refreshedSelectedDoor.RexSideOutIsShunted = previousSelectedDoor.RexSideOutIsShunted;
+
+                // Preserve No-side REX live state so it does not flicker during the 3-second door list refresh
+                refreshedSelectedDoor.RexNoSideIsActive = previousSelectedDoor.RexNoSideIsActive;
+                refreshedSelectedDoor.RexNoSideIsShunted = previousSelectedDoor.RexNoSideIsShunted;
             }
 
             SelectedDoor = refreshedSelectedDoor;
@@ -162,15 +502,33 @@ public partial class DoorsViewModel : ObservableObject
         OnPropertyChanged(nameof(OutRexVisibility));
         OnPropertyChanged(nameof(NoSideRexVisibility));
         OnPropertyChanged(nameof(ReaderImagePath));
-        OnPropertyChanged(nameof(RexImagePath));
         OnPropertyChanged(nameof(BreakGlassVisibility));
         OnPropertyChanged(nameof(BreakGlassImagePath));
         OnPropertyChanged(nameof(InRexColumn));
         OnPropertyChanged(nameof(OutRexColumn));
+        OnPropertyChanged(nameof(InRexImagePath));
+        OnPropertyChanged(nameof(InRexStatusText));
+        OnPropertyChanged(nameof(InRexStatusColor));
+        OnPropertyChanged(nameof(InRexActionTooltip));
+        OnPropertyChanged(nameof(OutRexImagePath));
+        OnPropertyChanged(nameof(OutRexStatusText));
+        OnPropertyChanged(nameof(OutRexStatusColor));
+        OnPropertyChanged(nameof(OutRexActionTooltip));
+        OnPropertyChanged(nameof(NoSideRexImagePath));
+        OnPropertyChanged(nameof(NoSideRexStatusText));
+        OnPropertyChanged(nameof(NoSideRexStatusColor));
+        OnPropertyChanged(nameof(NoSideRexActionTooltip));
     }
 
+
+    /*
+      #############################################################################
+             Update methods for live state changes with optimised UI refresh
+      #############################################################################
+    */
+
     // Updates live state for the selected door and refreshes dependent UI properties
-    public void UpdateSelectedDoorState(bool doorIsLocked, bool doorSensorIsOpen)
+    public void UpdateSelectedDoorState(bool doorIsLocked, bool doorSensorIsOpen, bool doorSensorIsShunted)
     {
         if (SelectedDoor == null)
             return;
@@ -189,6 +547,12 @@ public partial class DoorsViewModel : ObservableObject
             changed = true;
         }
 
+        if (SelectedDoor.DoorSensorIsShunted != doorSensorIsShunted)
+        {
+            SelectedDoor.DoorSensorIsShunted = doorSensorIsShunted;
+            changed = true;
+        }
+
         if (!changed)
             return;
 
@@ -200,81 +564,91 @@ public partial class DoorsViewModel : ObservableObject
         OnPropertyChanged(nameof(DoorSensorStatusColor));
     }
 
-    public string DoorLockStatusText
+    // Updates live state for the In REX and refreshes dependent UI properties
+    public void UpdateInRexState(bool isActive, bool isShunted)
     {
-        get
+        if (SelectedDoor == null)
+            return;
+
+        var changed = false;
+
+        if (SelectedDoor.RexSideInIsActive != isActive)
         {
-            if (SelectedDoor == null)
-                return "";
-
-            if (!SelectedDoor.HasLock)
-                return "No door lock configured";
-
-            if (SelectedDoor.UnlockedForMaintenance)
-                return "Maintenance mode";
-
-            return SelectedDoor.DoorIsLocked ? "Locked" : "Unlocked";
+            SelectedDoor.RexSideInIsActive = isActive;
+            changed = true;
         }
+
+        if (SelectedDoor.RexSideInIsShunted != isShunted)
+        {
+            SelectedDoor.RexSideInIsShunted = isShunted;
+            changed = true;
+        }
+
+        if (!changed)
+            return;
+
+        OnPropertyChanged(nameof(InRexImagePath));
+        OnPropertyChanged(nameof(InRexStatusText));
+        OnPropertyChanged(nameof(InRexStatusColor));
+        OnPropertyChanged(nameof(InRexActionTooltip));
     }
 
-    public string DoorSensorStatusText
+    // Updates live state for the Out REX and refreshes dependent UI properties
+    public void UpdateOutRexState(bool isActive, bool isShunted)
     {
-        get
+        if (SelectedDoor == null)
+            return;
+
+        var changed = false;
+
+        if (SelectedDoor.RexSideOutIsActive != isActive)
         {
-            if (SelectedDoor == null)
-                return "";
-
-            if (!SelectedDoor.HasDoorSensor)
-                return "No door sensor configured";
-
-            return SelectedDoor.DoorSensorIsOpen ? "Open" : "Closed";
+            SelectedDoor.RexSideOutIsActive = isActive;
+            changed = true;
         }
+
+        if (SelectedDoor.RexSideOutIsShunted != isShunted)
+        {
+            SelectedDoor.RexSideOutIsShunted = isShunted;
+            changed = true;
+        }
+
+        if (!changed)
+            return;
+
+        OnPropertyChanged(nameof(OutRexImagePath));
+        OnPropertyChanged(nameof(OutRexStatusText));
+        OnPropertyChanged(nameof(OutRexStatusColor));
+        OnPropertyChanged(nameof(OutRexActionTooltip));
     }
 
-    public string DoorActionTooltip
+    // Updates live state for the No Side REX and refreshes dependent UI properties
+    public void UpdateNoSideRexState(bool isActive, bool isShunted)
     {
-        get
+        if (SelectedDoor == null)
+            return;
+
+        var changed = false;
+
+        if (SelectedDoor.RexNoSideIsActive != isActive)
         {
-            if (SelectedDoor == null)
-                return "";
-
-            if (!SelectedDoor.HasDoorSensor)
-                return "No door sensor configured";
-
-            return SelectedDoor.DoorSensorIsOpen
-                ? "Close door"
-                : "Open door";
+            SelectedDoor.RexNoSideIsActive = isActive;
+            changed = true;
         }
-    }
 
-    public Brush DoorLockStatusColor
-    {
-        get
+        if (SelectedDoor.RexNoSideIsShunted != isShunted)
         {
-            if (SelectedDoor == null)
-                return NeutralBrush;
-
-            if (!SelectedDoor.HasLock)
-                return WarningBrush;
-
-            if (SelectedDoor.UnlockedForMaintenance)
-                return WarningBrush;
-
-            return SelectedDoor.DoorIsLocked ? GoodBrush : BadBrush;
+            SelectedDoor.RexNoSideIsShunted = isShunted;
+            changed = true;
         }
+
+        if (!changed)
+            return;
+
+        OnPropertyChanged(nameof(NoSideRexImagePath));
+        OnPropertyChanged(nameof(NoSideRexStatusText));
+        OnPropertyChanged(nameof(NoSideRexStatusColor));
+        OnPropertyChanged(nameof(NoSideRexActionTooltip));
     }
-
-    public Brush DoorSensorStatusColor
-    {
-        get
-        {
-            if (SelectedDoor == null)
-                return NeutralBrush;
-
-            if (!SelectedDoor.HasDoorSensor)
-                return WarningBrush;
-
-            return SelectedDoor.DoorSensorIsOpen ? BadBrush : GoodBrush;
-        }
-    }
+    
 }

@@ -1,11 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net;
+﻿using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
-using System.Threading.Tasks;
 using DoorSim.Models;
 using System.Text.Json;
 
@@ -32,6 +28,7 @@ public class SoftwireService : ISoftwireService
     private HttpClient? _client;
     // Stores session cookies (used for authentication persistence)
     private CookieContainer? _cookies;
+
 
     // Attempts to authenticate with Softwire using provided credentials.
     //
@@ -90,6 +87,7 @@ public class SoftwireService : ISoftwireService
         return response.IsSuccessStatusCode;
     }
 
+
     // Checks if the current session is still valid by calling a simple endpoint.
     // Returns true if Softwire responds successfully.
     public async Task<bool> CheckConnectionAsync()
@@ -107,6 +105,7 @@ public class SoftwireService : ISoftwireService
             return false;
         }
     }
+
 
     // Retrieves doors from Softwire and maps the raw JSON into clean SoftwireDoor objects.
     //
@@ -194,7 +193,7 @@ public class SoftwireService : ISoftwireService
             string rexSideOutPath = "";
             string rexNoSidePath = "";
 
-            // Breakglass (ManualStation - whatever that naming is?)
+            // Breakglass / ManualStation
             bool hasBreakGlass = false;
             string breakGlassPath = "";
 
@@ -372,43 +371,53 @@ public class SoftwireService : ISoftwireService
         return doors.OrderBy(d => d.Name).ToList();
     }
 
-    // Retrieves the current active/inactive state of a Softwire input device.
+
+    // Retrieves the current state of a Softwire input device.
     //
-    // For door sensors:
-    // - Active usually means the door sensor input is active/open
-    // - Inactive usually means closed/normal
+    // Used for:
+    // - Door sensors
+    // - REX buttons
+    // - Breakglass inputs
     //
-    // Softwire returns this under: Input.Active
-    public async Task<bool> GetInputStateAsync(string devicePath)
+    // Softwire returns these states directly on the input object:
+    // - Online
+    // - Active
+    // - IsShunted
+    public async Task<InputState?> GetInputStateAsync(string devicePath)
     {
         if (_client == null || string.IsNullOrWhiteSpace(devicePath))
-            return false;
+            return null;
 
         var response = await _client.GetAsync(devicePath);
 
         if (!response.IsSuccessStatusCode)
-            return false;
+            return null;
 
         var json = await response.Content.ReadAsStringAsync();
 
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
 
-        if (root.TryGetProperty("Input", out var input) &&
-            input.TryGetProperty("Active", out var active))
-        {
-            return active.GetBoolean();
-        }
+        if (!root.TryGetProperty("Input", out var input))
+            return null;
 
-        return false;
+        return new InputState
+        {
+            Online = input.TryGetProperty("Online", out var online) && online.GetBoolean(),
+            Active = input.TryGetProperty("Active", out var active) && active.GetBoolean(),
+            IsShunted = input.TryGetProperty("IsShunted", out var shunted) && shunted.GetBoolean()
+        };
     }
 
-    // Softwire expects simulated input state changes to be sent to:
-    // /{bus}/{iface}/Input
+
+    // Softwire expects simulated input state changes to be sent to: /{bus}/{iface}/Input
     //
     // Example:
     // Input pointer: /Devices/Bus/Sim/Port_A/Iface/1/Input/IN_01
     // PUT URI:       /Sim/Port_A/1/Input
+    //
+    // SetInputStateAsync sets the state of a simulated Softwire input.
+    // Used to simulate door sensor changes, REX presses, and breakglass activation.
     public async Task<bool> SetInputStateAsync(string inputPointer, string state)
     {
         if (_client == null || string.IsNullOrWhiteSpace(inputPointer))
@@ -446,9 +455,5 @@ public class SoftwireService : ISoftwireService
 
         return response.IsSuccessStatusCode;
     }
-
-
-
-
 
 }

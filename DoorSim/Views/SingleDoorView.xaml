@@ -72,7 +72,12 @@
 
                 <!-- ############################### START OF HARDWARE LAYOUT ############################### -->
 
-                <!-- Hardware layout area -->
+                <!--
+                    Hardware layout uses fixed slots so devices do not jump around when optional hardware is missing.
+                    Left side:  REX outside, reader closest to door.
+                    Right side: reader closest to door, REX outside.
+                    No-side REX and Breakglass are positioned independently above the main device row.
+                -->
                 <Grid Margin="0,50,0,0"
                       HorizontalAlignment="Center"
                       VerticalAlignment="Top">  
@@ -92,20 +97,34 @@
                                 Margin="0,-40,12,0"
                                 Visibility="{Binding NoSideRexVisibility}">
 
-                        <Image Source="{Binding RexImagePath}"
+                        <Image x:Name="NoSideRexImage"
+                               Source="{Binding NoSideRexImagePath}"
                                Width="78"
                                Height="90"
                                Stretch="Uniform"
+                               Cursor="Hand"
+                               MouseEnter="NoSideRexImage_MouseEnter"
+                               MouseLeave="NoSideRexImage_MouseLeave"
+                               PreviewMouseDown="NoSideRexImage_MouseDown"
+                               PreviewMouseUp="NoSideRexImage_MouseUp"
                                RenderOptions.BitmapScalingMode="HighQuality"
-                               SnapsToDevicePixels="True"/>
+                               SnapsToDevicePixels="True">
+                            
+                            <Image.ToolTip>
+                                <ToolTip>
+                                    <TextBlock Text="{Binding PlacementTarget.DataContext.NoSideRexActionTooltip,
+                                                              RelativeSource={RelativeSource AncestorType=ToolTip}}"/>
+                                </ToolTip>
+                            </Image.ToolTip>
+                        </Image>
 
                         <TextBlock Text="REX (No Side)"
                                    FontWeight="Bold"
                                    Foreground="#CCCCCC"
                                    HorizontalAlignment="Center"/>
 
-                        <TextBlock Text="Online"
-                                   Foreground="#CCCCCC"
+                        <TextBlock Text="{Binding NoSideRexStatusText}"
+                                   Foreground="{Binding NoSideRexStatusColor}"
                                    HorizontalAlignment="Center"/>
                     </StackPanel>
 
@@ -157,20 +176,34 @@
                                     VerticalAlignment="Bottom"
                                     Visibility="{Binding InRexVisibility}">
 
-                            <Image Source="{Binding RexImagePath}"
+                            <Image x:Name="InRexImage"
+                                   Source="{Binding InRexImagePath}"
                                    Width="78"
                                    Height="90"
                                    Stretch="Uniform"
+                                   Cursor="Hand"
+                                   MouseEnter="InRexImage_MouseEnter"
+                                   MouseLeave="InRexImage_MouseLeave"
+                                   PreviewMouseDown="InRexImage_MouseDown"
+                                   PreviewMouseUp="InRexImage_MouseUp"
                                    RenderOptions.BitmapScalingMode="HighQuality"
-                                   SnapsToDevicePixels="True"/>
+                                   SnapsToDevicePixels="True">
+
+                                <Image.ToolTip>
+                                    <ToolTip>
+                                        <TextBlock Text="{Binding PlacementTarget.DataContext.InRexActionTooltip,
+                                                                  RelativeSource={RelativeSource AncestorType=ToolTip}}"/>
+                                    </ToolTip>
+                                </Image.ToolTip>
+                            </Image>
 
                             <TextBlock Text="In REX"
                                        FontWeight="Bold"
                                        Foreground="#CCCCCC"
                                        HorizontalAlignment="Center"/>
 
-                            <TextBlock Text="Online"
-                                       Foreground="#CCCCCC"
+                            <TextBlock Text="{Binding InRexStatusText}"
+                                       Foreground="{Binding InRexStatusColor}"
                                        HorizontalAlignment="Center"/>
                         </StackPanel>
 
@@ -211,7 +244,9 @@
                         </StackPanel>
                     </Grid>
 
-                    <!-- Door image: always centred and high(ish) -->
+                    <!-- Door image:
+                         Main interactive door sensor control.
+                         Click toggles the simulated door sensor input. -->
                     <Image Grid.Column="1"
                            x:Name="DoorImage"
                            Source="{Binding DoorImagePath}"
@@ -290,20 +325,34 @@
                                     VerticalAlignment="Bottom"
                                     Visibility="{Binding OutRexVisibility}">
 
-                            <Image Source="{Binding RexImagePath}"
+                            <Image x:Name="OutRexImage"
+                                   Source="{Binding OutRexImagePath}"
                                    Width="78"
                                    Height="90"
                                    Stretch="Uniform"
+                                   Cursor="Hand"
+                                   MouseEnter="OutRexImage_MouseEnter"
+                                   MouseLeave="OutRexImage_MouseLeave"
+                                   PreviewMouseDown="OutRexImage_MouseDown"
+                                   PreviewMouseUp="OutRexImage_MouseUp"
                                    RenderOptions.BitmapScalingMode="HighQuality"
-                                   SnapsToDevicePixels="True"/>
+                                   SnapsToDevicePixels="True">
+
+                                <Image.ToolTip>
+                                    <ToolTip>
+                                        <TextBlock Text="{Binding PlacementTarget.DataContext.OutRexActionTooltip,
+                                                                  RelativeSource={RelativeSource AncestorType=ToolTip}}"/>
+                                    </ToolTip>
+                                </Image.ToolTip>
+                            </Image>
 
                             <TextBlock Text="Out REX"
                                        FontWeight="Bold"
                                        Foreground="#CCCCCC"
                                        HorizontalAlignment="Center"/>
 
-                            <TextBlock Text="Online"
-                                       Foreground="#CCCCCC"
+                            <TextBlock Text="{Binding OutRexStatusText}"
+                                       Foreground="{Binding OutRexStatusColor}"
                                        HorizontalAlignment="Center"/>
                         </StackPanel>
                     </Grid>

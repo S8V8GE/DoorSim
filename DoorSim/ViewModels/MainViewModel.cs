@@ -5,7 +5,6 @@ using DoorSim.Views;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
-using System.IO;
 
 namespace DoorSim.ViewModels;
 
@@ -22,7 +21,12 @@ namespace DoorSim.ViewModels;
 
 public partial class MainViewModel : ObservableObject
 {
-    // --- Dependencies (external services and UI references) ---
+
+    /*
+      #############################################################################
+               Dependencies (services and child ViewModels - UI references)
+      #############################################################################
+    */
 
     // Service used to communicate with Softwire (HTTP API)
     private readonly ISoftwireService _softwireService;
@@ -33,8 +37,8 @@ public partial class MainViewModel : ObservableObject
     // Service used to retrieve cardholders from the Directory SQL database
     private readonly CardholderSqlService _cardholderSqlService = new CardholderSqlService();
 
-    // --- UI State (bound to the View) ---
-    // These properties are automatically updated in the UI via data binding.
+
+    // Child ViewModels bound to UI panels:
 
     // ViewModel for the cardholders panel
     public CardholdersViewModel Cardholders { get; } = new CardholdersViewModel();
@@ -42,11 +46,25 @@ public partial class MainViewModel : ObservableObject
     // ViewModel for the door selector and door display area
     public DoorsViewModel Doors { get; } = new DoorsViewModel();
 
-    // Timer used to periodically check Softwire connection and update cardholders and doors (slow updates - every 3 seconds as below)
+
+    /*
+      #############################################################################
+                                       Timers
+      #############################################################################
+    */
+
+    // Timer for connection + slow refresh every 3 seconds (doors + cardholders)
     private DispatcherTimer? _connectionTimer;
 
-    // Timer for polling the selected door state (fast updates - every 1 second as below, hoping I dont either melt the VM or crash Softwire... If this comment still exists all was ok...)
+    // Timer for selected door + hardware state (fast polling every 1 second) - hoping I dont either melt the VM or crash Softwire... If this comment still exists all was ok!)
     private DispatcherTimer? _selectedDoorTimer;
+
+
+    /*
+     #############################################################################
+                             UI State (bound to the View)
+     #############################################################################
+   */
 
     // Indicates whether the application is currently connected to Softwire
     [ObservableProperty]
@@ -69,14 +87,26 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool canConnect = true;
 
-    // --- Constructor ---
-    // Injects required services and initialises the ViewModel.
-    // Store references to service and owning window
+
+    /*
+     #############################################################################
+                                  Constructor
+     #############################################################################
+   */
+
+    // Initialises the ViewModel with required services
     public MainViewModel(ISoftwireService softwireService, Window owner)
     {
         _softwireService = softwireService;
         _owner = owner;
     }
+
+
+    /*
+     #############################################################################
+                            Refresh helpers/methods
+     #############################################################################
+   */
 
     // Refreshes the cardholder list from SQL and updates the Cardholders panel
     private async Task RefreshCardholdersAsync()
@@ -86,8 +116,7 @@ public partial class MainViewModel : ObservableObject
         Cardholders.LoadCardholders(cards);
     }
 
-    // Refreshes the door list from Softwire, updates the Doors panel,
-    // and returns the number of doors found.
+    // Refreshes doors from Softwire and returns count
     private async Task<int> RefreshDoorsAsync()
     {
         var doors = await _softwireService.GetDoorsAsync();
@@ -96,6 +125,13 @@ public partial class MainViewModel : ObservableObject
 
         return doors.Count;
     }
+
+
+    /*
+     #############################################################################
+                       Connection Monitoring (slow loop)
+     #############################################################################
+   */
 
     // Starts a timer that checks connection status and refreshes doors/cardholders every 3 seconds
     private void StartConnectionMonitoring()
@@ -145,6 +181,13 @@ public partial class MainViewModel : ObservableObject
         _connectionTimer.Start();
     }
 
+
+    /*
+     #############################################################################
+                      Selected Door Monitoring (fast loop)
+     #############################################################################
+   */
+
     // Starts a fast timer to refresh the selected door state every second
     private void StartSelectedDoorMonitoring()
     {
@@ -158,7 +201,8 @@ public partial class MainViewModel : ObservableObject
             if (!IsConnected || Doors.SelectedDoor == null)
                 return;
 
-            // TODO: Replace with real API call for single door
+            // For now, refresh all doors and find the selected one.
+            // Later this should/could be replaced with a dedicated GetDoorByIdAsync call.
             var updatedDoors = await _softwireService.GetDoorsAsync();
 
             var updated = updatedDoors
@@ -167,14 +211,78 @@ public partial class MainViewModel : ObservableObject
             if (updated != null)
             {
                 var isOpen = false;
+                var isShunted = false;
 
                 if (!string.IsNullOrWhiteSpace(Doors.SelectedDoor.DoorSensorDevicePath))
                 {
-                    isOpen = await _softwireService.GetInputStateAsync(
+                    var sensorState = await _softwireService.GetInputStateAsync(
                         Doors.SelectedDoor.DoorSensorDevicePath);
+
+                    if (sensorState != null)
+                    {
+                        // Preserve stable behaviour:
+                        // if shunted, ignore Active so the UI does not flicker.
+                        isShunted = sensorState.IsShunted;
+
+                        if (!isShunted)
+                        {
+                            isOpen = sensorState.Active;
+                        }
+                    }
                 }
 
-                Doors.UpdateSelectedDoorState(updated.DoorIsLocked, isOpen);
+                // Read In REX live state from Softwire.
+                // Uses the same input-state pattern as the door sensor.
+                if (!string.IsNullOrWhiteSpace(Doors.SelectedDoor.RexSideInDevicePath))
+                {
+                    var inRexState = await _softwireService.GetInputStateAsync(
+                        Doors.SelectedDoor.RexSideInDevicePath);
+
+                    if (inRexState != null)
+                    {
+                        // Preserve stable behaviour:
+                        // if shunted, ignore Active so the UI does not flicker.
+                        var inRexIsShunted = inRexState.IsShunted;
+                        var inRexIsActive = inRexIsShunted ? false : inRexState.Active;
+
+                        Doors.UpdateInRexState(inRexIsActive, inRexIsShunted);
+                    }
+                }
+
+                // Read Out REX live state from Softwire.
+                // Uses the same input-state pattern as the In REX.
+                if (!string.IsNullOrWhiteSpace(Doors.SelectedDoor.RexSideOutDevicePath))
+                {
+                    var outRexState = await _softwireService.GetInputStateAsync(
+                        Doors.SelectedDoor.RexSideOutDevicePath);
+
+                    if (outRexState != null)
+                    {
+                        // Preserve stable behaviour:
+                        // if shunted, ignore Active so the UI does not flicker.
+                        var outRexIsShunted = outRexState.IsShunted;
+                        var outRexIsActive = outRexIsShunted ? false : outRexState.Active;
+
+                        Doors.UpdateOutRexState(outRexIsActive, outRexIsShunted);
+                    }
+                }
+
+                // Read No-side REX live state from Softwire.
+                if (!string.IsNullOrWhiteSpace(Doors.SelectedDoor.RexNoSideDevicePath))
+                {
+                    var noSideRexState = await _softwireService.GetInputStateAsync(
+                        Doors.SelectedDoor.RexNoSideDevicePath);
+
+                    if (noSideRexState != null)
+                    {
+                        var noSideRexIsShunted = noSideRexState.IsShunted;
+                        var noSideRexIsActive = noSideRexIsShunted ? false : noSideRexState.Active;
+
+                        Doors.UpdateNoSideRexState(noSideRexIsActive, noSideRexIsShunted);
+                    }
+                }
+
+                Doors.UpdateSelectedDoorState(updated.DoorIsLocked, isOpen, isShunted);
             }
             else
             {
@@ -185,9 +293,14 @@ public partial class MainViewModel : ObservableObject
         _selectedDoorTimer.Start();
     }
 
-    // --- Commands (triggered by user actions in the UI) ---
-    // Opens the connection dialog, attempts to log in to Softwire,
-    // and updates the UI based on success or failure.
+
+    /*
+     #############################################################################
+                           Commands (user actions)
+     #############################################################################
+   */
+
+    // Opens the connection dialog, attempts to log in to Softwire, and updates the UI based on success or failure.
     [RelayCommand]
     private async Task Connect()
     {
@@ -255,10 +368,10 @@ public partial class MainViewModel : ObservableObject
             MainMessage = $"SQL error: {ex.Message}";
         }
 
-        // Start connection monitoring only after the initial load attempt
-        // this one will check every 3 seconds that the connection to Softwire is still alive, and updates the cardholders and doors if it is. If the connection is lost, it resets the UI to the disconnected state.
+        // Start slow refresh loop (connection + doors + cardholders) - this one will check every 3 seconds that the connection to Softwire is still alive, and updates the cardholders and doors if it is. If the connection is lost, it resets the UI to the disconnected state.
         StartConnectionMonitoring();
-        // this one will check every second for updates to the selected door (e.g., if it was locked/unlocked from another client or the Config Tool), and updates the door state in the UI accordingly.
+        // Start fast refresh loop (selected door + hardware state) -   this one will check every 1 seconds for updates to the selected door (e.g., if it was locked/unlocked from another client or the Config Tool), and updates the door state in the UI accordingly.
         StartSelectedDoorMonitoring();
     }
+
 }
