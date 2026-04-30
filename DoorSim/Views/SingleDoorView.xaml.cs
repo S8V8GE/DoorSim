@@ -77,6 +77,75 @@ public partial class SingleDoorView : UserControl
         await service.SetInputStateAsync(inputPath, state);
     }
 
+    // Opens the PIN entry window and sends the entered PIN to Softwire.
+    //
+    // PINs are sent to Softwire as Wiegand26:
+    // - Facility code = 0
+    // - Card number   = entered PIN
+    //
+    // isInReader controls which temporary UI status is shown after sending:
+    // - true  = In Reader shows "PIN sent"
+    // - false = Out Reader shows "PIN sent"
+    private async Task OpenPinDialogAndSendAsync(DoorSim.ViewModels.DoorsViewModel vm, string readerName, string readerPath, bool isInReader, int? timeoutSeconds = null)
+    {
+        if (string.IsNullOrWhiteSpace(readerPath))
+            return;
+
+        var pinWindow = new PinEntryWindow(readerName, timeoutSeconds)
+        {
+            Owner = Window.GetWindow(this)
+        };
+
+        var result = pinWindow.ShowDialog();
+
+        if (result != true)
+        {
+            if (pinWindow.TimedOut)
+            {
+                _ = PlayTripleBeepAsync();
+
+                ShowAppMessage(
+                    "PIN entry timed out. Access was not completed.",
+                    "PIN timeout");
+            }
+
+            return;
+        }
+
+        var service = GetSoftwireService();
+
+        if (service == null)
+            return;
+
+        if (!int.TryParse(pinWindow.EnteredPin, out var pin))
+            return;
+
+        var sent = await service.SwipeWiegand26Async(
+            readerPath,
+            0,
+            pin);
+
+        if (!sent)
+            return;
+
+        if (isInReader)
+        {
+            vm.InReaderPinSent = true;
+
+            await Task.Delay(2000);
+
+            vm.InReaderPinSent = false;
+        }
+        else
+        {
+            vm.OutReaderPinSent = true;
+
+            await Task.Delay(2000);
+
+            vm.OutReaderPinSent = false;
+        }
+    }
+
     // Shows a custom tooltip that follows the mouse.
     // Standard WPF ToolTips do not continuously follow the cursor once opened.
     private void ShowFloatingToolTip(Func<string> textProvider, MouseEventArgs e)
@@ -155,6 +224,48 @@ public partial class SingleDoorView : UserControl
         {
             newVm.ReaderLedChanged += OnReaderLedChanged;
         }
+    }
+
+    // Shows a custom message window centred on the main application window.
+    // Used instead of MessageBox because MessageBox does not always centre correctly in VM/RDP environments (or if that's not true, I didn't know how to do it).
+    private void ShowAppMessage(string message, string title)
+    {
+        var messageWindow = new AppMessageWindow(title, message)
+        {
+            Owner = Window.GetWindow(this)
+        };
+
+        messageWindow.ShowDialog();
+    }
+
+    // Plays the credential beep three times (Used for timeout / warning feedback if PIN not entered within the allowed time).
+    // Uses PlaySync inside a background task so each beep finishes before the next starts.
+    private async Task PlayTripleBeepAsync()
+    {
+        await Task.Run(() =>
+        {
+            for (var i = 0; i < 3; i++)
+            {
+                try
+                {
+                    var streamInfo = Application.GetResourceStream(
+                        new Uri("pack://application:,,,/Sounds/Credential_Beep.wav"));
+
+                    if (streamInfo == null)
+                        return;
+
+                    using var player = new System.Media.SoundPlayer(streamInfo.Stream);
+
+                    player.PlaySync();
+
+                    System.Threading.Thread.Sleep(10);
+                }
+                catch
+                {
+                    // Sound is non-critical. If playback fails, ignore it.
+                }
+            }
+        });
     }
 
 
@@ -336,17 +447,28 @@ public partial class SingleDoorView : UserControl
         // Local feedback: card has been presented to the reader.
         PlayCredentialPresentedSound();
 
-        await service.SwipeRawAsync(
-            vm.SelectedDoor.ReaderSideInDevicePath,
-            cardholder.TrimmedCredential,
-            cardholder.BitCount);
+        var swipeSent = await service.SwipeRawAsync(vm.SelectedDoor.ReaderSideInDevicePath, cardholder.TrimmedCredential, cardholder.BitCount);
 
-        e.Handled = true;
+        if (swipeSent && vm.SelectedDoor.InReaderRequiresCardAndPin)
+        {
+            if (!cardholder.HasPin)
+            {
+                ShowAppMessage(
+                    "This reader requires Card + PIN, but this cardholder does not have a PIN configured.",
+                    "PIN required");
+            }
+            else
+            {
+                await OpenPinDialogAndSendAsync(vm, "In Reader", vm.SelectedDoor.ReaderSideInDevicePath, true, vm.SelectedDoor.InReaderPinTimeoutSeconds);
+            }
+
+            e.Handled = true;
+        }
     }
 
     // Opens PIN entry for the In Reader.
-    // Temporary handler for now; next step will replace the message with a real PIN dialog.
-    private void InReaderEnterPin_Click(object sender, RoutedEventArgs e)
+    // The dialog validates that the PIN is 4 or 5 digits before allowing OK.
+    private async void InReaderEnterPin_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is not DoorSim.ViewModels.DoorsViewModel vm)
             return;
@@ -356,7 +478,7 @@ public partial class SingleDoorView : UserControl
 
         if (vm.SelectedDoor.InReaderIsShunted)
         {
-            MessageBox.Show(
+            ShowAppMessage(
                 "In reader is shunted. PIN entry is not available.",
                 "Reader unavailable");
             return;
@@ -364,15 +486,13 @@ public partial class SingleDoorView : UserControl
 
         if (!vm.SelectedDoor.InReaderIsOnline)
         {
-            MessageBox.Show(
+            ShowAppMessage(
                 "In reader is offline. PIN entry is not available.",
                 "Reader unavailable");
             return;
         }
 
-        MessageBox.Show(
-            "PIN entry for In Reader will open here.",
-            "Enter PIN");
+        await OpenPinDialogAndSendAsync(vm, "In Reader", vm.SelectedDoor.ReaderSideInDevicePath, true);
     }
 
 
@@ -483,17 +603,28 @@ public partial class SingleDoorView : UserControl
         // Local feedback: card has been presented to the reader.
         PlayCredentialPresentedSound();
 
-        await service.SwipeRawAsync(
-            vm.SelectedDoor.ReaderSideOutDevicePath,
-            cardholder.TrimmedCredential,
-            cardholder.BitCount);
+        var swipeSent = await service.SwipeRawAsync(vm.SelectedDoor.ReaderSideOutDevicePath, cardholder.TrimmedCredential, cardholder.BitCount);
+
+        if (swipeSent && vm.SelectedDoor.OutReaderRequiresCardAndPin)
+        {
+            if (!cardholder.HasPin)
+            {
+                ShowAppMessage(
+                    "This reader requires Card + PIN, but this cardholder does not have a PIN configured.",
+                    "PIN required");
+            }
+            else
+            {
+                await OpenPinDialogAndSendAsync(vm, "Out Reader", vm.SelectedDoor.ReaderSideOutDevicePath, false, vm.SelectedDoor.InReaderPinTimeoutSeconds);
+            }
+        }
 
         e.Handled = true;
     }
 
     // Opens PIN entry for the Out Reader.
-    // Temporary handler for now; next step will replace the message with a real PIN dialog.
-    private void OutReaderEnterPin_Click(object sender, RoutedEventArgs e)
+    // The dialog validates that the PIN is 4 or 5 digits before allowing OK.
+    private async void OutReaderEnterPin_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is not DoorSim.ViewModels.DoorsViewModel vm)
             return;
@@ -503,7 +634,7 @@ public partial class SingleDoorView : UserControl
 
         if (vm.SelectedDoor.OutReaderIsShunted)
         {
-            MessageBox.Show(
+            ShowAppMessage(
                 "Out reader is shunted. PIN entry is not available.",
                 "Reader unavailable");
             return;
@@ -511,15 +642,13 @@ public partial class SingleDoorView : UserControl
 
         if (!vm.SelectedDoor.OutReaderIsOnline)
         {
-            MessageBox.Show(
+            ShowAppMessage(
                 "Out reader is offline. PIN entry is not available.",
                 "Reader unavailable");
             return;
         }
 
-        MessageBox.Show(
-            "PIN entry for Out Reader will open here.",
-            "Enter PIN");
+        await OpenPinDialogAndSendAsync(vm, "Out Reader", vm.SelectedDoor.ReaderSideOutDevicePath, false);
     }
 
 

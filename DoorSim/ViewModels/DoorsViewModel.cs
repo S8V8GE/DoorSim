@@ -55,6 +55,14 @@ public partial class DoorsViewModel : ObservableObject
     [ObservableProperty]
     private bool isCardholderOverOutReader;
 
+    // True briefly after a PIN is sent through the In Reader
+    [ObservableProperty]
+    private bool inReaderPinSent;
+
+    // True briefly after a PIN is sent through the Out Reader
+    [ObservableProperty]
+    private bool outReaderPinSent;
+
     // Raised when a reader LED colour changes (The view can listen to this and play a local sound effect).
     public event Action? ReaderLedChanged;
 
@@ -244,6 +252,9 @@ public partial class DoorsViewModel : ObservableObject
             if (!SelectedDoor.HasReaderSideIn)
                 return "";
 
+            if (InReaderPinSent)
+                return "PIN sent";
+
             if (IsCardholderOverInReader)
                 return "Card Present";
 
@@ -263,6 +274,9 @@ public partial class DoorsViewModel : ObservableObject
 
             if (!SelectedDoor.HasReaderSideOut)
                 return "";
+
+            if (OutReaderPinSent)
+                return "PIN sent";
 
             if (IsCardholderOverOutReader)
                 return "Card present";
@@ -393,6 +407,9 @@ public partial class DoorsViewModel : ObservableObject
             if (SelectedDoor == null)
                 return NeutralBrush;
 
+            if (InReaderPinSent)
+                return DragOverBrush;
+
             if (IsCardholderOverInReader)
                 return DragOverBrush;
 
@@ -431,6 +448,9 @@ public partial class DoorsViewModel : ObservableObject
         {
             if (SelectedDoor == null)
                 return NeutralBrush;
+
+            if (OutReaderPinSent)
+                return DragOverBrush;
 
             if (IsCardholderOverOutReader)
                 return DragOverBrush;
@@ -855,6 +875,20 @@ public partial class DoorsViewModel : ObservableObject
     partial void OnIsCardholderOverOutReaderChanged(bool value)
     {
         OnPropertyChanged(nameof(OutReaderLedBrush));
+        OnPropertyChanged(nameof(OutReaderStatusText));
+        OnPropertyChanged(nameof(OutReaderStatusColor));
+    }
+
+    // Refreshes the In Reader status when temporary PIN-sent state changes
+    partial void OnInReaderPinSentChanged(bool value)
+    {
+        OnPropertyChanged(nameof(InReaderStatusText));
+        OnPropertyChanged(nameof(InReaderStatusColor));
+    }
+
+    // Refreshes the Out Reader status when temporary PIN-sent state changes
+    partial void OnOutReaderPinSentChanged(bool value)
+    {
         OnPropertyChanged(nameof(OutReaderStatusText));
         OnPropertyChanged(nameof(OutReaderStatusColor));
     }

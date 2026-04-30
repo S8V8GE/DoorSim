@@ -105,4 +105,16 @@ public interface ISoftwireService
     // bitCount is the number of valid bits in the credential.
     Task<bool> SwipeRawAsync(string readerPointer, string bytes, int bitCount);
 
+
+    // Simulates a 26-bit Wiegand swipe on a Softwire reader.
+    //
+    // Used here for PIN entry.
+    // Softwire expects PINs to be sent as Wiegand26 with:
+    // - Facility = 0
+    // - Card     = entered PIN
+    //
+    // readerPointer example:
+    // /Devices/Bus/Sim/Port_A/Iface/1/Reader/READER_01
+    Task<bool> SwipeWiegand26Async(string readerPointer, int facility, int card);
+
 }

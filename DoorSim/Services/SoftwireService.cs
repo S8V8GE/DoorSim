@@ -183,7 +183,9 @@ public class SoftwireService : ISoftwireService
             string readerSideInPath = "";
             string readerSideOutPath = "";
             bool inReaderRequiresCardAndPin = false;
+            int inReaderPinTimeoutSeconds = 0;
             bool outReaderRequiresCardAndPin = false;
+            int outReaderPinTimeoutSeconds = 0;
 
             // REX (Request to Exit) devices
             bool hasRexSideIn = false;
@@ -256,10 +258,21 @@ public class SoftwireService : ISoftwireService
 
                             // ReaderMode tells us whether this reader is Normal, CardAndPin, etc.
                             var requiresCardAndPin = false;
+                            var pinTimeoutSeconds = 0;
 
                             if (readerAuth.TryGetProperty("ReaderMode", out var readerMode))
                             {
-                                requiresCardAndPin = readerMode.TryGetProperty("CardAndPin", out _);
+                                if (readerMode.TryGetProperty("CardAndPin", out var cardAndPin))
+                                {
+                                    requiresCardAndPin = true;
+
+                                    // Softwire stores Card + PIN timeout in milliseconds.
+                                    // Convert to seconds for the PIN countdown window.
+                                    if (cardAndPin.TryGetProperty("Timeout", out var timeoutMs))
+                                    {
+                                        pinTimeoutSeconds = timeoutMs.GetInt32() / 1000;
+                                    }
+                                }
                             }
 
                             if (side == "A")
@@ -267,6 +280,7 @@ public class SoftwireService : ISoftwireService
                                 hasReaderSideIn = true;
                                 readerSideInPath = readerPath;
                                 inReaderRequiresCardAndPin = requiresCardAndPin;
+                                inReaderPinTimeoutSeconds = pinTimeoutSeconds;
                             }
 
                             if (side == "B")
@@ -274,6 +288,7 @@ public class SoftwireService : ISoftwireService
                                 hasReaderSideOut = true;
                                 readerSideOutPath = readerPath;
                                 outReaderRequiresCardAndPin = requiresCardAndPin;
+                                outReaderPinTimeoutSeconds = pinTimeoutSeconds;
                             }
                         }
 
@@ -346,8 +361,7 @@ public class SoftwireService : ISoftwireService
                 Id = door.TryGetProperty("Id", out var id) ? id.GetString() ?? "" : "",
                 Name = door.TryGetProperty("Name", out var name) ? name.GetString() ?? "" : "",
                 DoorIsLocked = door.TryGetProperty("IsLocked", out var locked) && locked.GetBoolean(),
-                UnlockedForMaintenance = door.TryGetProperty("UnlockedForMaintenance", out var maintenance)
-                         && maintenance.GetBoolean(),
+                UnlockedForMaintenance = door.TryGetProperty("UnlockedForMaintenance", out var maintenance) && maintenance.GetBoolean(),
                 HasDoorSensor = hasDoorSensor,
                 HasLock = hasLock,
                 DoorSensorDevicePath = doorSensorPath,
@@ -356,7 +370,9 @@ public class SoftwireService : ISoftwireService
                 ReaderSideInDevicePath = readerSideInPath,
                 ReaderSideOutDevicePath = readerSideOutPath,
                 InReaderRequiresCardAndPin = inReaderRequiresCardAndPin,
+                InReaderPinTimeoutSeconds = inReaderPinTimeoutSeconds,
                 OutReaderRequiresCardAndPin = outReaderRequiresCardAndPin,
+                OutReaderPinTimeoutSeconds = outReaderPinTimeoutSeconds,
                 HasRexSideIn = hasRexSideIn,
                 HasRexSideOut = hasRexSideOut,
                 HasRexNoSide = hasRexNoSide,
@@ -543,6 +559,59 @@ public class SoftwireService : ISoftwireService
             Reader = readerPointer,
             Bytes = bytes,
             BitCount = bitCount
+        };
+
+        var json = JsonSerializer.Serialize(body);
+
+        var content = new StringContent(
+            json,
+            Encoding.UTF8,
+            "application/json");
+
+        var response = await _client.PutAsync(uri, content);
+
+        return response.IsSuccessStatusCode;
+    }
+
+
+    // Simulates a 26-bit Wiegand swipe on a Softwire reader.
+    //
+    // Used for PIN entry in this app.
+    // Softwire expects this to be sent to:
+    // /{bus}/{iface}/SwipeWiegand26
+    //
+    // Example:
+    // Reader pointer: /Devices/Bus/Sim/Port_A/Iface/1/Reader/READER_01
+    // PUT URI:        /Sim/Port_A/1/SwipeWiegand26
+    //
+    // Body:
+    // {
+    //   Reader: readerPointer,
+    //   FAC:    facility,
+    //   Card:   card
+    // }
+    public async Task<bool> SwipeWiegand26Async(string readerPointer, int facility, int card)
+    {
+        if (_client == null || string.IsNullOrWhiteSpace(readerPointer))
+            return false;
+
+        var match = System.Text.RegularExpressions.Regex.Match(
+            readerPointer,
+            @"/Devices/Bus/(.+)/Iface/([^/]+)/(.*)");
+
+        if (!match.Success)
+            return false;
+
+        var bus = match.Groups[1].Value;
+        var iface = match.Groups[2].Value;
+
+        var uri = $"/{bus}/{iface}/SwipeWiegand26";
+
+        var body = new
+        {
+            Reader = readerPointer,
+            FAC = facility,
+            Card = card
         };
 
         var json = JsonSerializer.Serialize(body);
