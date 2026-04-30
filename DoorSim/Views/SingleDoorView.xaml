@@ -70,14 +70,15 @@
 
                 </Grid>
 
-                <!-- ############################### START OF HARDWARE LAYOUT ############################### -->
+                <!-- ############################### START OF HARDWARE LAYOUT ###############################
 
-                <!--
                     Hardware layout uses fixed slots so devices do not jump around when optional hardware is missing.
                     Left side:  REX outside, reader closest to door.
                     Right side: reader closest to door, REX outside.
                     No-side REX and Breakglass are positioned independently above the main device row.
+                
                 -->
+                
                 <Grid Margin="0,50,0,0"
                       HorizontalAlignment="Center"
                       VerticalAlignment="Top">  
@@ -103,20 +104,14 @@
                                Height="90"
                                Stretch="Uniform"
                                Cursor="Hand"
+                               MouseMove="NoSideRexImage_MouseMove"
                                MouseEnter="NoSideRexImage_MouseEnter"
                                MouseLeave="NoSideRexImage_MouseLeave"
                                PreviewMouseDown="NoSideRexImage_MouseDown"
                                PreviewMouseUp="NoSideRexImage_MouseUp"
                                RenderOptions.BitmapScalingMode="HighQuality"
-                               SnapsToDevicePixels="True">
-                            
-                            <Image.ToolTip>
-                                <ToolTip>
-                                    <TextBlock Text="{Binding PlacementTarget.DataContext.NoSideRexActionTooltip,
-                                                              RelativeSource={RelativeSource AncestorType=ToolTip}}"/>
-                                </ToolTip>
-                            </Image.ToolTip>
-                        </Image>
+                               SnapsToDevicePixels="True"/>
+
 
                         <TextBlock Text="REX (No Side)"
                                    FontWeight="Bold"
@@ -137,10 +132,16 @@
                                 Margin="15,-40,0,0"
                                 Visibility="{Binding BreakGlassVisibility}">
 
-                        <Image Source="{Binding BreakGlassImagePath}"
+                        <Image x:Name="BreakGlassImage"
+                               Source="{Binding BreakGlassImagePath}"
                                Width="78"
                                Height="90"
                                Stretch="Uniform"
+                               Cursor="Hand"
+                               MouseMove="BreakGlassImage_MouseMove"
+                               MouseLeftButtonUp="BreakGlassImage_MouseLeftButtonUp"
+                               MouseEnter="BreakGlassImage_MouseEnter"
+                               MouseLeave="BreakGlassImage_MouseLeave"
                                RenderOptions.BitmapScalingMode="HighQuality"
                                SnapsToDevicePixels="True"/>
 
@@ -149,8 +150,8 @@
                                    Foreground="#CCCCCC"
                                    HorizontalAlignment="Center"/>
 
-                        <TextBlock Text="Normal"
-                                   Foreground="#CCCCCC"
+                        <TextBlock Text="{Binding BreakGlassStatusText}"
+                                   Foreground="{Binding BreakGlassStatusColor}"
                                    HorizontalAlignment="Center"/>
                     </StackPanel>
 
@@ -182,20 +183,13 @@
                                    Height="90"
                                    Stretch="Uniform"
                                    Cursor="Hand"
+                                   MouseMove="InRexImage_MouseMove"
                                    MouseEnter="InRexImage_MouseEnter"
                                    MouseLeave="InRexImage_MouseLeave"
                                    PreviewMouseDown="InRexImage_MouseDown"
                                    PreviewMouseUp="InRexImage_MouseUp"
                                    RenderOptions.BitmapScalingMode="HighQuality"
-                                   SnapsToDevicePixels="True">
-
-                                <Image.ToolTip>
-                                    <ToolTip>
-                                        <TextBlock Text="{Binding PlacementTarget.DataContext.InRexActionTooltip,
-                                                                  RelativeSource={RelativeSource AncestorType=ToolTip}}"/>
-                                    </ToolTip>
-                                </Image.ToolTip>
-                            </Image>
+                                   SnapsToDevicePixels="True"/>
 
                             <TextBlock Text="In REX"
                                        FontWeight="Bold"
@@ -224,13 +218,13 @@
                                        SnapsToDevicePixels="True"/>
 
                                 <!-- Reader LED overlay -->
-                                <Border Width="35"
+                                <Border Width="36"
                                         Height="12"
                                         CornerRadius="3"
                                         Background="Red"
                                         HorizontalAlignment="Center"
                                         VerticalAlignment="Top"
-                                        Margin="0,12,0,0"/>
+                                        Margin="-2,12,0,0"/>
                             </Grid>
 
                             <TextBlock Text="In Reader"
@@ -255,17 +249,12 @@
                            Margin="0,15,0,0"
                            Stretch="Uniform"
                            Cursor="Hand"
+                           MouseMove="DoorImage_MouseMove"
+                           MouseEnter="DoorImage_MouseEnter"
                            MouseLeftButtonUp="DoorImage_MouseLeftButtonUp"
                            MouseLeave="DoorImage_MouseLeave"
                            RenderOptions.BitmapScalingMode="HighQuality"
-                           SnapsToDevicePixels="True">
-
-                        <Image.ToolTip>
-                            <ToolTip DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
-                                <TextBlock Text="{Binding DoorActionTooltip}"/>
-                            </ToolTip>
-                        </Image.ToolTip>
-                    </Image>
+                           SnapsToDevicePixels="True"/>
 
                     <!-- Right side devices -->
                     <Grid Grid.Column="2"
@@ -299,13 +288,13 @@
                                        SnapsToDevicePixels="True"/>
 
                                 <!-- Reader LED overlay -->
-                                <Border Width="35"
+                                <Border Width="36"
                                         Height="12"
                                         CornerRadius="3"
                                         Background="Red"
                                         HorizontalAlignment="Center"
                                         VerticalAlignment="Top"
-                                        Margin="0,12,0,0"/>
+                                        Margin="-2,12,0,0"/>
                             </Grid>
 
                             <TextBlock Text="Out Reader"
@@ -331,20 +320,13 @@
                                    Height="90"
                                    Stretch="Uniform"
                                    Cursor="Hand"
+                                   MouseMove="OutRexImage_MouseMove"
                                    MouseEnter="OutRexImage_MouseEnter"
                                    MouseLeave="OutRexImage_MouseLeave"
                                    PreviewMouseDown="OutRexImage_MouseDown"
                                    PreviewMouseUp="OutRexImage_MouseUp"
                                    RenderOptions.BitmapScalingMode="HighQuality"
-                                   SnapsToDevicePixels="True">
-
-                                <Image.ToolTip>
-                                    <ToolTip>
-                                        <TextBlock Text="{Binding PlacementTarget.DataContext.OutRexActionTooltip,
-                                                                  RelativeSource={RelativeSource AncestorType=ToolTip}}"/>
-                                    </ToolTip>
-                                </Image.ToolTip>
-                            </Image>
+                                   SnapsToDevicePixels="True"/>
 
                             <TextBlock Text="Out REX"
                                        FontWeight="Bold"
@@ -363,5 +345,24 @@
 
             </StackPanel>
         </Border>
+
+        <Popup x:Name="FloatingToolTip"
+               Placement="Relative"
+               AllowsTransparency="True"
+               IsHitTestVisible="False">
+
+            <Border Background="#2D2D30"
+                    BorderBrush="#555555"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="6,3">
+
+                <TextBlock x:Name="FloatingToolTipText"
+                           Foreground="White"
+                           FontSize="12"/>
+            </Border>
+        </Popup>
+        
     </Grid>
+    
 </UserControl>

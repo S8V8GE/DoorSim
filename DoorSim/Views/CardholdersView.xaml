@@ -122,11 +122,11 @@
                       HorizontalGridLinesBrush="#3F3F46">
 
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Cardholder"
+                    <DataGridTextColumn Header="Cardholder Name"
                                         Binding="{Binding CardholderName}"
                                         Width="*"/>
 
-                    <DataGridTextColumn Header="Credential"
+                    <DataGridTextColumn Header="Credential (Raw Hexadecimal)"
                                         Binding="{Binding TrimmedCredential}"
                                         Width="*"/>
 

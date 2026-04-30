@@ -108,9 +108,6 @@ public partial class DoorsViewModel : ObservableObject
     // TEMP
     public string ReaderImagePath => "/Images/Reader.png";
 
-    // TEMP
-    public string BreakGlassImagePath => "/Images/Breakglass_Normal.png";
-
     // DONE....;
     public string DoorImagePath
     {
@@ -164,6 +161,19 @@ public partial class DoorsViewModel : ObservableObject
         }
     }
 
+    public string BreakGlassImagePath
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return "/Images/Breakglass_Normal.png";
+
+            return SelectedDoor.BreakGlassIsActive
+                ? "/Images/Breakglass_Active.png"
+                : "/Images/Breakglass_Normal.png";
+        }
+    }
+
 
     /*
       #############################################################################
@@ -180,6 +190,12 @@ public partial class DoorsViewModel : ObservableObject
 
             if (!SelectedDoor.HasLock)
                 return "No door lock configured";
+
+            if (SelectedDoor.BreakGlassIsActive)
+            {
+                var lockState = SelectedDoor.DoorIsLocked ? "Locked" : "Unlocked";
+                return $"No power ({lockState})";
+            }
 
             if (SelectedDoor.UnlockedForMaintenance)
                 return "Maintenance mode";
@@ -256,6 +272,23 @@ public partial class DoorsViewModel : ObservableObject
         }
     }
 
+    public string BreakGlassStatusText
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return "";
+
+            if (!SelectedDoor.HasBreakGlass)
+                return "";
+
+            if (SelectedDoor.BreakGlassIsShunted)
+                return "Shunted";
+
+            return SelectedDoor.BreakGlassIsActive ? "Active" : "Normal";
+        }
+    }
+
 
     /*
       #############################################################################
@@ -273,10 +306,13 @@ public partial class DoorsViewModel : ObservableObject
             if (!SelectedDoor.HasLock)
                 return WarningBrush;
 
+            if (SelectedDoor.BreakGlassIsActive)
+                return WarningBrush;
+
             if (SelectedDoor.UnlockedForMaintenance)
                 return WarningBrush;
 
-            return SelectedDoor.DoorIsLocked ? GoodBrush : BadBrush;
+            return SelectedDoor.DoorIsLocked ? BadBrush : GoodBrush;
         }
     }
 
@@ -336,6 +372,20 @@ public partial class DoorsViewModel : ObservableObject
                 return WarningBrush;
 
             return SelectedDoor.RexNoSideIsActive ? BadBrush : GoodBrush;
+        }
+    }
+
+    public Brush BreakGlassStatusColor
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return NeutralBrush;
+
+            if (SelectedDoor.BreakGlassIsShunted)
+                return WarningBrush;
+
+            return SelectedDoor.BreakGlassIsActive ? BadBrush : GoodBrush;
         }
     }
 
@@ -422,6 +472,25 @@ public partial class DoorsViewModel : ObservableObject
         }
     }
 
+    public string BreakGlassActionTooltip
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return "";
+
+            if (!SelectedDoor.HasBreakGlass)
+                return "";
+
+            if (SelectedDoor.BreakGlassIsShunted)
+                return "Breakglass is shunted";
+
+            return SelectedDoor.BreakGlassIsActive
+                ? "Reset breakglass"
+                : "Activate breakglass";
+        }
+    }
+
 
     /*
       #############################################################################
@@ -466,6 +535,10 @@ public partial class DoorsViewModel : ObservableObject
                 // Preserve No-side REX live state so it does not flicker during the 3-second door list refresh
                 refreshedSelectedDoor.RexNoSideIsActive = previousSelectedDoor.RexNoSideIsActive;
                 refreshedSelectedDoor.RexNoSideIsShunted = previousSelectedDoor.RexNoSideIsShunted;
+
+                // Preserve Breakglass live state so it does not flicker during the 3-second door list refresh
+                refreshedSelectedDoor.BreakGlassIsActive = previousSelectedDoor.BreakGlassIsActive;
+                refreshedSelectedDoor.BreakGlassIsShunted = previousSelectedDoor.BreakGlassIsShunted;
             }
 
             SelectedDoor = refreshedSelectedDoor;
@@ -496,28 +569,41 @@ public partial class DoorsViewModel : ObservableObject
         OnPropertyChanged(nameof(DoorActionTooltip));
         OnPropertyChanged(nameof(DoorLockStatusColor));
         OnPropertyChanged(nameof(DoorSensorStatusColor));
+
         OnPropertyChanged(nameof(InReaderVisibility));
         OnPropertyChanged(nameof(OutReaderVisibility));
+
         OnPropertyChanged(nameof(InRexVisibility));
         OnPropertyChanged(nameof(OutRexVisibility));
         OnPropertyChanged(nameof(NoSideRexVisibility));
+
         OnPropertyChanged(nameof(ReaderImagePath));
+
         OnPropertyChanged(nameof(BreakGlassVisibility));
         OnPropertyChanged(nameof(BreakGlassImagePath));
+
         OnPropertyChanged(nameof(InRexColumn));
         OnPropertyChanged(nameof(OutRexColumn));
+
         OnPropertyChanged(nameof(InRexImagePath));
         OnPropertyChanged(nameof(InRexStatusText));
         OnPropertyChanged(nameof(InRexStatusColor));
         OnPropertyChanged(nameof(InRexActionTooltip));
+
         OnPropertyChanged(nameof(OutRexImagePath));
         OnPropertyChanged(nameof(OutRexStatusText));
         OnPropertyChanged(nameof(OutRexStatusColor));
         OnPropertyChanged(nameof(OutRexActionTooltip));
+
         OnPropertyChanged(nameof(NoSideRexImagePath));
         OnPropertyChanged(nameof(NoSideRexStatusText));
         OnPropertyChanged(nameof(NoSideRexStatusColor));
         OnPropertyChanged(nameof(NoSideRexActionTooltip));
+
+        OnPropertyChanged(nameof(BreakGlassImagePath));
+        OnPropertyChanged(nameof(BreakGlassStatusText));
+        OnPropertyChanged(nameof(BreakGlassStatusColor));
+        OnPropertyChanged(nameof(BreakGlassActionTooltip));
     }
 
 
@@ -650,5 +736,37 @@ public partial class DoorsViewModel : ObservableObject
         OnPropertyChanged(nameof(NoSideRexStatusColor));
         OnPropertyChanged(nameof(NoSideRexActionTooltip));
     }
-    
+
+    // Updates live state for Breakglass and refreshes dependent UI properties
+    public void UpdateBreakGlassState(bool isActive, bool isShunted)
+    {
+        if (SelectedDoor == null)
+            return;
+
+        var changed = false;
+
+        if (SelectedDoor.BreakGlassIsActive != isActive)
+        {
+            SelectedDoor.BreakGlassIsActive = isActive;
+            changed = true;
+        }
+
+        if (SelectedDoor.BreakGlassIsShunted != isShunted)
+        {
+            SelectedDoor.BreakGlassIsShunted = isShunted;
+            changed = true;
+        }
+
+        if (!changed)
+            return;
+
+        OnPropertyChanged(nameof(BreakGlassImagePath));
+        OnPropertyChanged(nameof(BreakGlassStatusText));
+        OnPropertyChanged(nameof(BreakGlassStatusColor));
+        OnPropertyChanged(nameof(BreakGlassActionTooltip));
+
+        OnPropertyChanged(nameof(DoorLockStatusText));
+        OnPropertyChanged(nameof(DoorLockStatusColor));
+    }
+
 }

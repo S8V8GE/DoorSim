@@ -24,19 +24,23 @@ public class SoftwireDoor
     public bool InReaderRequiresCardAndPin { get; set; }
     public bool OutReaderRequiresCardAndPin { get; set; }
 
-    // Live door state
+    // Live door state (Sensor and Lock)
     public bool DoorSensorIsOpen { get; set; }
     public bool DoorSensorIsShunted { get; set; }
     public bool DoorIsLocked { get; set; }
     public bool UnlockedForMaintenance { get; set; }
 
-    // Live REX input state
+    // Live REX state
     public bool RexSideInIsActive { get; set; }
     public bool RexSideInIsShunted { get; set; }
     public bool RexSideOutIsActive { get; set; }
     public bool RexSideOutIsShunted { get; set; }
     public bool RexNoSideIsActive { get; set; }
     public bool RexNoSideIsShunted { get; set; }
+
+    // Live Breakglass state
+    public bool BreakGlassIsActive { get; set; }
+    public bool BreakGlassIsShunted { get; set; }
 
     // Softwire device paths used to query or change hardware state (Example: /Devices/Bus/Sim/Port_A/Iface/1/Input/IN_01)
 

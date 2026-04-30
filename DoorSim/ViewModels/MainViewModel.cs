@@ -213,6 +213,7 @@ public partial class MainViewModel : ObservableObject
                 var isOpen = false;
                 var isShunted = false;
 
+                // Door sensor live state from Softwire.
                 if (!string.IsNullOrWhiteSpace(Doors.SelectedDoor.DoorSensorDevicePath))
                 {
                     var sensorState = await _softwireService.GetInputStateAsync(
@@ -279,6 +280,22 @@ public partial class MainViewModel : ObservableObject
                         var noSideRexIsActive = noSideRexIsShunted ? false : noSideRexState.Active;
 
                         Doors.UpdateNoSideRexState(noSideRexIsActive, noSideRexIsShunted);
+                    }
+                }
+
+                // Read Breakglass live state from Softwire.
+                // Breakglass is represented by Softwire as a ManualStation input.
+                if (!string.IsNullOrWhiteSpace(Doors.SelectedDoor.BreakGlassDevicePath))
+                {
+                    var breakGlassState = await _softwireService.GetInputStateAsync(
+                        Doors.SelectedDoor.BreakGlassDevicePath);
+
+                    if (breakGlassState != null)
+                    {
+                        var breakGlassIsShunted = breakGlassState.IsShunted;
+                        var breakGlassIsActive = breakGlassIsShunted ? false : breakGlassState.Active;
+
+                        Doors.UpdateBreakGlassState(breakGlassIsActive, breakGlassIsShunted);
                     }
                 }
 
