@@ -199,6 +199,13 @@ public class SoftwireService : ISoftwireService
             bool hasBreakGlass = false;
             string breakGlassPath = "";
 
+            // Last access decision reported by Softwire for this door.
+            // Used later to show Granted / Denied feedback under the correct reader.
+            DateTime? lastDecisionTimeUtc = null;
+            string lastDecisionReaderPath = "";
+            bool lastDecisionGranted = false;
+            bool lastDecisionDenied = false;
+
             // Inspect each role assigned to the door.
             // Roles describe which Softwire devices are acting as:
             // - OpenSensor
@@ -354,6 +361,31 @@ public class SoftwireService : ISoftwireService
                 }
             }
 
+            // Parse the latest access decision reported by Softwire.
+            // LastDecision belongs to the door, but it may include the reader path,
+            // which lets the UI associate the result with the In or Out reader.
+            if (door.TryGetProperty("LastDecision", out var lastDecision))
+            {
+                if (lastDecision.TryGetProperty("TimeStampUtc", out var timestamp))
+                {
+                    if (DateTime.TryParse(timestamp.GetString(), out var parsedTimestamp))
+                    {
+                        lastDecisionTimeUtc = parsedTimestamp.ToUniversalTime();
+                    }
+                }
+
+                if (lastDecision.TryGetProperty("Reader", out var reader))
+                {
+                    lastDecisionReaderPath = reader.GetString() ?? "";
+                }
+
+                if (lastDecision.TryGetProperty("Decision", out var decision))
+                {
+                    lastDecisionGranted = decision.TryGetProperty("Granted", out _);
+                    lastDecisionDenied = decision.TryGetProperty("Denied", out _);
+                }
+            }
+
             // Convert the parsed JSON values into a clean UI-friendly model.
             doors.Add(new SoftwireDoor
             {
@@ -380,7 +412,11 @@ public class SoftwireService : ISoftwireService
                 RexSideOutDevicePath = rexSideOutPath,
                 RexNoSideDevicePath = rexNoSidePath,
                 HasBreakGlass = hasBreakGlass,
-                BreakGlassDevicePath = breakGlassPath
+                BreakGlassDevicePath = breakGlassPath,
+                LastDecisionTimeUtc = lastDecisionTimeUtc,
+                LastDecisionReaderPath = lastDecisionReaderPath,
+                LastDecisionGranted = lastDecisionGranted,
+                LastDecisionDenied = lastDecisionDenied
             });
         }
 

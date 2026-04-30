@@ -22,6 +22,8 @@ public partial class SingleDoorView : UserControl
 
     private readonly DispatcherTimer _floatingToolTipTimer;
 
+    private int _soundVersion;
+
     public SingleDoorView()
     {
         InitializeComponent(); // It's actually spelt Initialise... but we can let it go ;)
@@ -88,10 +90,6 @@ public partial class SingleDoorView : UserControl
     // PINs are sent to Softwire as Wiegand26:
     // - Facility code = 0
     // - Card number   = entered PIN
-    //
-    // isInReader controls which temporary UI status is shown after sending:
-    // - true  = In Reader shows "PIN sent"
-    // - false = Out Reader shows "PIN sent"
     private async Task OpenPinDialogAndSendAsync(DoorSim.ViewModels.DoorsViewModel vm, string readerName, string readerPath, bool isInReader, int? timeoutSeconds = null)
     {
         if (string.IsNullOrWhiteSpace(readerPath))
@@ -111,7 +109,7 @@ public partial class SingleDoorView : UserControl
                 _ = PlayTripleBeepAsync();
 
                 ShowAppMessage(
-                    "PIN entry timed out. Access was not completed.",
+                    "PIN entry timed out. Access was denied.",
                     "PIN timeout");
             }
 
@@ -133,6 +131,8 @@ public partial class SingleDoorView : UserControl
 
         if (!sent)
             return;
+
+        RegisterPendingReaderDecision(readerPath, isInReader);
 
         if (isInReader)
         {
@@ -194,8 +194,7 @@ public partial class SingleDoorView : UserControl
     // -- SOUND HELPERS:
     //    --------------
     // Plays a short local sound when a card is presented to a reader.
-    // Uses a WAV resource rather than SystemSounds because system event sounds
-    // may be muted or disabled in Windows / VM environments.
+    // Uses a WAV resource rather than SystemSounds because system event sounds may be muted or disabled in Windows / VM environments.
     private void PlayCredentialPresentedSound()
     {
         try
@@ -215,10 +214,27 @@ public partial class SingleDoorView : UserControl
         }
     }
 
+    // Plays the card-presented beep after a short delay.
+    // If another important sound starts during that delay, this beep is skipped.
+    // This prevents the normal card beep overlapping with access denied warning beeps.
+    private async Task PlayCardPresentedSoundAsync()
+    {
+        var versionAtStart = _soundVersion;
+
+        await Task.Delay(250);
+
+        if (versionAtStart != _soundVersion)
+            return;
+
+        PlayCredentialPresentedSound();
+    }
+
     // Plays the credential beep three times (Used for timeout / warning feedback if PIN not entered within the allowed time).
     // Uses PlaySync inside a background task so each beep finishes before the next starts.
     private async Task PlayTripleBeepAsync()
     {
+        _soundVersion++;
+
         await Task.Run(() =>
         {
             for (var i = 0; i < 3; i++)
@@ -248,8 +264,15 @@ public partial class SingleDoorView : UserControl
     // Plays a sound when a reader LED colour changes.
     private void OnReaderLedChanged()
     {
-        PlayCredentialPresentedSound();
+        _ = PlayCardPresentedSoundAsync();
     }
+
+    // Plays warning beeps when Softwire reports an access denied decision.
+    private async void OnReaderAccessDenied()
+    {
+        await PlayTripleBeepAsync();
+    }
+
 
     // -- MESSAGE HELPERS:
     //    ---------------
@@ -274,12 +297,26 @@ public partial class SingleDoorView : UserControl
         if (e.OldValue is DoorSim.ViewModels.DoorsViewModel oldVm)
         {
             oldVm.ReaderLedChanged -= OnReaderLedChanged;
+            oldVm.ReaderAccessDenied -= OnReaderAccessDenied;
         }
 
         if (e.NewValue is DoorSim.ViewModels.DoorsViewModel newVm)
         {
             newVm.ReaderLedChanged += OnReaderLedChanged;
+            newVm.ReaderAccessDenied += OnReaderAccessDenied;
         }
+    }
+
+    // Tells MainViewModel that a reader action was just sent.
+    // MainViewModel will watch Softwire's LastDecision and show Granted / Denied feedback.
+    private void RegisterPendingReaderDecision(string readerPath, bool isInReader)
+    {
+        var mainWindow = Application.Current.MainWindow;
+
+        if (mainWindow?.DataContext is not DoorSim.ViewModels.MainViewModel mainVm)
+            return;
+
+        mainVm.RegisterPendingReaderDecision(readerPath, isInReader);
     }
 
 
@@ -461,9 +498,18 @@ public partial class SingleDoorView : UserControl
         }
 
         // Local feedback: card has been presented to the reader.
-        PlayCredentialPresentedSound();
+        _ = PlayCardPresentedSoundAsync();
 
         var swipeSent = await service.SwipeRawAsync(vm.SelectedDoor.ReaderSideInDevicePath, cardholder.TrimmedCredential, cardholder.BitCount);
+
+        // For card-only readers, the access decision follows the card swipe.
+        // For Card + PIN readers, the final decision should only be checked after the PIN is sent.
+        if (swipeSent && !vm.SelectedDoor.InReaderRequiresCardAndPin)
+        {
+            RegisterPendingReaderDecision(
+                vm.SelectedDoor.ReaderSideInDevicePath,
+                true);
+        }
 
         if (swipeSent && vm.SelectedDoor.InReaderRequiresCardAndPin)
         {
@@ -620,9 +666,18 @@ public partial class SingleDoorView : UserControl
         }
 
         // Local feedback: card has been presented to the reader.
-        PlayCredentialPresentedSound();
+        _ = PlayCardPresentedSoundAsync();
 
         var swipeSent = await service.SwipeRawAsync(vm.SelectedDoor.ReaderSideOutDevicePath, cardholder.TrimmedCredential, cardholder.BitCount);
+
+        // For card-only readers, the access decision follows the card swipe.
+        // For Card + PIN readers, the final decision should only be checked after the PIN is sent.
+        if (swipeSent && !vm.SelectedDoor.OutReaderRequiresCardAndPin)
+        {
+            RegisterPendingReaderDecision(
+                vm.SelectedDoor.ReaderSideOutDevicePath,
+                false);
+        }
 
         if (swipeSent && vm.SelectedDoor.OutReaderRequiresCardAndPin)
         {

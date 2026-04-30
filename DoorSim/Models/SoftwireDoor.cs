@@ -1,8 +1,10 @@
-﻿namespace DoorSim.Models;
+﻿using System;
+
+namespace DoorSim.Models;
 
 // Represents a door retrieved from Softwire.
 // This is the high-level door object used by the UI.
-// It will expand as I start to map more Softwire role/device information... WIP - JS 29th May 2026
+// It will expand as I start to map more Softwire role/device information... WIP - JS 30th May 2026
 public class SoftwireDoor
 {
     // Basic door identity returned by Softwire (Href used for API calls)
@@ -33,6 +35,18 @@ public class SoftwireDoor
     public bool OutReaderIsOnline { get; set; }
     public bool OutReaderIsShunted { get; set; }
     public string OutReaderLedColor { get; set; } = "Red";
+
+    // Last access decision reported by Softwire for this door.
+    //
+    // Used to show short reader feedback such as:
+    // - Access granted
+    // - Access denied
+    //
+    // LastDecision belongs to the door, but it can include the reader path, allowing the UI to show the result under the correct reader.
+    public DateTime? LastDecisionTimeUtc { get; set; }
+    public string LastDecisionReaderPath { get; set; } = string.Empty;
+    public bool LastDecisionGranted { get; set; }
+    public bool LastDecisionDenied { get; set; }
 
     // Live door state (Sensor and Lock)
     public bool DoorSensorIsOpen { get; set; }

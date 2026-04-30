@@ -1,5 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DoorSim.Models;
 using DoorSim.Services;
 using DoorSim.Views;
 using System.Windows;
@@ -62,6 +63,11 @@ public partial class MainViewModel : ObservableObject
     // Timer for polling reader state more quickly (Reader LEDs can flash briefly, so readers are polled faster than the rest of the door hardware).
     private DispatcherTimer? _readerTimer;
 
+    // Tracks the most recent reader action so we can match it against Softwire's LastDecision in the refreshed door JSON.
+    private string _pendingDecisionReaderPath = string.Empty;
+    private DateTime? _pendingDecisionSentUtc;
+    private bool _pendingDecisionIsInReader;
+
 
     /*
      #############################################################################
@@ -85,8 +91,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private Brush statusColor = new SolidColorBrush(Color.FromRgb(220, 80, 80));
 
-    // Controls whether the Connect menu option is enabled
-    // Disabled once a successful connection is established
+    // Controls whether the Connect menu option is enabled. Disabled once a successful connection is established
     [ObservableProperty]
     private bool canConnect = true;
 
@@ -127,6 +132,54 @@ public partial class MainViewModel : ObservableObject
         Doors.LoadDoors(doors);
 
         return doors.Count;
+    }
+
+    // Records that a card or PIN was sent to a reader. The selected-door polling loop uses this to match the next Softwire LastDecision back to the reader that triggered it.
+    public void RegisterPendingReaderDecision(string readerPath, bool isInReader)
+    {
+        if (string.IsNullOrWhiteSpace(readerPath))
+            return;
+
+        _pendingDecisionReaderPath = readerPath;
+        _pendingDecisionSentUtc = DateTime.UtcNow;
+        _pendingDecisionIsInReader = isInReader;
+    }
+
+    // Checks whether Softwire has reported a LastDecision after a reader action.
+    //
+    // This intentionally mirrors the my POC PowerShell logic:
+    // - a card/PIN is sent
+    // - the door is refreshed
+    // - LastDecision.Decision is checked for Granted or Denied
+    //
+    // We do not require the LastDecision reader path or timestamp to match exactly, because Card + PIN timing can vary and Softwire may update LastDecision slightly later.
+    private async Task CheckPendingReaderDecisionAsync(SoftwireDoor updatedDoor)
+    {
+        if (_pendingDecisionSentUtc == null)
+            return;
+
+        // If Softwire has not reported a decision yet, keep waiting.
+        if (!updatedDoor.LastDecisionGranted && !updatedDoor.LastDecisionDenied)
+            return;
+
+        if (updatedDoor.LastDecisionGranted)
+        {
+            if (_pendingDecisionIsInReader)
+                _ = Doors.ShowInReaderDecisionFeedbackAsync("Access granted", true);
+            else
+                _ = Doors.ShowOutReaderDecisionFeedbackAsync("Access granted", true);
+        }
+        else if (updatedDoor.LastDecisionDenied)
+        {
+            if (_pendingDecisionIsInReader)
+                _ = Doors.ShowInReaderDecisionFeedbackAsync("Access denied", false);
+            else
+                _ = Doors.ShowOutReaderDecisionFeedbackAsync("Access denied", false);
+        }
+
+        // Clear pending action so this decision is only handled once.
+        _pendingDecisionReaderPath = string.Empty;
+        _pendingDecisionSentUtc = null;
     }
 
 
@@ -304,6 +357,8 @@ public partial class MainViewModel : ObservableObject
                         Doors.UpdateBreakGlassState(breakGlassIsActive, breakGlassIsShunted);
                     }
                 }
+
+                await CheckPendingReaderDecisionAsync(updated);
 
                 Doors.UpdateSelectedDoorState(updated.DoorIsLocked, isOpen, isShunted);
             }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using DoorSim.Models;
 using System.Collections.ObjectModel;
@@ -66,6 +67,30 @@ public partial class DoorsViewModel : ObservableObject
     // Raised when a reader LED colour changes (The view can listen to this and play a local sound effect).
     public event Action? ReaderLedChanged;
 
+    // Raised when Softwire reports an access denied decision.
+    public event Action? ReaderAccessDenied;
+
+    // Reader access decision feedback.
+    // These values are shown briefly after Softwire reports an access decision.
+    [ObservableProperty]
+    private string inReaderDecisionText = string.Empty;
+
+    [ObservableProperty]
+    private string outReaderDecisionText = string.Empty;
+
+    // Reader access decision result.
+    // These control the feedback colour without relying on text comparison.
+    [ObservableProperty]
+    private bool inReaderDecisionIsGranted;
+
+    [ObservableProperty]
+    private bool inReaderDecisionIsDenied;
+
+    [ObservableProperty]
+    private bool outReaderDecisionIsGranted;
+
+    [ObservableProperty]
+    private bool outReaderDecisionIsDenied;
 
     /*
       #############################################################################
@@ -252,6 +277,9 @@ public partial class DoorsViewModel : ObservableObject
             if (!SelectedDoor.HasReaderSideIn)
                 return "";
 
+            if (!string.IsNullOrWhiteSpace(InReaderDecisionText))
+                return InReaderDecisionText;
+
             if (InReaderPinSent)
                 return "PIN sent";
 
@@ -274,6 +302,9 @@ public partial class DoorsViewModel : ObservableObject
 
             if (!SelectedDoor.HasReaderSideOut)
                 return "";
+
+            if (!string.IsNullOrWhiteSpace(OutReaderDecisionText))
+                return OutReaderDecisionText;
 
             if (OutReaderPinSent)
                 return "PIN sent";
@@ -407,6 +438,12 @@ public partial class DoorsViewModel : ObservableObject
             if (SelectedDoor == null)
                 return NeutralBrush;
 
+            if (InReaderDecisionIsGranted)
+                return GoodBrush;
+
+            if (InReaderDecisionIsDenied)
+                return BadBrush;
+
             if (InReaderPinSent)
                 return DragOverBrush;
 
@@ -448,6 +485,12 @@ public partial class DoorsViewModel : ObservableObject
         {
             if (SelectedDoor == null)
                 return NeutralBrush;
+
+            if (OutReaderDecisionIsGranted)
+                return GoodBrush;
+
+            if (OutReaderDecisionIsDenied)
+                return BadBrush;
 
             if (OutReaderPinSent)
                 return DragOverBrush;
@@ -740,7 +783,7 @@ public partial class DoorsViewModel : ObservableObject
                 // Preserve Breakglass live state so it does not flicker during the 3-second door list refresh
                 refreshedSelectedDoor.BreakGlassIsActive = previousSelectedDoor.BreakGlassIsActive;
                 refreshedSelectedDoor.BreakGlassIsShunted = previousSelectedDoor.BreakGlassIsShunted;
- 
+
             }
 
             SelectedDoor = refreshedSelectedDoor;
@@ -879,6 +922,26 @@ public partial class DoorsViewModel : ObservableObject
         OnPropertyChanged(nameof(OutReaderStatusColor));
     }
 
+    // Refreshes In Reader colour when temporary decision result changes.
+    partial void OnInReaderDecisionIsGrantedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(InReaderStatusColor));
+    }
+    partial void OnInReaderDecisionIsDeniedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(InReaderStatusColor));
+    }
+
+    // Refreshes Out Reader colour when temporary decision result changes.
+    partial void OnOutReaderDecisionIsGrantedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(OutReaderStatusColor));
+    }
+    partial void OnOutReaderDecisionIsDeniedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(OutReaderStatusColor));
+    }
+
     // Refreshes the In Reader status when temporary PIN-sent state changes
     partial void OnInReaderPinSentChanged(bool value)
     {
@@ -979,6 +1042,66 @@ public partial class DoorsViewModel : ObservableObject
         OnPropertyChanged(nameof(OutReaderStatusColor));
         OnPropertyChanged(nameof(OutReaderLedBrush));
         OnPropertyChanged(nameof(OutReaderActionTooltip));
+    }
+
+    // Refreshes In Reader status when temporary decision feedback changes.
+    partial void OnInReaderDecisionTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(InReaderStatusText));
+        OnPropertyChanged(nameof(InReaderStatusColor));
+    }
+
+    // Refreshes Out Reader status when temporary decision feedback changes.
+    partial void OnOutReaderDecisionTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(OutReaderStatusText));
+        OnPropertyChanged(nameof(OutReaderStatusColor));
+    }
+
+    // Shows temporary access decision feedback under the In Reader.
+    public async Task ShowInReaderDecisionFeedbackAsync(string decisionText, bool isGranted)
+    {
+        InReaderDecisionText = decisionText;
+        InReaderDecisionIsGranted = isGranted;
+        InReaderDecisionIsDenied = !isGranted;
+
+        if (!isGranted)
+        {
+            ReaderAccessDenied?.Invoke();
+        }
+
+        await Task.Delay(2000);
+
+        // Only clear if nothing newer has replaced it.
+        if (InReaderDecisionText == decisionText)
+        {
+            InReaderDecisionText = string.Empty;
+            InReaderDecisionIsGranted = false;
+            InReaderDecisionIsDenied = false;
+        }
+    }
+
+    // Shows temporary access decision feedback under the Out Reader.
+    public async Task ShowOutReaderDecisionFeedbackAsync(string decisionText, bool isGranted)
+    {
+        OutReaderDecisionText = decisionText;
+        OutReaderDecisionIsGranted = isGranted;
+        OutReaderDecisionIsDenied = !isGranted;
+
+        if (!isGranted)
+        {
+            ReaderAccessDenied?.Invoke();
+        }
+
+        await Task.Delay(2000);
+
+        // Only clear if nothing newer has replaced it.
+        if (OutReaderDecisionText == decisionText)
+        {
+            OutReaderDecisionText = string.Empty;
+            OutReaderDecisionIsGranted = false;
+            OutReaderDecisionIsDenied = false;
+        }
     }
 
     // Updates live state for the In REX and refreshes dependent UI properties
