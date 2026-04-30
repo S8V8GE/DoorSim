@@ -59,6 +59,9 @@ public partial class MainViewModel : ObservableObject
     // Timer for selected door + hardware state (fast polling every 1 second) - hoping I dont either melt the VM or crash Softwire... If this comment still exists all was ok!)
     private DispatcherTimer? _selectedDoorTimer;
 
+    // Timer for polling reader state more quickly (Reader LEDs can flash briefly, so readers need faster polling than the rest of the door hardware).
+    private DispatcherTimer? _readerTimer;
+
 
     /*
      #############################################################################
@@ -232,6 +235,9 @@ public partial class MainViewModel : ObservableObject
                     }
                 }
 
+                // Readers in and out are polled seperately in StartReaderMonitoring() with a faster timer, so we dont want to update their state here as that would cause the reader LED status to flicker or become unresponsive.
+                // Instead, we just update the door sensor and the shunt status here, and the reader states are updated in their own timer loop.
+
                 // Read In REX live state from Softwire.
                 // Uses the same input-state pattern as the door sensor.
                 if (!string.IsNullOrWhiteSpace(Doors.SelectedDoor.RexSideInDevicePath))
@@ -313,6 +319,60 @@ public partial class MainViewModel : ObservableObject
 
     /*
      #############################################################################
+                      Reader Monitoring (very fast loop)
+     #############################################################################
+   */
+
+    // Polls reader state faster than the rest of the door hardware (This helps catch short reader LED changes such as granted/denied flashes).
+    private void StartReaderMonitoring()
+    {
+        _readerTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(250)
+        };
+
+        _readerTimer.Tick += async (s, e) =>
+        {
+            if (!IsConnected || Doors.SelectedDoor == null)
+                return;
+
+            // Read In Reader live state from Softwire.
+            if (!string.IsNullOrWhiteSpace(Doors.SelectedDoor.ReaderSideInDevicePath))
+            {
+                var inReaderState = await _softwireService.GetReaderStateAsync(
+                    Doors.SelectedDoor.ReaderSideInDevicePath);
+
+                if (inReaderState != null)
+                {
+                    Doors.UpdateInReaderState(
+                        inReaderState.Online,
+                        inReaderState.IsShunted,
+                        inReaderState.LedColor);
+                }
+            }
+
+            // Read Out Reader live state from Softwire.
+            if (!string.IsNullOrWhiteSpace(Doors.SelectedDoor.ReaderSideOutDevicePath))
+            {
+                var outReaderState = await _softwireService.GetReaderStateAsync(
+                    Doors.SelectedDoor.ReaderSideOutDevicePath);
+
+                if (outReaderState != null)
+                {
+                    Doors.UpdateOutReaderState(
+                        outReaderState.Online,
+                        outReaderState.IsShunted,
+                        outReaderState.LedColor);
+                }
+            }
+        };
+
+        _readerTimer.Start();
+    }
+
+
+    /*
+     #############################################################################
                            Commands (user actions)
      #############################################################################
    */
@@ -389,6 +449,8 @@ public partial class MainViewModel : ObservableObject
         StartConnectionMonitoring();
         // Start fast refresh loop (selected door + hardware state) -   this one will check every 1 seconds for updates to the selected door (e.g., if it was locked/unlocked from another client or the Config Tool), and updates the door state in the UI accordingly.
         StartSelectedDoorMonitoring();
+        // Start very fast refresh loop for reader state / LED changes only - this one checks every 250ms for reader state changes, which allows the UI to reflect short reader LED flashes such as granted/denied feedback.
+        StartReaderMonitoring();
     }
 
 }

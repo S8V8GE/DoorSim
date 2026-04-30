@@ -48,97 +48,120 @@
     Later:
     - Cardholders will be draggable onto door readers.
     -->
+    
+    <Grid>
+        
+        <Border BorderBrush="#3F3F46"
+                BorderThickness="1"
+                Background="#1E1E1E"
+                Margin="10"
+                Padding="10">
 
-    <Border BorderBrush="#3F3F46"
-            BorderThickness="1"
-            Background="#1E1E1E"
-            Margin="10"
-            Padding="10">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="10"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
 
-        <Grid>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="10"/>
-                <RowDefinition Height="*"/>
-            </Grid.RowDefinitions>
+                <!-- Title bar with search -->
+                <Border Grid.Row="0"
+                        Background="#1F3A5F"
+                        Padding="10,6"> 
 
-            <!-- Title bar with search -->
-            <Border Grid.Row="0"
-                    Background="#1F3A5F"
-                    Padding="10,6"> 
+                    <DockPanel LastChildFill="False">
 
-                <DockPanel LastChildFill="False">
+                        <StackPanel Orientation="Horizontal"
+                                    DockPanel.Dock="Left"
+                                    VerticalAlignment="Center">
 
-                    <StackPanel Orientation="Horizontal"
-                    DockPanel.Dock="Left"
-                    VerticalAlignment="Center">
+                            <TextBlock Text="👥 Cardholders"
+                                       FontSize="16"
+                                       FontWeight="Bold"
+                                       Foreground="White"/>
 
-                        <TextBlock Text="👥 Cardholders"
-                                   FontSize="16"
-                                   FontWeight="Bold"
-                                   Foreground="White"/>
+                            <TextBlock Text="{Binding CardholderCount, StringFormat=' ({0} cardholders configured)'}"
+                                       Margin="8,0,0,0"
+                                       FontSize="12"
+                                       Foreground="#CCCCCC"
+                                       VerticalAlignment="Bottom"/>
+                        </StackPanel>
 
-                        <TextBlock Text="{Binding CardholderCount, StringFormat=' ({0} cardholders configured)'}"
-                                   Margin="8,0,0,0"
-                                   FontSize="12"
-                                   Foreground="#CCCCCC"
-                                   VerticalAlignment="Bottom"/>
-                    </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    DockPanel.Dock="Right"
+                                    VerticalAlignment="Center">
 
-                    <StackPanel Orientation="Horizontal"
-                                DockPanel.Dock="Right"
-                                VerticalAlignment="Center">
+                            <TextBlock Text="🔍"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
 
-                        <TextBlock Text="🔍"
-                                   VerticalAlignment="Center"
-                                   Margin="0,0,6,0"/>
+                            <TextBox Width="220"
+                                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                     Background="#2D2D30"
+                                     Foreground="White"
+                                     BorderBrush="#555555"
+                                     Padding="6"
+                                     ToolTip="Search cardholders"/>
+                        </StackPanel>
 
-                        <TextBox Width="220"
-                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                                 Background="#2D2D30"
-                                 Foreground="White"
-                                 BorderBrush="#555555"
-                                 Padding="6"
-                                 ToolTip="Search cardholders"/>
-                    </StackPanel>
-
-                </DockPanel>
+                    </DockPanel>
                 
-            </Border>
+                </Border>
 
-            <!-- Cardholder list -->
-            <DataGrid Grid.Row="2"
-                      ItemsSource="{Binding VisibleCardholders}"
-                      AutoGenerateColumns="False"
-                      IsReadOnly="True"
-                      CanUserAddRows="False"
-                      HeadersVisibility="Column"
-                      Background="#1E1E1E"
-                      Foreground="White"
-                      RowBackground="#1E1E1E"
-                      AlternatingRowBackground="#252526"
-                      GridLinesVisibility="All"
-                      VerticalGridLinesBrush="#3F3F46"
-                      HorizontalGridLinesBrush="#3F3F46">
+                <!-- Cardholder list -->
+                <DataGrid x:Name="CardholdersGrid"
+                          Grid.Row="2"
+                          ItemsSource="{Binding VisibleCardholders}"
+                          PreviewMouseMove="CardholdersGrid_PreviewMouseMove"
+                          GiveFeedback="CardholdersGrid_GiveFeedback"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          CanUserAddRows="False"
+                          HeadersVisibility="Column"
+                          Background="#1E1E1E"
+                          Foreground="White"
+                          RowBackground="#1E1E1E"
+                          AlternatingRowBackground="#252526"
+                          GridLinesVisibility="All"
+                          VerticalGridLinesBrush="#3F3F46"
+                          HorizontalGridLinesBrush="#3F3F46">
 
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="Cardholder Name"
-                                        Binding="{Binding CardholderName}"
-                                        Width="*"/>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Cardholder Name"
+                                            Binding="{Binding CardholderName}"
+                                            Width="*"/>
 
-                    <DataGridTextColumn Header="Credential (Raw Hexadecimal)"
-                                        Binding="{Binding TrimmedCredential}"
-                                        Width="*"/>
+                        <DataGridTextColumn Header="Credential (Raw Hexadecimal)"
+                                            Binding="{Binding TrimmedCredential}"
+                                            Width="*"/>
 
-                    <DataGridTextColumn Header="Bit Count"
-                                        Binding="{Binding BitCount}"
-                                        Width="100"/>
-
-                    <DataGridCheckBoxColumn Header="Has PIN"
-                                            Binding="{Binding HasPin}"
+                        <DataGridTextColumn Header="Bit Count"
+                                            Binding="{Binding BitCount}"
                                             Width="100"/>
-                </DataGrid.Columns>
-            </DataGrid>
-        </Grid>
-    </Border>
+
+                        <DataGridCheckBoxColumn Header="Has PIN"
+                                                Binding="{Binding HasPin}"
+                                                Width="100"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </Border>
+
+        <!-- Floating credential image shown while dragging a cardholder -->
+        <Popup x:Name="CredentialDragPopup"
+               Placement="Absolute"
+               AllowsTransparency="True"
+               IsHitTestVisible="False">
+
+            <Image Source="/Images/Credential.png"
+                   Width="64"
+                   Height="64"
+                   Opacity="0.65"
+                   Stretch="Uniform"
+                   RenderOptions.BitmapScalingMode="HighQuality"
+                   SnapsToDevicePixels="True"/>
+        </Popup>
+
+    </Grid>
+
 </UserControl>

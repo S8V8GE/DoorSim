@@ -1,10 +1,12 @@
 ﻿using System;
 using DoorSim.Services;
+using DoorSim.Models;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
+using System.Media;
 
 namespace DoorSim.Views;
 
@@ -18,6 +20,8 @@ public partial class SingleDoorView : UserControl
     public SingleDoorView()
     {
         InitializeComponent(); // It's actually spelt Initialise... but we can let it go ;)
+
+        DataContextChanged += SingleDoorView_DataContextChanged;
 
         _floatingToolTipTimer = new DispatcherTimer
         {
@@ -110,6 +114,49 @@ public partial class SingleDoorView : UserControl
         _floatingToolTipTextProvider = null;
     }
 
+    // Plays a short local sound when a card is presented to a reader.
+    // Uses a WAV resource rather than SystemSounds because system event sounds
+    // may be muted or disabled in Windows / VM environments.
+    private void PlayCredentialPresentedSound()
+    {
+        try
+        {
+            var stream = Application.GetResourceStream(
+                new Uri("pack://application:,,,/Sounds/Credential_Beep.wav"));
+
+            if (stream == null)
+                return;
+
+            using var player = new SoundPlayer(stream.Stream);
+            player.Play();
+        }
+        catch
+        {
+            // Sound is non-critical. If playback fails, ignore it.
+        }
+    } 
+
+    // Plays a sound when a reader LED colour changes.
+    private void OnReaderLedChanged()
+    {
+        PlayCredentialPresentedSound();
+    }
+
+    // Called when the view receives or changes its DataContext.
+    // Used to subscribe to reader LED change events from DoorsViewModel.
+    private void SingleDoorView_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (e.OldValue is DoorSim.ViewModels.DoorsViewModel oldVm)
+        {
+            oldVm.ReaderLedChanged -= OnReaderLedChanged;
+        }
+
+        if (e.NewValue is DoorSim.ViewModels.DoorsViewModel newVm)
+        {
+            newVm.ReaderLedChanged += OnReaderLedChanged;
+        }
+    }
+
 
     /*
       #############################################################################
@@ -173,21 +220,307 @@ public partial class SingleDoorView : UserControl
                 vm.SelectedDoor.DoorSensorDevicePath,
                 newState);
 
-        // Reopen tooltip 
-        if (DoorImage.ToolTip is ToolTip toolTip)
-        {
-            toolTip.IsOpen = false;
-
-            await Task.Delay(50);
-
-            if (DoorImage.IsMouseOver)
-            {
-                toolTip.DataContext = DoorImage.DataContext;
-                toolTip.IsOpen = true;
-            }
-        }
     }
 
+
+    /*
+      #############################################################################
+                            Reader image handlers
+      #############################################################################
+    */
+
+    // Shows the floating tooltip for the In Reader.
+    private void InReader_MouseEnter(object sender, MouseEventArgs e)
+    {
+        if (DataContext is not DoorSim.ViewModels.DoorsViewModel vm)
+            return;
+
+        ShowFloatingToolTip(() => vm.InReaderActionTooltip, e);
+    }
+
+    // Keeps the floating tooltip next to the mouse while hovering over the In Reader.
+    private void InReader_MouseMove(object sender, MouseEventArgs e)
+    {
+        MoveFloatingToolTip(e);
+    }
+
+    // Hides the floating tooltip when leaving the In Reader.
+    private void InReader_MouseLeave(object sender, MouseEventArgs e)
+    {
+        HideFloatingToolTip();
+    }
+
+    // Allows the In Reader to accept dragged Cardholder objects.
+    // While a valid cardholder is hovering over the reader, the reader LED is shown as blue.
+    private void InReader_DragEnter(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(typeof(Cardholder)))
+        {
+            e.Effects = DragDropEffects.Copy;
+
+            if (DataContext is DoorSim.ViewModels.DoorsViewModel vm)
+            {
+                vm.IsCardholderOverInReader = true;
+            }
+        }
+        else
+        {
+            e.Effects = DragDropEffects.None;
+        }
+
+        e.Handled = true;
+    }
+
+    // Clears the drag-over state when the dragged cardholder leaves the In Reader.
+    // This returns the LED to its normal live Softwire state.
+    private void InReader_DragLeave(object sender, DragEventArgs e)
+    {
+        if (DataContext is DoorSim.ViewModels.DoorsViewModel vm)
+        {
+            vm.IsCardholderOverInReader = false;
+        }
+
+        e.Handled = true;
+    }
+
+    // Handles dropping a cardholder onto the In Reader.
+    // Sends the cardholder credential to Softwire using SwipeRaw.
+    private async void InReader_Drop(object sender, DragEventArgs e)
+    {
+        if (DataContext is not DoorSim.ViewModels.DoorsViewModel vm)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        // Clear drag-over state so the LED returns to normal after drop.
+        vm.IsCardholderOverInReader = false;
+
+        if (!e.Data.GetDataPresent(typeof(Cardholder)))
+        {
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
+        var cardholder = e.Data.GetData(typeof(Cardholder)) as Cardholder;
+
+        if (cardholder == null)
+        {
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
+        if (vm.SelectedDoor == null)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        // Do not send credentials to an unavailable reader.
+        if (vm.SelectedDoor.InReaderIsShunted || !vm.SelectedDoor.InReaderIsOnline)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        var service = GetSoftwireService();
+
+        if (service == null)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        // Local feedback: card has been presented to the reader.
+        PlayCredentialPresentedSound();
+
+        await service.SwipeRawAsync(
+            vm.SelectedDoor.ReaderSideInDevicePath,
+            cardholder.TrimmedCredential,
+            cardholder.BitCount);
+
+        e.Handled = true;
+    }
+
+    // Opens PIN entry for the In Reader.
+    // Temporary handler for now; next step will replace the message with a real PIN dialog.
+    private void InReaderEnterPin_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not DoorSim.ViewModels.DoorsViewModel vm)
+            return;
+
+        if (vm.SelectedDoor == null)
+            return;
+
+        if (vm.SelectedDoor.InReaderIsShunted)
+        {
+            MessageBox.Show(
+                "In reader is shunted. PIN entry is not available.",
+                "Reader unavailable");
+            return;
+        }
+
+        if (!vm.SelectedDoor.InReaderIsOnline)
+        {
+            MessageBox.Show(
+                "In reader is offline. PIN entry is not available.",
+                "Reader unavailable");
+            return;
+        }
+
+        MessageBox.Show(
+            "PIN entry for In Reader will open here.",
+            "Enter PIN");
+    }
+
+
+    // Shows the floating tooltip for the Out Reader.
+    private void OutReader_MouseEnter(object sender, MouseEventArgs e)
+    {
+        if (DataContext is not DoorSim.ViewModels.DoorsViewModel vm)
+            return;
+
+        ShowFloatingToolTip(() => vm.OutReaderActionTooltip, e);
+    }
+
+    // Keeps the floating tooltip next to the mouse while hovering over the Out Reader.
+    private void OutReader_MouseMove(object sender, MouseEventArgs e)
+    {
+        MoveFloatingToolTip(e);
+    }
+
+    // Hides the floating tooltip when leaving the Out Reader.
+    private void OutReader_MouseLeave(object sender, MouseEventArgs e)
+    {
+        HideFloatingToolTip();
+    }
+
+    // Allows the Out Reader to accept dragged Cardholder objects.
+    // While a valid cardholder is hovering over the reader, the reader LED is shown as blue.
+    private void OutReader_DragEnter(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(typeof(Cardholder)))
+        {
+            e.Effects = DragDropEffects.Copy;
+
+            if (DataContext is DoorSim.ViewModels.DoorsViewModel vm)
+            {
+                vm.IsCardholderOverOutReader = true;
+            }
+        }
+        else
+        {
+            e.Effects = DragDropEffects.None;
+        }
+
+        e.Handled = true;
+    }
+
+    // Clears the drag-over state when the dragged cardholder leaves the Out Reader.
+    // This returns the LED to its normal live Softwire state.
+    private void OutReader_DragLeave(object sender, DragEventArgs e)
+    {
+        if (DataContext is DoorSim.ViewModels.DoorsViewModel vm)
+        {
+            vm.IsCardholderOverOutReader = false;
+        }
+
+        e.Handled = true;
+    }
+
+    // Handles dropping a cardholder onto the Out Reader.
+    // Sends the cardholder credential to Softwire using SwipeRaw.
+    private async void OutReader_Drop(object sender, DragEventArgs e)
+    {
+        if (DataContext is not DoorSim.ViewModels.DoorsViewModel vm)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        // Clear drag-over state so the LED returns to normal after drop.
+        vm.IsCardholderOverOutReader = false;
+
+        if (!e.Data.GetDataPresent(typeof(Cardholder)))
+        {
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
+        var cardholder = e.Data.GetData(typeof(Cardholder)) as Cardholder;
+
+        if (cardholder == null)
+        {
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
+        if (vm.SelectedDoor == null)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        // Do not send credentials to an unavailable reader.
+        if (vm.SelectedDoor.OutReaderIsShunted || !vm.SelectedDoor.OutReaderIsOnline)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        var service = GetSoftwireService();
+
+        if (service == null)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        // Local feedback: card has been presented to the reader.
+        PlayCredentialPresentedSound();
+
+        await service.SwipeRawAsync(
+            vm.SelectedDoor.ReaderSideOutDevicePath,
+            cardholder.TrimmedCredential,
+            cardholder.BitCount);
+
+        e.Handled = true;
+    }
+
+    // Opens PIN entry for the Out Reader.
+    // Temporary handler for now; next step will replace the message with a real PIN dialog.
+    private void OutReaderEnterPin_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not DoorSim.ViewModels.DoorsViewModel vm)
+            return;
+
+        if (vm.SelectedDoor == null)
+            return;
+
+        if (vm.SelectedDoor.OutReaderIsShunted)
+        {
+            MessageBox.Show(
+                "Out reader is shunted. PIN entry is not available.",
+                "Reader unavailable");
+            return;
+        }
+
+        if (!vm.SelectedDoor.OutReaderIsOnline)
+        {
+            MessageBox.Show(
+                "Out reader is offline. PIN entry is not available.",
+                "Reader unavailable");
+            return;
+        }
+
+        MessageBox.Show(
+            "PIN entry for Out Reader will open here.",
+            "Enter PIN");
+    }
 
 
     /*

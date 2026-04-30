@@ -62,6 +62,20 @@ public interface ISoftwireService
     Task<InputState?> GetInputStateAsync(string devicePath);
 
 
+    // Retrieves the current state of a Softwire reader.
+    //
+    // readerPath example:
+    // /Devices/Bus/Sim/Port_A/Iface/1/Reader/READER_01
+    //
+    // Returns a ReaderState object containing:
+    // - Online
+    // - IsShunted
+    // - LedColor
+    //
+    // Returns null if the state could not be retrieved.
+    Task<ReaderState?> GetReaderStateAsync(string readerPath);
+
+
     // Sets the state of a Softwire input.
     //
     // inputPointer example:
@@ -79,6 +93,16 @@ public interface ISoftwireService
     // Returns:
     // - true  → request succeeded
     // - false → request failed
-    Task<bool> SetInputStateAsync(string inputPointer, string state); 
+    Task<bool> SetInputStateAsync(string inputPointer, string state);
+
+
+    // Simulates a raw credential swipe on a Softwire reader.
+    //
+    // readerPointer example:
+    // /Devices/Bus/Sim/Port_A/Iface/1/Reader/READER_01
+    //
+    // bytes should be the hexadecimal credential value.
+    // bitCount is the number of valid bits in the credential.
+    Task<bool> SwipeRawAsync(string readerPointer, string bytes, int bitCount);
 
 }

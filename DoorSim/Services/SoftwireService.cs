@@ -410,6 +410,52 @@ public class SoftwireService : ISoftwireService
     }
 
 
+    // Retrieves the current state of a Softwire reader device.
+    //
+    // Softwire reader endpoints return state information such as:
+    // - Online
+    // - IsShunted
+    // - LedColor
+    //
+    // Example reader path:
+    // /Devices/Bus/Sim/Port_A/Iface/1/Reader/READER_01
+    public async Task<ReaderState?> GetReaderStateAsync(string readerPath)
+    {
+        if (_client == null || string.IsNullOrWhiteSpace(readerPath))
+            return null;
+
+        var response = await _client.GetAsync(readerPath);
+
+        if (!response.IsSuccessStatusCode)
+            return null;
+
+        var json = await response.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        if (!root.TryGetProperty("Reader", out var reader))
+            return null;
+
+        var ledColor = "Red";
+
+        if (reader.TryGetProperty("LedColor", out var ledColorElement))
+        {
+            if (ledColorElement.TryGetProperty("Green", out _))
+                ledColor = "Green";
+            else if (ledColorElement.TryGetProperty("Red", out _))
+                ledColor = "Red";
+        }
+
+        return new ReaderState
+        {
+            Online = reader.TryGetProperty("Online", out var online) && online.GetBoolean(),
+            IsShunted = reader.TryGetProperty("IsShunted", out var shunted) && shunted.GetBoolean(),
+            LedColor = ledColor
+        };
+    }
+
+
     // Softwire expects simulated input state changes to be sent to: /{bus}/{iface}/Input
     //
     // Example:
@@ -442,6 +488,61 @@ public class SoftwireService : ISoftwireService
             {
                 [state] = Array.Empty<object>()
             }
+        };
+
+        var json = JsonSerializer.Serialize(body);
+
+        var content = new StringContent(
+            json,
+            Encoding.UTF8,
+            "application/json");
+
+        var response = await _client.PutAsync(uri, content);
+
+        return response.IsSuccessStatusCode;
+    }
+
+
+    // Simulates a raw credential swipe on a Softwire reader.
+    //
+    // Softwire expects raw credential swipes to be sent to:
+    // /{bus}/{iface}/SwipeRaw
+    //
+    // Example:
+    // Reader pointer: /Devices/Bus/Sim/Port_A/Iface/1/Reader/READER_01
+    // PUT URI:        /Sim/Port_A/1/SwipeRaw
+    //
+    // Body:
+    // {
+    //   Reader:   readerPointer,
+    //   Bytes:    hexadecimal credential value,
+    //   BitCount: number of valid bits
+    // }
+    public async Task<bool> SwipeRawAsync(string readerPointer, string bytes, int bitCount)
+    {
+        if (_client == null || string.IsNullOrWhiteSpace(readerPointer))
+            return false;
+
+        if (string.IsNullOrWhiteSpace(bytes))
+            return false;
+
+        var match = System.Text.RegularExpressions.Regex.Match(
+            readerPointer,
+            @"/Devices/Bus/(.+)/Iface/([^/]+)/(.*)");
+
+        if (!match.Success)
+            return false;
+
+        var bus = match.Groups[1].Value;
+        var iface = match.Groups[2].Value;
+
+        var uri = $"/{bus}/{iface}/SwipeRaw";
+
+        var body = new
+        {
+            Reader = readerPointer,
+            Bytes = bytes,
+            BitCount = bitCount
         };
 
         var json = JsonSerializer.Serialize(body);

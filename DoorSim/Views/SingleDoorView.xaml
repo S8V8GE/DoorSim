@@ -208,7 +208,26 @@
                                     Visibility="{Binding InReaderVisibility}">
 
                             <Grid Width="90"
-                                    Height="90">
+                                  Height="90"
+                                  Cursor="Hand"
+                                  MouseEnter="InReader_MouseEnter"
+                                  MouseMove="InReader_MouseMove"
+                                  MouseLeave="InReader_MouseLeave"
+                                  AllowDrop="True"
+                                  DragEnter="InReader_DragEnter"
+                                  DragLeave="InReader_DragLeave"
+                                  Drop="InReader_Drop">
+
+                                <!-- Right-click menu for reader actions. -->
+                                <Grid.ContextMenu>
+                                      <ContextMenu>
+                                          <MenuItem Header="Enter PIN"
+                                                    Click="InReaderEnterPin_Click"/>
+
+                                          <MenuItem Header="Auto-enrol credential"
+                                                    IsEnabled="False"/>
+                                      </ContextMenu>
+                                </Grid.ContextMenu>
 
                                 <Image Source="{Binding ReaderImagePath}"
                                        Width="90"
@@ -217,11 +236,11 @@
                                        RenderOptions.BitmapScalingMode="HighQuality"
                                        SnapsToDevicePixels="True"/>
 
-                                <!-- Reader LED overlay -->
+                                <!-- In Reader LED overlay -->
                                 <Border Width="36"
                                         Height="12"
                                         CornerRadius="3"
-                                        Background="Red"
+                                        Background="{Binding InReaderLedBrush}"
                                         HorizontalAlignment="Center"
                                         VerticalAlignment="Top"
                                         Margin="-2,12,0,0"/>
@@ -232,8 +251,8 @@
                                        Foreground="#CCCCCC"
                                        HorizontalAlignment="Center"/>
 
-                            <TextBlock Text="Online"
-                                       Foreground="#CCCCCC"
+                            <TextBlock Text="{Binding InReaderStatusText}"
+                                       Foreground="{Binding InReaderStatusColor}"
                                        HorizontalAlignment="Center"/>
                         </StackPanel>
                     </Grid>
@@ -278,7 +297,26 @@
                                     Visibility="{Binding OutReaderVisibility}">
 
                             <Grid Width="90"
-                                  Height="90">
+                                  Height="90"
+                                  Cursor="Hand"
+                                  AllowDrop="True"
+                                  MouseEnter="OutReader_MouseEnter"
+                                  MouseMove="OutReader_MouseMove"
+                                  MouseLeave="OutReader_MouseLeave"
+                                  DragEnter="OutReader_DragEnter"
+                                  DragLeave="OutReader_DragLeave"
+                                  Drop="OutReader_Drop">
+
+                                <!-- Right-click menu for reader actions.-->
+                                <Grid.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Enter PIN"
+                                                  Click="OutReaderEnterPin_Click"/>
+
+                                        <MenuItem Header="Auto-enrol credential"
+                                                  IsEnabled="False"/>
+                                    </ContextMenu>
+                                </Grid.ContextMenu>
 
                                 <Image Source="{Binding ReaderImagePath}"
                                        Width="90"
@@ -287,11 +325,11 @@
                                        RenderOptions.BitmapScalingMode="HighQuality"
                                        SnapsToDevicePixels="True"/>
 
-                                <!-- Reader LED overlay -->
+                                <!-- Out Reader LED overlay -->
                                 <Border Width="36"
                                         Height="12"
                                         CornerRadius="3"
-                                        Background="Red"
+                                        Background="{Binding OutReaderLedBrush}"
                                         HorizontalAlignment="Center"
                                         VerticalAlignment="Top"
                                         Margin="-2,12,0,0"/>
@@ -302,8 +340,8 @@
                                        Foreground="#CCCCCC"
                                        HorizontalAlignment="Center"/>
 
-                            <TextBlock Text="Online"
-                                       Foreground="#CCCCCC"
+                            <TextBlock Text="{Binding OutReaderStatusText}"
+                                       Foreground="{Binding OutReaderStatusColor}"
                                        HorizontalAlignment="Center"/>
                         </StackPanel>
 

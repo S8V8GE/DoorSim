@@ -1,4 +1,5 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+﻿using System;
+using CommunityToolkit.Mvvm.ComponentModel;
 using DoorSim.Models;
 using System.Collections.ObjectModel;
 using System.Windows.Media;
@@ -46,6 +47,17 @@ public partial class DoorsViewModel : ObservableObject
     [ObservableProperty]
     private int doorCount;
 
+    // True only while a cardholder is being dragged over the In Reader
+    [ObservableProperty]
+    private bool isCardholderOverInReader;
+
+    // True while a cardholder is being dragged over the Out Reader
+    [ObservableProperty]
+    private bool isCardholderOverOutReader;
+
+    // Raised when a reader LED colour changes (The view can listen to this and play a local sound effect).
+    public event Action? ReaderLedChanged;
+
 
     /*
       #############################################################################
@@ -58,6 +70,7 @@ public partial class DoorsViewModel : ObservableObject
     private static readonly Brush BadBrush = new SolidColorBrush(Color.FromRgb(220, 80, 80));  // red
     private static readonly Brush WarningBrush = new SolidColorBrush(Color.FromRgb(255, 165, 0)); // orange
     private static readonly Brush NeutralBrush = new SolidColorBrush(Color.FromRgb(200, 200, 200)); // default
+    private static readonly Brush DragOverBrush = new SolidColorBrush(Color.FromRgb(0, 122, 204)); // blue
 
 
     /*
@@ -70,12 +83,14 @@ public partial class DoorsViewModel : ObservableObject
         SelectedDoor?.HasReaderSideIn == true ? Visibility.Visible : Visibility.Collapsed;
     public Visibility OutReaderVisibility =>
         SelectedDoor?.HasReaderSideOut == true ? Visibility.Visible : Visibility.Collapsed;
+    
     public Visibility InRexVisibility =>
         SelectedDoor?.HasRexSideIn == true ? Visibility.Visible : Visibility.Collapsed;
     public Visibility OutRexVisibility =>
         SelectedDoor?.HasRexSideOut == true ? Visibility.Visible : Visibility.Collapsed;
     public Visibility NoSideRexVisibility =>
         SelectedDoor?.HasRexNoSide == true ? Visibility.Visible : Visibility.Collapsed;
+   
     public Visibility BreakGlassVisibility =>
     SelectedDoor?.HasBreakGlass == true ? Visibility.Visible : Visibility.Collapsed;
 
@@ -105,10 +120,6 @@ public partial class DoorsViewModel : ObservableObject
       #############################################################################
     */
 
-    // TEMP
-    public string ReaderImagePath => "/Images/Reader.png";
-
-    // DONE....;
     public string DoorImagePath
     {
         get
@@ -121,6 +132,8 @@ public partial class DoorsViewModel : ObservableObject
                 : "/Images/Door_Closed.png";
         }
     }
+
+    public string ReaderImagePath => "/Images/Reader.png"; // Note: Reader image does not change based on state, only visibility based on existence
 
     public string InRexImagePath
     {
@@ -221,6 +234,46 @@ public partial class DoorsViewModel : ObservableObject
         }
     }
 
+    public string InReaderStatusText
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return "";
+
+            if (!SelectedDoor.HasReaderSideIn)
+                return "";
+
+            if (IsCardholderOverInReader)
+                return "Card Present";
+
+            if (SelectedDoor.InReaderIsShunted)
+                return "Shunted";
+
+            return SelectedDoor.InReaderIsOnline ? "Online" : "Offline";
+        }
+    }
+
+    public string OutReaderStatusText
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return "";
+
+            if (!SelectedDoor.HasReaderSideOut)
+                return "";
+
+            if (IsCardholderOverOutReader)
+                return "Card present";
+
+            if (SelectedDoor.OutReaderIsShunted)
+                return "Shunted";
+
+            return SelectedDoor.OutReaderIsOnline ? "Online" : "Offline";
+        }
+    }
+
     public string InRexStatusText
     {
         get
@@ -288,7 +341,7 @@ public partial class DoorsViewModel : ObservableObject
             return SelectedDoor.BreakGlassIsActive ? "Active" : "Normal";
         }
     }
-
+    
 
     /*
       #############################################################################
@@ -330,6 +383,84 @@ public partial class DoorsViewModel : ObservableObject
                 return WarningBrush;
 
             return SelectedDoor.DoorSensorIsOpen ? BadBrush : GoodBrush;
+        }
+    }
+
+    public Brush InReaderStatusColor
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return NeutralBrush;
+
+            if (IsCardholderOverInReader)
+                return DragOverBrush;
+
+            if (SelectedDoor.InReaderIsShunted)
+                return WarningBrush;
+
+            return SelectedDoor.InReaderIsOnline ? GoodBrush : NeutralBrush;
+        }
+    }
+
+    public Brush InReaderLedBrush
+    {
+        get
+        {
+            if (IsCardholderOverInReader)
+                return DragOverBrush;
+
+            if (SelectedDoor == null)
+                return BadBrush;
+
+            if (SelectedDoor.InReaderIsShunted)
+                return WarningBrush;
+
+            if (!SelectedDoor.InReaderIsOnline)
+                return NeutralBrush;
+
+            return SelectedDoor.InReaderLedColor == "Green"
+                ? GoodBrush
+                : BadBrush;
+        }
+    }
+
+    public Brush OutReaderStatusColor
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return NeutralBrush;
+
+            if (IsCardholderOverOutReader)
+                return DragOverBrush;
+
+            if (SelectedDoor.OutReaderIsShunted)
+                return WarningBrush;
+
+            return SelectedDoor.OutReaderIsOnline ? GoodBrush : NeutralBrush;
+        }
+    }
+
+    public Brush OutReaderLedBrush
+    {
+        get
+        {
+            if (IsCardholderOverOutReader)
+                return DragOverBrush;
+
+            if (SelectedDoor == null)
+                return BadBrush;
+
+            if (SelectedDoor.OutReaderIsShunted)
+                return WarningBrush;
+
+            if (!SelectedDoor.OutReaderIsOnline)
+                return NeutralBrush;
+
+            return SelectedDoor.OutReaderLedColor == "Green"
+                ? GoodBrush
+                : BadBrush;
         }
     }
 
@@ -412,6 +543,46 @@ public partial class DoorsViewModel : ObservableObject
             return SelectedDoor.DoorSensorIsOpen
                 ? "Close door"
                 : "Open door";
+        }
+    }
+
+    public string InReaderActionTooltip
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return "";
+
+            if (!SelectedDoor.HasReaderSideIn)
+                return "";
+
+            if (SelectedDoor.InReaderIsShunted)
+                return "In reader is shunted";
+
+            if (!SelectedDoor.InReaderIsOnline)
+                return "In reader is offline";
+
+            return "Drag credential here. Right-click for PIN or auto-enrol.";
+        }
+    }
+
+    public string OutReaderActionTooltip
+    {
+        get
+        {
+            if (SelectedDoor == null)
+                return "";
+
+            if (!SelectedDoor.HasReaderSideOut)
+                return "";
+
+            if (SelectedDoor.OutReaderIsShunted)
+                return "Out reader is shunted";
+
+            if (!SelectedDoor.OutReaderIsOnline)
+                return "Out reader is offline";
+
+            return "Drag credential here. Right-click for PIN or auto-enrol.";
         }
     }
 
@@ -516,13 +687,23 @@ public partial class DoorsViewModel : ObservableObject
 
             if (refreshedSelectedDoor != null && previousSelectedDoor != null)
             {
-                // Preserve fast-polled live state so the image/status does not flicker
+                // Preserve Door Sensor live state so it does not flicker during the 3-second door list refresh
                 refreshedSelectedDoor.DoorSensorIsOpen = previousSelectedDoor.DoorSensorIsOpen;
                 refreshedSelectedDoor.DoorSensorIsShunted = previousSelectedDoor.DoorSensorIsShunted;
 
-                // Preserve current display state until the 1-second poll updates it
+                // Preserve Door Lock live state so it does not flicker during the 3-second door list refresh
                 refreshedSelectedDoor.DoorIsLocked = previousSelectedDoor.DoorIsLocked;
                 refreshedSelectedDoor.UnlockedForMaintenance = previousSelectedDoor.UnlockedForMaintenance;
+
+                // Preserve In Reader live state so it does not flicker during the 3-second door list refresh
+                refreshedSelectedDoor.InReaderIsOnline = previousSelectedDoor.InReaderIsOnline;
+                refreshedSelectedDoor.InReaderIsShunted = previousSelectedDoor.InReaderIsShunted;
+                refreshedSelectedDoor.InReaderLedColor = previousSelectedDoor.InReaderLedColor;
+
+                // Preserve Out Reader live state so it does not flicker during the 3-second door list refresh
+                refreshedSelectedDoor.OutReaderIsOnline = previousSelectedDoor.OutReaderIsOnline;
+                refreshedSelectedDoor.OutReaderIsShunted = previousSelectedDoor.OutReaderIsShunted;
+                refreshedSelectedDoor.OutReaderLedColor = previousSelectedDoor.OutReaderLedColor;
 
                 // Preserve In REX live state so it does not flicker during the 3-second door list refresh
                 refreshedSelectedDoor.RexSideInIsActive = previousSelectedDoor.RexSideInIsActive;
@@ -539,6 +720,7 @@ public partial class DoorsViewModel : ObservableObject
                 // Preserve Breakglass live state so it does not flicker during the 3-second door list refresh
                 refreshedSelectedDoor.BreakGlassIsActive = previousSelectedDoor.BreakGlassIsActive;
                 refreshedSelectedDoor.BreakGlassIsShunted = previousSelectedDoor.BreakGlassIsShunted;
+ 
             }
 
             SelectedDoor = refreshedSelectedDoor;
@@ -562,48 +744,59 @@ public partial class DoorsViewModel : ObservableObject
         // Update UI flag based on whether a door is selected
         HasSelectedDoor = value != null;
 
-        // Refresh anything that depends on the selected door
+        // Refresh anything that depends on the selected door:
+
+        // DOOR
         OnPropertyChanged(nameof(DoorImagePath));
         OnPropertyChanged(nameof(DoorLockStatusText));
-        OnPropertyChanged(nameof(DoorSensorStatusText));
-        OnPropertyChanged(nameof(DoorActionTooltip));
         OnPropertyChanged(nameof(DoorLockStatusColor));
+        OnPropertyChanged(nameof(DoorSensorStatusText));
         OnPropertyChanged(nameof(DoorSensorStatusColor));
+        OnPropertyChanged(nameof(DoorActionTooltip));
 
-        OnPropertyChanged(nameof(InReaderVisibility));
-        OnPropertyChanged(nameof(OutReaderVisibility));
-
-        OnPropertyChanged(nameof(InRexVisibility));
-        OnPropertyChanged(nameof(OutRexVisibility));
-        OnPropertyChanged(nameof(NoSideRexVisibility));
-
+        // READERS
         OnPropertyChanged(nameof(ReaderImagePath));
 
-        OnPropertyChanged(nameof(BreakGlassVisibility));
-        OnPropertyChanged(nameof(BreakGlassImagePath));
+        OnPropertyChanged(nameof(InReaderVisibility));
+        OnPropertyChanged(nameof(InReaderStatusText));
+        OnPropertyChanged(nameof(InReaderStatusColor));
+        OnPropertyChanged(nameof(InReaderLedBrush));
+        OnPropertyChanged(nameof(InReaderActionTooltip));
 
+        OnPropertyChanged(nameof(OutReaderVisibility));
+        OnPropertyChanged(nameof(OutReaderStatusText));
+        OnPropertyChanged(nameof(OutReaderStatusColor));
+        OnPropertyChanged(nameof(OutReaderLedBrush));
+        OnPropertyChanged(nameof(OutReaderActionTooltip));
+
+        // REX's
         OnPropertyChanged(nameof(InRexColumn));
-        OnPropertyChanged(nameof(OutRexColumn));
-
         OnPropertyChanged(nameof(InRexImagePath));
+        OnPropertyChanged(nameof(InRexVisibility));
         OnPropertyChanged(nameof(InRexStatusText));
         OnPropertyChanged(nameof(InRexStatusColor));
         OnPropertyChanged(nameof(InRexActionTooltip));
 
+        OnPropertyChanged(nameof(OutRexColumn));
         OnPropertyChanged(nameof(OutRexImagePath));
+        OnPropertyChanged(nameof(OutRexVisibility));
         OnPropertyChanged(nameof(OutRexStatusText));
         OnPropertyChanged(nameof(OutRexStatusColor));
         OnPropertyChanged(nameof(OutRexActionTooltip));
 
         OnPropertyChanged(nameof(NoSideRexImagePath));
+        OnPropertyChanged(nameof(NoSideRexVisibility));
         OnPropertyChanged(nameof(NoSideRexStatusText));
         OnPropertyChanged(nameof(NoSideRexStatusColor));
         OnPropertyChanged(nameof(NoSideRexActionTooltip));
 
+        // Breakglass / Manual station
         OnPropertyChanged(nameof(BreakGlassImagePath));
+        OnPropertyChanged(nameof(BreakGlassVisibility));
         OnPropertyChanged(nameof(BreakGlassStatusText));
         OnPropertyChanged(nameof(BreakGlassStatusColor));
         OnPropertyChanged(nameof(BreakGlassActionTooltip));
+
     }
 
 
@@ -648,6 +841,110 @@ public partial class DoorsViewModel : ObservableObject
         OnPropertyChanged(nameof(DoorActionTooltip));
         OnPropertyChanged(nameof(DoorLockStatusColor));
         OnPropertyChanged(nameof(DoorSensorStatusColor));
+    }
+
+    // Refreshes the In Reader LED when drag-over state changes
+    partial void OnIsCardholderOverInReaderChanged(bool value)
+    {
+        OnPropertyChanged(nameof(InReaderLedBrush));
+        OnPropertyChanged(nameof(InReaderStatusText));
+        OnPropertyChanged(nameof(InReaderStatusColor));
+    }
+
+    // Refreshes the Out Reader LED and status text when drag-over state changes
+    partial void OnIsCardholderOverOutReaderChanged(bool value)
+    {
+        OnPropertyChanged(nameof(OutReaderLedBrush));
+        OnPropertyChanged(nameof(OutReaderStatusText));
+        OnPropertyChanged(nameof(OutReaderStatusColor));
+    }
+
+    // Updates live state for the In Reader and refreshes dependent UI properties
+    public void UpdateInReaderState(bool isOnline, bool isShunted, string ledColor)
+    {
+        if (SelectedDoor == null)
+            return;
+
+        var changed = false;
+
+        if (SelectedDoor.InReaderIsOnline != isOnline)
+        {
+            SelectedDoor.InReaderIsOnline = isOnline;
+            changed = true;
+        }
+
+        if (SelectedDoor.InReaderIsShunted != isShunted)
+        {
+            SelectedDoor.InReaderIsShunted = isShunted;
+            changed = true;
+        }
+
+        if (SelectedDoor.InReaderLedColor != ledColor)
+        {
+            var previousLedColor = SelectedDoor.InReaderLedColor;
+
+            SelectedDoor.InReaderLedColor = ledColor;
+            changed = true;
+
+            // Only raise a sound event when the reader leaves its normal red/idle state.
+            // This avoids a second beep when the LED returns from green back to red.
+            if (previousLedColor == "Red" && ledColor != "Red")
+            {
+                ReaderLedChanged?.Invoke();
+            }
+        }
+
+        if (!changed)
+            return;
+
+        OnPropertyChanged(nameof(InReaderStatusText));
+        OnPropertyChanged(nameof(InReaderStatusColor));
+        OnPropertyChanged(nameof(InReaderLedBrush));
+        OnPropertyChanged(nameof(InReaderActionTooltip));
+    }
+
+    // Updates live state for the Out Reader and refreshes dependent UI properties
+    public void UpdateOutReaderState(bool isOnline, bool isShunted, string ledColor)
+    {
+        if (SelectedDoor == null)
+            return;
+
+        var changed = false;
+
+        if (SelectedDoor.OutReaderIsOnline != isOnline)
+        {
+            SelectedDoor.OutReaderIsOnline = isOnline;
+            changed = true;
+        }
+
+        if (SelectedDoor.OutReaderIsShunted != isShunted)
+        {
+            SelectedDoor.OutReaderIsShunted = isShunted;
+            changed = true;
+        }
+
+        if (SelectedDoor.OutReaderLedColor != ledColor)
+        {
+            var previousLedColor = SelectedDoor.OutReaderLedColor;
+
+            SelectedDoor.OutReaderLedColor = ledColor;
+            changed = true;
+
+            // Only raise a sound event when the reader leaves its normal red/idle state.
+            // This avoids a second beep when the LED returns from green back to red.
+            if (previousLedColor == "Red" && ledColor != "Red")
+            {
+                ReaderLedChanged?.Invoke();
+            }
+        }
+
+        if (!changed)
+            return;
+
+        OnPropertyChanged(nameof(OutReaderStatusText));
+        OnPropertyChanged(nameof(OutReaderStatusColor));
+        OnPropertyChanged(nameof(OutReaderLedBrush));
+        OnPropertyChanged(nameof(OutReaderActionTooltip));
     }
 
     // Updates live state for the In REX and refreshes dependent UI properties

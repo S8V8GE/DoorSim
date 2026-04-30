@@ -20,9 +20,17 @@ public class SoftwireDoor
     public bool HasRexNoSide { get; set; } 
     public bool HasBreakGlass { get; set; }
 
-    // Reader configuration (True when the reader mode is Card + PIN, False otherwise)
+    // Reader configuration (True when the reader mode is Card + PIN, False otherwise) and live state
+    // Note: for LED colour, Softwire reports the colour (known values: Green and Red) but the UI may temporarily override this later for drag-hover, access granted/denied, etc.
     public bool InReaderRequiresCardAndPin { get; set; }
+    public bool InReaderIsOnline { get; set; }
+    public bool InReaderIsShunted { get; set; }
+    public string InReaderLedColor { get; set; } = "Red";
+
     public bool OutReaderRequiresCardAndPin { get; set; }
+    public bool OutReaderIsOnline { get; set; }
+    public bool OutReaderIsShunted { get; set; }
+    public string OutReaderLedColor { get; set; } = "Red";
 
     // Live door state (Sensor and Lock)
     public bool DoorSensorIsOpen { get; set; }
