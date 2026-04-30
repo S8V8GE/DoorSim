@@ -17,6 +17,11 @@ public partial class SingleDoorView : UserControl
                            Constructor and Initialisation
       #############################################################################
     */
+
+    private Func<string>? _floatingToolTipTextProvider;
+
+    private readonly DispatcherTimer _floatingToolTipTimer;
+
     public SingleDoorView()
     {
         InitializeComponent(); // It's actually spelt Initialise... but we can let it go ;)
@@ -37,9 +42,6 @@ public partial class SingleDoorView : UserControl
         };
     }
 
-    private Func<string>? _floatingToolTipTextProvider;
-    private readonly DispatcherTimer _floatingToolTipTimer;
-
 
     /*
       #############################################################################
@@ -47,6 +49,8 @@ public partial class SingleDoorView : UserControl
       #############################################################################
     */
 
+    // -- SERVICE HELPERS:
+    //    ---------------
     // Temporary helper used by UI event handlers to access Softwire commands.
     // This keeps repeated service lookup code out of each click handler.
     // TODO: Later, this should be replaced with proper MVVM commands / dependency injection... or maybe i'll just leave it if it works...
@@ -77,6 +81,8 @@ public partial class SingleDoorView : UserControl
         await service.SetInputStateAsync(inputPath, state);
     }
 
+    // -- PIN HELPER:
+    //    ----------
     // Opens the PIN entry window and sends the entered PIN to Softwire.
     //
     // PINs are sent to Softwire as Wiegand26:
@@ -146,6 +152,8 @@ public partial class SingleDoorView : UserControl
         }
     }
 
+    // -- TOOLTIP HELPERS:
+    //    ---------------
     // Shows a custom tooltip that follows the mouse.
     // Standard WPF ToolTips do not continuously follow the cursor once opened.
     private void ShowFloatingToolTip(Func<string> textProvider, MouseEventArgs e)
@@ -183,6 +191,8 @@ public partial class SingleDoorView : UserControl
         _floatingToolTipTextProvider = null;
     }
 
+    // -- SOUND HELPERS:
+    //    --------------
     // Plays a short local sound when a card is presented to a reader.
     // Uses a WAV resource rather than SystemSounds because system event sounds
     // may be muted or disabled in Windows / VM environments.
@@ -203,39 +213,6 @@ public partial class SingleDoorView : UserControl
         {
             // Sound is non-critical. If playback fails, ignore it.
         }
-    } 
-
-    // Plays a sound when a reader LED colour changes.
-    private void OnReaderLedChanged()
-    {
-        PlayCredentialPresentedSound();
-    }
-
-    // Called when the view receives or changes its DataContext.
-    // Used to subscribe to reader LED change events from DoorsViewModel.
-    private void SingleDoorView_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
-    {
-        if (e.OldValue is DoorSim.ViewModels.DoorsViewModel oldVm)
-        {
-            oldVm.ReaderLedChanged -= OnReaderLedChanged;
-        }
-
-        if (e.NewValue is DoorSim.ViewModels.DoorsViewModel newVm)
-        {
-            newVm.ReaderLedChanged += OnReaderLedChanged;
-        }
-    }
-
-    // Shows a custom message window centred on the main application window.
-    // Used instead of MessageBox because MessageBox does not always centre correctly in VM/RDP environments (or if that's not true, I didn't know how to do it).
-    private void ShowAppMessage(string message, string title)
-    {
-        var messageWindow = new AppMessageWindow(title, message)
-        {
-            Owner = Window.GetWindow(this)
-        };
-
-        messageWindow.ShowDialog();
     }
 
     // Plays the credential beep three times (Used for timeout / warning feedback if PIN not entered within the allowed time).
@@ -266,6 +243,43 @@ public partial class SingleDoorView : UserControl
                 }
             }
         });
+    }
+
+    // Plays a sound when a reader LED colour changes.
+    private void OnReaderLedChanged()
+    {
+        PlayCredentialPresentedSound();
+    }
+
+    // -- MESSAGE HELPERS:
+    //    ---------------
+    // Shows a custom message window centred on the main application window.
+    // Used instead of MessageBox because MessageBox does not reliably centre in VM/RDP environments (at least I couldn't get it to do it).
+    private void ShowAppMessage(string message, string title)
+    {
+        var messageWindow = new AppMessageWindow(title, message)
+        {
+            Owner = Window.GetWindow(this)
+        };
+
+        messageWindow.ShowDialog();
+    }
+
+    // -- DATA CONTEXT HELPERS:
+    //    --------------------
+    // Called when the view receives or changes its DataContext.
+    // Used to subscribe to reader LED change events from DoorsViewModel.
+    private void SingleDoorView_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (e.OldValue is DoorSim.ViewModels.DoorsViewModel oldVm)
+        {
+            oldVm.ReaderLedChanged -= OnReaderLedChanged;
+        }
+
+        if (e.NewValue is DoorSim.ViewModels.DoorsViewModel newVm)
+        {
+            newVm.ReaderLedChanged += OnReaderLedChanged;
+        }
     }
 
 
@@ -300,7 +314,7 @@ public partial class SingleDoorView : UserControl
         HideFloatingToolTip();
     }
 
-    // Toggles the door sensor input when the door image is clicked (WPF closes tooltips on click, so this keeps the hover behaviour feeling live).
+    // Toggles the simulated door sensor input when the door image is clicked.
     private async void DoorImage_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
         if (DataContext is not DoorSim.ViewModels.DoorsViewModel vm)
@@ -319,7 +333,7 @@ public partial class SingleDoorView : UserControl
         // Toggle state
         var newState = vm.SelectedDoor.DoorSensorIsOpen ? "Inactive" : "Active";
 
-        // Instant UI update (optimistic... dont want it lagging was taking between 0-1000ms before)
+        // Optimistic UI update so the door image changes immediately while Softwire is updated.
         var newIsOpen = newState == "Active";
         vm.UpdateSelectedDoorState(
             vm.SelectedDoor.DoorIsLocked,
@@ -340,6 +354,8 @@ public partial class SingleDoorView : UserControl
       #############################################################################
     */
 
+    // -- IN READER:
+    //    ---------
     // Shows the floating tooltip for the In Reader.
     private void InReader_MouseEnter(object sender, MouseEventArgs e)
     {
@@ -461,9 +477,9 @@ public partial class SingleDoorView : UserControl
             {
                 await OpenPinDialogAndSendAsync(vm, "In Reader", vm.SelectedDoor.ReaderSideInDevicePath, true, vm.SelectedDoor.InReaderPinTimeoutSeconds);
             }
-
-            e.Handled = true;
         }
+
+        e.Handled = true;
     }
 
     // Opens PIN entry for the In Reader.
@@ -495,7 +511,10 @@ public partial class SingleDoorView : UserControl
         await OpenPinDialogAndSendAsync(vm, "In Reader", vm.SelectedDoor.ReaderSideInDevicePath, true);
     }
 
+    //---------------------------------------------
 
+    // -- OUT READER:
+    //    ----------
     // Shows the floating tooltip for the Out Reader.
     private void OutReader_MouseEnter(object sender, MouseEventArgs e)
     {
@@ -615,7 +634,7 @@ public partial class SingleDoorView : UserControl
             }
             else
             {
-                await OpenPinDialogAndSendAsync(vm, "Out Reader", vm.SelectedDoor.ReaderSideOutDevicePath, false, vm.SelectedDoor.InReaderPinTimeoutSeconds);
+                await OpenPinDialogAndSendAsync(vm, "Out Reader", vm.SelectedDoor.ReaderSideOutDevicePath, false, vm.SelectedDoor.OutReaderPinTimeoutSeconds);
             }
         }
 
@@ -665,6 +684,8 @@ public partial class SingleDoorView : UserControl
     // - Shunted REX inputs ignore mouse interaction
 
     //---------------------------------------------
+    // -- IN REX:
+    //    -------
     // Opens the In REX tooltip.
     private void InRexImage_MouseEnter(object sender, MouseEventArgs e)
     {
@@ -750,6 +771,8 @@ public partial class SingleDoorView : UserControl
     }
 
     //---------------------------------------------
+    // -- OUT REX:
+    //    -------
     // Opens the Out REX tooltip.
     private void OutRexImage_MouseEnter(object sender, MouseEventArgs e)
     {
@@ -831,6 +854,8 @@ public partial class SingleDoorView : UserControl
     }
 
     //---------------------------------------------
+    // -- NO SIDE REX:
+    //    ------------
     // Opens the No Side REX tooltip.
     private void NoSideRexImage_MouseEnter(object sender, MouseEventArgs e)
     {

@@ -56,10 +56,10 @@ public partial class MainViewModel : ObservableObject
     // Timer for connection + slow refresh every 3 seconds (doors + cardholders)
     private DispatcherTimer? _connectionTimer;
 
-    // Timer for selected door + hardware state (fast polling every 1 second) - hoping I dont either melt the VM or crash Softwire... If this comment still exists all was ok!)
+    // Timer for selected door + hardware state (Runs every 1 second to keep door sensor, REX, and breakglass state responsive)... will this melt my VM??
     private DispatcherTimer? _selectedDoorTimer;
 
-    // Timer for polling reader state more quickly (Reader LEDs can flash briefly, so readers need faster polling than the rest of the door hardware).
+    // Timer for polling reader state more quickly (Reader LEDs can flash briefly, so readers are polled faster than the rest of the door hardware).
     private DispatcherTimer? _readerTimer;
 
 
@@ -235,8 +235,8 @@ public partial class MainViewModel : ObservableObject
                     }
                 }
 
-                // Readers in and out are polled seperately in StartReaderMonitoring() with a faster timer, so we dont want to update their state here as that would cause the reader LED status to flicker or become unresponsive.
-                // Instead, we just update the door sensor and the shunt status here, and the reader states are updated in their own timer loop.
+                // Readers are polled separately in StartReaderMonitoring() using a faster timer.
+                // DO NOT update reader state here, otherwise the reader LED/status can flicker or feel less responsive (was like a disco!).
 
                 // Read In REX live state from Softwire.
                 // Uses the same input-state pattern as the door sensor.
@@ -445,11 +445,11 @@ public partial class MainViewModel : ObservableObject
             MainMessage = $"SQL error: {ex.Message}";
         }
 
-        // Start slow refresh loop (connection + doors + cardholders) - this one will check every 3 seconds that the connection to Softwire is still alive, and updates the cardholders and doors if it is. If the connection is lost, it resets the UI to the disconnected state.
+        // Start slow refresh loop: connection, doors, and cardholders.
         StartConnectionMonitoring();
-        // Start fast refresh loop (selected door + hardware state) -   this one will check every 1 seconds for updates to the selected door (e.g., if it was locked/unlocked from another client or the Config Tool), and updates the door state in the UI accordingly.
+        // Start fast refresh loop: selected door sensor, REX, and breakglass.
         StartSelectedDoorMonitoring();
-        // Start very fast refresh loop for reader state / LED changes only - this one checks every 250ms for reader state changes, which allows the UI to reflect short reader LED flashes such as granted/denied feedback.
+        // Start very fast refresh loop: reader state and LED changes only.
         StartReaderMonitoring();
     }
 
