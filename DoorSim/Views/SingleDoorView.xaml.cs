@@ -1,4 +1,5 @@
-﻿using System;
+﻿using System.Linq;
+using System;
 using DoorSim.Services;
 using DoorSim.Models;
 using System.Threading.Tasks;
@@ -794,12 +795,37 @@ public partial class SingleDoorView : UserControl
         if (vm.SelectedDoor.RexSideInIsShunted)
             return;
 
-        // Optimistic UI update so the image/status changes immediately.
         vm.UpdateInRexState(true, vm.SelectedDoor.RexSideInIsShunted);
 
         await SetInputStateAsync(
             vm.SelectedDoor.RexSideInDevicePath,
             "Active");
+
+        // Give Softwire a short moment to process the REX press.
+        // Then refresh the door directly instead of relying on the 1-second UI polling timer.
+        await Task.Delay(500);
+
+        var service = GetSoftwireService();
+
+        if (service == null)
+            return;
+
+        var refreshedDoors = await service.GetDoorsAsync();
+
+        var refreshedDoor = refreshedDoors
+            .FirstOrDefault(d => d.Id == vm.SelectedDoor.Id);
+
+        if (refreshedDoor == null)
+            return;
+
+        if (refreshedDoor.DoorIsLocked)
+        {
+            _ = vm.ShowInRexDecisionFeedbackAsync("Access denied");
+        }
+        else
+        {
+            _ = vm.ShowInRexDecisionFeedbackAsync("Access granted");
+        }
     }
 
     // Releases the In REX (Mouse up = wait briefly, then set the REX input Inactive - The delay makes even quick clicks visibly register as a REX press).
@@ -885,6 +911,32 @@ public partial class SingleDoorView : UserControl
         await SetInputStateAsync(
             vm.SelectedDoor.RexSideOutDevicePath,
             "Active");
+
+        // Give Softwire a short moment to process the REX press.
+        // Then refresh the door directly instead of relying on the 1-second UI polling timer.
+        await Task.Delay(500);
+
+        var service = GetSoftwireService();
+
+        if (service == null)
+            return;
+
+        var refreshedDoors = await service.GetDoorsAsync();
+
+        var refreshedDoor = refreshedDoors
+            .FirstOrDefault(d => d.Id == vm.SelectedDoor.Id);
+
+        if (refreshedDoor == null)
+            return;
+
+        if (refreshedDoor.DoorIsLocked)
+        {
+            _ = vm.ShowOutRexDecisionFeedbackAsync("Access denied");
+        }
+        else
+        {
+            _ = vm.ShowOutRexDecisionFeedbackAsync("Access granted");
+        }
     }
 
     // Releases the Out REX (Mouse up = wait briefly, then set the REX input Inactive - The delay makes even quick clicks visibly register as a REX press).
@@ -968,6 +1020,32 @@ public partial class SingleDoorView : UserControl
         await SetInputStateAsync(
             vm.SelectedDoor.RexNoSideDevicePath,
             "Active");
+
+        // Give Softwire a short moment to process the REX press.
+        // Then refresh the door directly instead of relying on the 1-second UI polling timer.
+        await Task.Delay(500);
+
+        var service = GetSoftwireService();
+
+        if (service == null)
+            return;
+
+        var refreshedDoors = await service.GetDoorsAsync();
+
+        var refreshedDoor = refreshedDoors
+            .FirstOrDefault(d => d.Id == vm.SelectedDoor.Id);
+
+        if (refreshedDoor == null)
+            return;
+
+        if (refreshedDoor.DoorIsLocked)
+        {
+            _ = vm.ShowNoSideRexDecisionFeedbackAsync("Access denied");
+        }
+        else
+        {
+            _ = vm.ShowNoSideRexDecisionFeedbackAsync("Access granted");
+        }
     }
 
     // Releases the No Side REX (Mouse up = wait briefly, then set the REX input Inactive - The delay makes even quick clicks visibly register as a REX press).

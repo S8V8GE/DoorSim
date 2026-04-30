@@ -70,16 +70,14 @@ public partial class DoorsViewModel : ObservableObject
     // Raised when Softwire reports an access denied decision.
     public event Action? ReaderAccessDenied;
 
-    // Reader access decision feedback.
-    // These values are shown briefly after Softwire reports an access decision.
+    // Reader access decision feedback. These values are shown briefly after Softwire reports an access decision.
     [ObservableProperty]
     private string inReaderDecisionText = string.Empty;
 
     [ObservableProperty]
     private string outReaderDecisionText = string.Empty;
 
-    // Reader access decision result.
-    // These control the feedback colour without relying on text comparison.
+    // Reader access decision result. These control the feedback colour without relying on text comparison.
     [ObservableProperty]
     private bool inReaderDecisionIsGranted;
 
@@ -91,6 +89,18 @@ public partial class DoorsViewModel : ObservableObject
 
     [ObservableProperty]
     private bool outReaderDecisionIsDenied;
+
+    // In REX access decision feedback. Shown briefly after the REX is pressed.
+    [ObservableProperty]
+    private string inRexDecisionText = string.Empty;
+
+    // Out REX access decision feedback. Shown briefly after the REX is pressed.
+    [ObservableProperty]
+    private string outRexDecisionText = string.Empty;
+
+    // No-side REX access decision feedback. Shown briefly after the REX is pressed.
+    [ObservableProperty]
+    private string noSideRexDecisionText = string.Empty;
 
     /*
       #############################################################################
@@ -329,6 +339,9 @@ public partial class DoorsViewModel : ObservableObject
             if (!SelectedDoor.HasRexSideIn)
                 return "";
 
+            if (!string.IsNullOrWhiteSpace(InRexDecisionText))
+                return InRexDecisionText;
+
             if (SelectedDoor.RexSideInIsShunted)
                 return "Shunted";
 
@@ -346,6 +359,9 @@ public partial class DoorsViewModel : ObservableObject
             if (!SelectedDoor.HasRexSideOut)
                 return "";
 
+            if (!string.IsNullOrWhiteSpace(OutRexDecisionText))
+                return OutRexDecisionText;
+
             if (SelectedDoor.RexSideOutIsShunted)
                 return "Shunted";
 
@@ -362,6 +378,9 @@ public partial class DoorsViewModel : ObservableObject
 
             if (!SelectedDoor.HasRexNoSide)
                 return "";
+
+            if (!string.IsNullOrWhiteSpace(NoSideRexDecisionText))
+                return NoSideRexDecisionText;
 
             if (SelectedDoor.RexNoSideIsShunted)
                 return "Shunted";
@@ -534,6 +553,12 @@ public partial class DoorsViewModel : ObservableObject
             if (SelectedDoor == null)
                 return NeutralBrush;
 
+            if (InRexDecisionText == "Access granted")
+                return GoodBrush;
+
+            if (InRexDecisionText == "Access denied")
+                return BadBrush;
+
             if (SelectedDoor.RexSideInIsShunted)
                 return WarningBrush;
 
@@ -548,6 +573,12 @@ public partial class DoorsViewModel : ObservableObject
             if (SelectedDoor == null)
                 return NeutralBrush;
 
+            if (OutRexDecisionText == "Access granted")
+                return GoodBrush;
+
+            if (OutRexDecisionText == "Access denied")
+                return BadBrush;
+
             if (SelectedDoor.RexSideOutIsShunted)
                 return WarningBrush;
 
@@ -561,6 +592,12 @@ public partial class DoorsViewModel : ObservableObject
         {
             if (SelectedDoor == null)
                 return NeutralBrush;
+
+            if (NoSideRexDecisionText == "Access granted")
+                return GoodBrush;
+
+            if (NoSideRexDecisionText == "Access denied")
+                return BadBrush;
 
             if (SelectedDoor.RexNoSideIsShunted)
                 return WarningBrush;
@@ -1131,6 +1168,61 @@ public partial class DoorsViewModel : ObservableObject
         OnPropertyChanged(nameof(InRexStatusText));
         OnPropertyChanged(nameof(InRexStatusColor));
         OnPropertyChanged(nameof(InRexActionTooltip));
+    }
+
+    // Refreshes REX's status when temporary decision feedback changes.
+    partial void OnInRexDecisionTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(InRexStatusText));
+        OnPropertyChanged(nameof(InRexStatusColor));
+    }
+    partial void OnOutRexDecisionTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(OutRexStatusText));
+        OnPropertyChanged(nameof(OutRexStatusColor));
+    }
+    partial void OnNoSideRexDecisionTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(NoSideRexStatusText));
+        OnPropertyChanged(nameof(NoSideRexStatusColor));
+    }
+
+    // Shows temporary access decision feedback under the REX's.
+    public async Task ShowInRexDecisionFeedbackAsync(string decisionText)
+    {
+        InRexDecisionText = decisionText;
+
+        await Task.Delay(2000);
+
+        // Only clear if nothing newer has replaced it.
+        if (InRexDecisionText == decisionText)
+        {
+            InRexDecisionText = string.Empty;
+        }
+    }
+    public async Task ShowOutRexDecisionFeedbackAsync(string decisionText)
+    {
+        OutRexDecisionText = decisionText;
+
+        await Task.Delay(2000);
+
+        // Only clear if nothing newer has replaced it.
+        if (OutRexDecisionText == decisionText)
+        {
+            OutRexDecisionText = string.Empty;
+        }
+    }
+    public async Task ShowNoSideRexDecisionFeedbackAsync(string decisionText)
+    {
+        NoSideRexDecisionText = decisionText;
+
+        await Task.Delay(2000);
+
+        // Only clear if nothing newer has replaced it.
+        if (NoSideRexDecisionText == decisionText)
+        {
+            NoSideRexDecisionText = string.Empty;
+        }
     }
 
     // Updates live state for the Out REX and refreshes dependent UI properties
