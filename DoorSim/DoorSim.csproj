@@ -18,6 +18,7 @@
     <None Remove="Images\Reader.png" />
     <None Remove="Images\REX_Active.png" />
     <None Remove="Images\REX_Normal.png" />
+    <None Remove="Sounds\Credential_Beep.wav" />
   </ItemGroup>
 
   <ItemGroup>
@@ -35,10 +36,7 @@
     <Resource Include="Images\Reader.png" />
     <Resource Include="Images\REX_Active.png" />
     <Resource Include="Images\REX_Normal.png" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Sounds\" />
+    <Resource Include="Sounds\Credential_Beep.wav" />
   </ItemGroup>
 
 </Project>
