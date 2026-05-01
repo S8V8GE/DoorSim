@@ -16,8 +16,7 @@ public partial class MainWindow : Window
 
         DataContext = mainViewModel;
 
-        // Listen for view mode changes so the window can jump
-        // between the fixed Single Door and Two Door sizes.
+        // Listen for view mode changes so the window can jump between the fixed Single Door and Two Door sizes.
         mainViewModel.PropertyChanged += MainViewModel_PropertyChanged;
 
         // Apply the starting Single Door size.
@@ -38,11 +37,9 @@ public partial class MainWindow : Window
 
     // Applies fixed window sizes for each main view mode.
     //
-    // Single Door:
-    // - current compact app width
+    // Single Door: current compact app width
     //
-    // Two Door:
-    // - wider layout so two interactive door panels can sit side by side
+    // Two Door: wider layout so two interactive door panels can sit side by side
     private void ApplyWindowSizeForViewMode(string viewMode)
     {
         if (viewMode == "TwoDoor")
