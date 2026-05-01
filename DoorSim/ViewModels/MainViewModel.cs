@@ -47,6 +47,12 @@ public partial class MainViewModel : ObservableObject
     // ViewModel for the door selector and door display area
     public DoorsViewModel Doors { get; } = new DoorsViewModel();
 
+    // Used by the View menu to show a checkmark next to Single Door.
+    public bool IsSingleDoorViewSelected => CurrentViewMode == "SingleDoor";
+
+    // Used by the View menu to show a checkmark next to Two Door.
+    public bool IsTwoDoorViewSelected => CurrentViewMode == "TwoDoor";
+
 
     /*
       #############################################################################
@@ -95,6 +101,10 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool canConnect = true;
 
+    // Tracks which main simulator view is currently selected (Single Door is the default view).
+    [ObservableProperty]
+    private string currentViewMode = "SingleDoor";
+
 
     /*
      #############################################################################
@@ -112,7 +122,7 @@ public partial class MainViewModel : ObservableObject
 
     /*
      #############################################################################
-                            Refresh helpers/methods
+                       Refresh helpers/methods and View updates
      #############################################################################
    */
 
@@ -180,6 +190,13 @@ public partial class MainViewModel : ObservableObject
         // Clear pending action so this decision is only handled once.
         _pendingDecisionReaderPath = string.Empty;
         _pendingDecisionSentUtc = null;
+    }
+
+    // Refreshes View menu checkmarks when the selected view mode changes.
+    partial void OnCurrentViewModeChanged(string value)
+    {
+        OnPropertyChanged(nameof(IsSingleDoorViewSelected));
+        OnPropertyChanged(nameof(IsTwoDoorViewSelected));
     }
 
 
@@ -506,6 +523,20 @@ public partial class MainViewModel : ObservableObject
         StartSelectedDoorMonitoring();
         // Start very fast refresh loop: reader state and LED changes only.
         StartReaderMonitoring();
+    }
+
+    // Switches the main content area to Single Door View.
+    [RelayCommand]
+    private void ShowSingleDoorView()
+    {
+        CurrentViewMode = "SingleDoor";
+    }
+
+    // Switches the main content area to Two Door View.
+    [RelayCommand]
+    private void ShowTwoDoorView()
+    {
+        CurrentViewMode = "TwoDoor";
     }
 
 }

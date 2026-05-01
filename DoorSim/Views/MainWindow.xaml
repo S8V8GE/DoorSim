@@ -18,8 +18,10 @@
         Title="DoorSim - Softwire Door Simulation &amp; Testing Tool"
         Height="800"
         MinHeight="800"
+        MaxHeight="800"
         Width="800"
         MinWidth="800"
+        MaxWidth="800"
         Background="#1E1E1E"
         Foreground="White"
         Icon="/Images/AppIcon.ico">
@@ -98,8 +100,17 @@
                     -->
                     <MenuItem Header="_View"
                               IsEnabled="{Binding IsConnected}">
-                        <MenuItem Header="_Single Door"/>
-                        <MenuItem Header="_Two Doors"/>
+
+                        <MenuItem Header="_Single Door"
+                                  IsCheckable="True"
+                                  IsChecked="{Binding IsSingleDoorViewSelected, Mode=OneWay}"
+                                  Command="{Binding ShowSingleDoorViewCommand}"/>
+
+                        <MenuItem Header="_Two Doors"
+                                  IsCheckable="True"
+                                  IsChecked="{Binding IsTwoDoorViewSelected, Mode=OneWay}"
+                                  Command="{Binding ShowTwoDoorViewCommand}"/>
+
                     </MenuItem>
 
                     <MenuItem Header="_Help"/>
@@ -139,82 +150,135 @@
 
                 </StatusBar>
             </Border>
-    
-        
+
+
             <!--
                 Main content area.
-                - Displays a simple instruction message
-                - Will host dynamic views (door selection, simulation UI, etc.)
+
+                Hosts either:
+                - Single Door layout
+                - Two Door layout
+
+                The View menu controls which layout is visible.
             -->
             <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="220"/>
-                </Grid.RowDefinitions>
 
-                <!-- Door selector bar -->
-                <views:DoorSelectorView Grid.Row="0"
-                            DataContext="{Binding Doors}">
-                    <views:DoorSelectorView.Style>
-                        <Style TargetType="views:DoorSelectorView">
+                <!--
+                    Single Door layout.
+
+                    Contains:
+                    - One door selector
+                    - One fully interactive SingleDoorView
+                    - Shared cardholders panel
+                -->
+                <Grid>
+                    <Grid.Style>
+                        <Style TargetType="Grid">
                             <Setter Property="Visibility" Value="Collapsed"/>
 
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding DataContext.IsConnected, RelativeSource={RelativeSource AncestorType=Window}}"
-                                 Value="True">
+                                <DataTrigger Binding="{Binding IsSingleDoorViewSelected}"
+                                             Value="True">
                                     <Setter Property="Visibility" Value="Visible"/>
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
-                    </views:DoorSelectorView.Style>
-                </views:DoorSelectorView>
+                    </Grid.Style>
 
-                <!-- Door display area -->
-                <Grid Grid.Row="1">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="220"/>
+                    </Grid.RowDefinitions>
 
-                    <TextBlock Text="{Binding MainMessage}"
-                   HorizontalAlignment="Center"
-                   VerticalAlignment="Center"
-                   FontSize="22"
-                   Foreground="#CCCCCC"
-                   TextWrapping="Wrap"
-                   TextAlignment="Center"
-                   MaxWidth="850"/>
-
-                    <views:SingleDoorView DataContext="{Binding Doors}">
-                        <views:SingleDoorView.Style>
-                            <Style TargetType="views:SingleDoorView">
+                    <!-- Door selector bar -->
+                    <views:DoorSelectorView Grid.Row="0"
+                                            DataContext="{Binding Doors}">
+                        <views:DoorSelectorView.Style>
+                            <Style TargetType="views:DoorSelectorView">
                                 <Setter Property="Visibility" Value="Collapsed"/>
 
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasSelectedDoor}"
-                                 Value="True">
+                                    <DataTrigger Binding="{Binding DataContext.IsConnected, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                 Value="True">
                                         <Setter Property="Visibility" Value="Visible"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </views:SingleDoorView.Style>
-                    </views:SingleDoorView>
+                        </views:DoorSelectorView.Style>
+                    </views:DoorSelectorView>
 
+                    <!-- Door display area -->
+                    <Grid Grid.Row="1">
+
+                        <TextBlock Text="{Binding MainMessage}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   FontSize="22"
+                                   Foreground="#CCCCCC"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   MaxWidth="850"/>
+
+                        <views:SingleDoorView DataContext="{Binding Doors}">
+                            <views:SingleDoorView.Style>
+                                <Style TargetType="views:SingleDoorView">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasSelectedDoor}"
+                                                     Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </views:SingleDoorView.Style>
+                        </views:SingleDoorView>
+
+                    </Grid>
+
+                    <!-- Cardholders panel -->
+                    <views:CardholdersView Grid.Row="2"
+                                           DataContext="{Binding Cardholders}">
+                        <views:CardholdersView.Style>
+                            <Style TargetType="views:CardholdersView">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding DataContext.IsConnected, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                 Value="True">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </views:CardholdersView.Style>
+                    </views:CardholdersView>
                 </Grid>
 
-                <!-- Cardholders panel -->
-                <views:CardholdersView Grid.Row="2"
-                               DataContext="{Binding Cardholders}">
-                    <views:CardholdersView.Style>
-                        <Style TargetType="views:CardholdersView">
+
+                <!--
+                    Two Door layout.
+
+                    Placeholder for now. Later this will contain:
+                    - Door selector and simulator panel for Door 1
+                    - Door selector and simulator panel for Door 2
+                    - Shared cardholder panel / interlocking controls
+                -->
+                <views:TwoDoorView>
+                    <views:TwoDoorView.Style>
+                        <Style TargetType="views:TwoDoorView">
                             <Setter Property="Visibility" Value="Collapsed"/>
 
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding DataContext.IsConnected, RelativeSource={RelativeSource AncestorType=Window}}"
-                                     Value="True">
+                                <DataTrigger Binding="{Binding IsTwoDoorViewSelected}"
+                                             Value="True">
                                     <Setter Property="Visibility" Value="Visible"/>
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
-                    </views:CardholdersView.Style>
-                </views:CardholdersView>
+                    </views:TwoDoorView.Style>
+                </views:TwoDoorView>
+
             </Grid>
 
         </DockPanel>

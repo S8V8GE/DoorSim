@@ -1,0 +1,42 @@
+﻿<UserControl x:Class="DoorSim.Views.TwoDoorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#1E1E1E"
+             Foreground="White">
+
+    <!--
+    Two Door View placeholder.
+
+    This view will eventually contain:
+    - Door simulator panel 1
+    - Door simulator panel 2
+    - Shared cardholder list
+    - Door interlocking controls
+    -->
+
+    <Border BorderBrush="#3F3F46"
+            BorderThickness="1"
+            Margin="10"
+            Padding="20"
+            Background="#1E1E1E">
+
+        <Grid>
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+
+                <TextBlock Text="Two Door View"
+                           FontSize="32"
+                           FontWeight="Bold"
+                           Foreground="#CCCCCC"
+                           HorizontalAlignment="Center"/>
+
+                <TextBlock Text="Placeholder only — door panels will be added next."
+                           FontSize="16"
+                           Foreground="#888888"
+                           Margin="0,12,0,0"
+                           HorizontalAlignment="Center"/>
+
+            </StackPanel>
+        </Grid>
+    </Border>
+</UserControl>
