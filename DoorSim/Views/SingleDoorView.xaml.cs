@@ -84,8 +84,8 @@ public partial class SingleDoorView : UserControl
         await service.SetInputStateAsync(inputPath, state);
     }
 
-    // -- PIN HELPER:
-    //    ----------
+    // -- PIN AND AUTO-ENROL HELPERS:
+    //    --------------------------
     // Opens the PIN entry window and sends the entered PIN to Softwire.
     //
     // PINs are sent to Softwire as Wiegand26:
@@ -151,6 +151,47 @@ public partial class SingleDoorView : UserControl
 
             vm.OutReaderPinSent = false;
         }
+    }
+
+    // Opens the existing PIN dialog and sends the entered PIN to the selected Softwire reader using the Wiegand26 PIN swipe method.
+    //
+    // This is used by auto-enrol PIN. It does not use a countdown because this is a manual enrolment action, not an automatic Card + PIN access flow.
+    private async Task OpenAutoEnrollPinAsync(DoorSim.ViewModels.DoorsViewModel vm, string readerName, string readerPath, bool isInReader)
+    {
+        await OpenPinDialogAndSendAsync(
+            vm,
+            readerName,
+            readerPath,
+            isInReader);
+    }
+
+    // Opens the auto-enrol card window and sends the generated card credential to the selected Softwire reader using SwipeRaw.
+    private async Task OpenAutoEnrollCardAsync(string readerName, string readerPath)
+    {
+        if (string.IsNullOrWhiteSpace(readerPath))
+            return;
+
+        var autoEnrollWindow = new AutoEnrollCardWindow(readerName)
+        {
+            Owner = Window.GetWindow(this)
+        };
+
+        var result = autoEnrollWindow.ShowDialog();
+
+        if (result != true || autoEnrollWindow.Result == null)
+            return;
+
+        var service = GetSoftwireService();
+
+        if (service == null)
+            return;
+
+        _ = PlayCardPresentedSoundAsync();
+
+        await service.SwipeRawAsync(
+            readerPath,
+            autoEnrollWindow.Result.RawHex,
+            autoEnrollWindow.Result.BitCount);
     }
 
     // -- TOOLTIP HELPERS:
@@ -558,6 +599,66 @@ public partial class SingleDoorView : UserControl
         await OpenPinDialogAndSendAsync(vm, "In Reader", vm.SelectedDoor.ReaderSideInDevicePath, true);
     }
 
+    // Opens the auto-enrol card window for the In Reader (The generated credential is sent to Softwire using SwipeRaw).
+    private async void InReaderAutoEnrollCard_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not DoorSim.ViewModels.DoorsViewModel vm)
+            return;
+
+        if (vm.SelectedDoor == null)
+            return;
+
+        if (vm.SelectedDoor.InReaderIsShunted)
+        {
+            ShowAppMessage(
+                "In reader is shunted. Auto-enrol is not available.",
+                "Reader unavailable");
+            return;
+        }
+
+        if (!vm.SelectedDoor.InReaderIsOnline)
+        {
+            ShowAppMessage(
+                "In reader is offline. Auto-enrol is not available.",
+                "Reader unavailable");
+            return;
+        }
+
+        await OpenAutoEnrollCardAsync("In Reader", vm.SelectedDoor.ReaderSideInDevicePath);
+    }
+
+    // Opens PIN auto-enrol for the In Reader.
+    private async void InReaderAutoEnrollPin_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not DoorSim.ViewModels.DoorsViewModel vm)
+            return;
+
+        if (vm.SelectedDoor == null)
+            return;
+
+        if (vm.SelectedDoor.InReaderIsShunted)
+        {
+            ShowAppMessage(
+                "In reader is shunted. Auto-enrol is not available.",
+                "Reader unavailable");
+            return;
+        }
+
+        if (!vm.SelectedDoor.InReaderIsOnline)
+        {
+            ShowAppMessage(
+                "In reader is offline. Auto-enrol is not available.",
+                "Reader unavailable");
+            return;
+        }
+
+        await OpenAutoEnrollPinAsync(
+            vm,
+            "In Reader",
+            vm.SelectedDoor.ReaderSideInDevicePath,
+            true);
+    }
+
     //---------------------------------------------
 
     // -- OUT READER:
@@ -724,6 +825,68 @@ public partial class SingleDoorView : UserControl
         }
 
         await OpenPinDialogAndSendAsync(vm, "Out Reader", vm.SelectedDoor.ReaderSideOutDevicePath, false);
+    }
+
+    // Opens the auto-enrol card window for the Out Reader (The generated credential is sent to Softwire using SwipeRaw).
+    private async void OutReaderAutoEnrollCard_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not DoorSim.ViewModels.DoorsViewModel vm)
+            return;
+
+        if (vm.SelectedDoor == null)
+            return;
+
+        if (vm.SelectedDoor.OutReaderIsShunted)
+        {
+            ShowAppMessage(
+                "Out reader is shunted. Auto-enrol is not available.",
+                "Reader unavailable");
+            return;
+        }
+
+        if (!vm.SelectedDoor.OutReaderIsOnline)
+        {
+            ShowAppMessage(
+                "Out reader is offline. Auto-enrol is not available.",
+                "Reader unavailable");
+            return;
+        }
+
+        await OpenAutoEnrollCardAsync(
+            "Out Reader",
+            vm.SelectedDoor.ReaderSideOutDevicePath);
+    }
+
+    // Opens PIN auto-enrol for the Out Reader.
+    private async void OutReaderAutoEnrollPin_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not DoorSim.ViewModels.DoorsViewModel vm)
+            return;
+
+        if (vm.SelectedDoor == null)
+            return;
+
+        if (vm.SelectedDoor.OutReaderIsShunted)
+        {
+            ShowAppMessage(
+                "Out reader is shunted. Auto-enrol is not available.",
+                "Reader unavailable");
+            return;
+        }
+
+        if (!vm.SelectedDoor.OutReaderIsOnline)
+        {
+            ShowAppMessage(
+                "Out reader is offline. Auto-enrol is not available.",
+                "Reader unavailable");
+            return;
+        }
+
+        await OpenAutoEnrollPinAsync(
+            vm,
+            "Out Reader",
+            vm.SelectedDoor.ReaderSideOutDevicePath,
+            false);
     }
 
 

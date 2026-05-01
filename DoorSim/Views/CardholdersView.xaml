@@ -80,7 +80,7 @@
                                        FontWeight="Bold"
                                        Foreground="White"/>
 
-                            <TextBlock Text="{Binding CardholderCount, StringFormat=' ({0} cardholders configured)'}"
+                            <TextBlock Text="{Binding CardholderCount, StringFormat=' ({0} credentials configured)'}"
                                        Margin="8,0,0,0"
                                        FontSize="12"
                                        Foreground="#CCCCCC"

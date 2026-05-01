@@ -1,0 +1,604 @@
+﻿<Window x:Class="DoorSim.Views.AutoEnrollCardWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Auto-enrol card"
+        SizeToContent="Height"
+        MinHeight="430"
+        Width="460"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Background="#1E1E1E"
+        Foreground="White"
+        Icon="/Images/AppIcon.ico">
+
+    <Border BorderBrush="#3F3F46"
+            BorderThickness="1"
+            Padding="20"
+            Background="#1E1E1E">
+
+        <Grid>
+            
+            <Grid.RowDefinitions>
+
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="10"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="8"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="10"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="10"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="18"/>
+                <RowDefinition Height="Auto"/>
+
+            </Grid.RowDefinitions>
+
+            <!-- Dialog heading -->
+            <TextBlock Grid.Row="0"
+                       Text="{Binding ReaderName}"
+                       FontSize="18"
+                       FontWeight="Bold"
+                       Foreground="#CCCCCC"/>
+
+            <!-- Credential format selector -->
+            <StackPanel Grid.Row="2">
+                
+                <TextBlock Text="Credential format"
+                           Foreground="#CCCCCC"
+                           Margin="0,0,0,4"/>
+
+                <ComboBox x:Name="FormatComboBox"
+                          Height="30"
+                          SelectedIndex="0"
+                          SelectionChanged="FormatComboBox_SelectionChanged">
+                    
+                    <ComboBoxItem Content="Standard 26-bit Wiegand (HID H10301)"/>
+                    <ComboBoxItem Content="HID H10306 34-bit"/>
+                    <ComboBoxItem Content="HID H10302 37-bit"/>
+                    <ComboBoxItem Content="HID H10304 37-bit"/>
+                    <ComboBoxItem Content="HID Corporate 1000 35-bit"/>
+                    <ComboBoxItem Content="HID Corporate 1000 48-bit"/>
+                    <ComboBoxItem Content="CSN 32-bit"/>
+                    <ComboBoxItem Content="FASC-N 75-bit"/>
+                    <ComboBoxItem Content="FASC-N 200-bit"/>
+                    <ComboBoxItem Content="Custom card format"/>
+                    
+                </ComboBox>
+
+            </StackPanel>
+
+            <!-- Facility code input -->
+            <StackPanel x:Name="FacilityCodePanel"
+                        Grid.Row="4">
+                
+                <TextBlock Text="Facility Code (1–255)"
+                           Foreground="#CCCCCC"
+                           Margin="0,0,0,4"/>
+
+                <TextBox x:Name="FacilityCodeTextBox"
+                         Height="30"
+                         Background="#2D2D30"
+                         Foreground="White"
+                         BorderBrush="#555555"
+                         Padding="6"
+                         TextChanged="CredentialField_TextChanged"/>
+                
+            </StackPanel>
+
+            <!-- Card number input -->
+            <StackPanel x:Name="CardNumberPanel"
+                        Grid.Row="6">
+                
+                <TextBlock Text="Card Number (1–65535)"
+                           Foreground="#CCCCCC"
+                           Margin="0,0,0,4"/>
+
+                <TextBox x:Name="CardNumberTextBox"
+                         Height="30"
+                         Background="#2D2D30"
+                         Foreground="White"
+                         BorderBrush="#555555"
+                         Padding="6"
+                         TextChanged="CredentialField_TextChanged"/>
+                
+            </StackPanel>
+
+            <!-- HID H10306 / Standard 34-bit Wiegand input. Uses a 16-bit Site Code and a 16-bit Card Number. -->
+            <StackPanel x:Name="H10306Panel"
+                        Grid.Row="6"
+                        Visibility="Collapsed">
+
+                <TextBlock Text="Facility Code (1–65535)" 
+                           Foreground="#CCCCCC"
+                           Margin="0,0,0,4"/>
+
+                <TextBox x:Name="H10306SiteCodeTextBox"
+                         Height="30"
+                         Background="#2D2D30"
+                         Foreground="White"
+                         BorderBrush="#555555"
+                         Padding="6"
+                         TextChanged="CredentialField_TextChanged"/>
+
+                <TextBlock Text="Card Number (1–65535)"
+                           Foreground="#CCCCCC"
+                           Margin="0,10,0,4"/>
+
+                <TextBox x:Name="H10306CardNumberTextBox"
+                         Height="30"
+                         Background="#2D2D30"
+                         Foreground="White"
+                         BorderBrush="#555555"
+                         Padding="6"
+                         TextChanged="CredentialField_TextChanged"/>
+
+                <TextBlock Text="HID H10306 uses 16-bit Site Code + 16-bit Card Number with leading even parity and trailing odd parity."
+                           Foreground="#888888"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           Margin="0,6,0,0"/>
+                
+            </StackPanel>
+
+            <!-- HID H10302 / 37-bit Wiegand input. Uses a 35-bit card number and no site/facility code. -->
+            <StackPanel x:Name="H10302Panel"
+                        Grid.Row="6"
+                        Visibility="Collapsed">
+
+                <TextBlock Text="Card Number (1–34359738367)"
+                           Foreground="#CCCCCC"
+                           Margin="0,0,0,4"/>
+
+                <TextBox x:Name="H10302CardNumberTextBox"
+                         Height="30"
+                         Background="#2D2D30"
+                         Foreground="White"
+                         BorderBrush="#555555"
+                         Padding="6"
+                         TextChanged="CredentialField_TextChanged"/>
+
+                <TextBlock Text="HID H10302 uses a 35-bit card number with no facility code."
+                           Foreground="#888888"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           Margin="0,6,0,0"/>
+                
+            </StackPanel>
+
+            <!-- HID H10304 / 37-bit Wiegand input. Uses a 16-bit facility code and a 19-bit card number. -->
+            <StackPanel x:Name="H10304Panel"
+                        Grid.Row="6"
+                        Visibility="Collapsed">
+
+                <TextBlock Text="Facility Code (1–65535)"
+                           Foreground="#CCCCCC"
+                           Margin="0,0,0,4"/>
+
+                <TextBox x:Name="H10304FacilityCodeTextBox"
+                         Height="30"
+                         Background="#2D2D30"
+                         Foreground="White"
+                         BorderBrush="#555555"
+                         Padding="6"
+                         TextChanged="CredentialField_TextChanged"/>
+
+                <TextBlock Text="Card Number (1–524287)"
+                           Foreground="#CCCCCC"
+                           Margin="0,10,0,4"/>
+
+                <TextBox x:Name="H10304CardNumberTextBox"
+                         Height="30"
+                         Background="#2D2D30"
+                         Foreground="White"
+                         BorderBrush="#555555"
+                         Padding="6"
+                         TextChanged="CredentialField_TextChanged"/>
+
+                <TextBlock Text="HID H10304 uses 16-bit Facility Code + 19-bit Card Number with leading even parity and trailing odd parity."
+                           Foreground="#888888"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           Margin="0,6,0,0"/>
+                
+            </StackPanel>
+
+            <!-- HID Corporate 1000 / 35-bit input. Uses a 12-bit Facility Code and a 20-bit Card Number. -->
+            <StackPanel x:Name="Corporate1000_35Panel"
+                        Grid.Row="6"
+                        Visibility="Collapsed">
+
+                <TextBlock Text="Facility Code (1–4095)"
+                           Foreground="#CCCCCC"
+                           Margin="0,0,0,4"/>
+
+                <TextBox x:Name="Corporate1000_35FacilityCodeTextBox"
+                         Height="30"
+                         Background="#2D2D30"
+                         Foreground="White"
+                         BorderBrush="#555555"
+                         Padding="6"
+                         TextChanged="CredentialField_TextChanged"/>
+
+                <TextBlock Text="Card Number (1–1048575)"
+                           Foreground="#CCCCCC"
+                           Margin="0,10,0,4"/>
+
+                <TextBox x:Name="Corporate1000_35CardNumberTextBox"
+                         Height="30"
+                         Background="#2D2D30"
+                         Foreground="White"
+                         BorderBrush="#555555"
+                         Padding="6"
+                         TextChanged="CredentialField_TextChanged"/>
+
+                <TextBlock Text="HID Corporate 1000 35-bit uses 12-bit Facility Code + 20-bit Card Number."
+                           Foreground="#888888"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           Margin="0,6,0,0"/>
+                
+            </StackPanel>
+
+            <!-- HID Corporate 1000 / 48-bit input. Uses a 22-bit Facility Code and a 23-bit Card Number. -->
+            <StackPanel x:Name="Corporate1000_48Panel"
+                        Grid.Row="6"
+                        Visibility="Collapsed">
+
+                <TextBlock Text="Facility Code (1–4194303)"
+                           Foreground="#CCCCCC"
+                           Margin="0,0,0,4"/>
+
+                <TextBox x:Name="Corporate1000_48FacilityCodeTextBox"
+                         Height="30"
+                         Background="#2D2D30"
+                         Foreground="White"
+                         BorderBrush="#555555"
+                         Padding="6"
+                         TextChanged="CredentialField_TextChanged"/>
+
+                <TextBlock Text="Card Number (1–8388607)"
+                           Foreground="#CCCCCC"
+                           Margin="0,10,0,4"/>
+
+                <TextBox x:Name="Corporate1000_48CardNumberTextBox"
+                         Height="30"
+                         Background="#2D2D30"
+                         Foreground="White"
+                         BorderBrush="#555555"
+                         Padding="6"
+                         TextChanged="CredentialField_TextChanged"/>
+
+                <TextBlock Text="HID Corporate 1000 48-bit uses 22-bit Facility Code + 23-bit Card Number."
+                           Foreground="#888888"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           Margin="0,6,0,0"/>
+
+            </StackPanel>
+
+            <!-- CSN 32-bit UID input. This represents a 4-byte card serial number / UID. -->
+            <StackPanel x:Name="Csn32Panel"
+                        Grid.Row="6"
+                        Visibility="Collapsed">
+
+                <TextBlock Text="CSN / UID Hex Value"
+                           Foreground="#CCCCCC"
+                           Margin="0,0,0,4"/>
+
+                <TextBox x:Name="Csn32RawHexTextBox"
+                         Height="30"
+                         Background="#2D2D30"
+                         Foreground="White"
+                         BorderBrush="#555555"
+                         Padding="6"
+                         TextChanged="CredentialField_TextChanged"/>
+
+                <TextBlock Text="Enter up to 8 hex characters. Shorter values are left-padded with zeroes."
+                           Foreground="#888888"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           Margin="0,6,0,0"/>
+                
+            </StackPanel>
+
+            <!-- FASC-N / 75-bit input. Uses Agency Code, System Code, Credential Number, and Exp Date. -->
+            <StackPanel x:Name="FascN75Panel"
+                        Grid.Row="6"
+                        Visibility="Collapsed">
+
+                <TextBlock Text="Agency Code (1–16383)"
+                           Foreground="#CCCCCC"
+                           Margin="0,0,0,4"/>
+
+                <TextBox x:Name="FascN75AgencyCodeTextBox"
+                         Height="30"
+                         Background="#2D2D30"
+                         Foreground="White"
+                         BorderBrush="#555555"
+                         Padding="6"
+                         TextChanged="CredentialField_TextChanged"/>
+
+                <TextBlock Text="System Code (1–16383)"
+                           Foreground="#CCCCCC"
+                           Margin="0,10,0,4"/>
+
+                <TextBox x:Name="FascN75SystemCodeTextBox"
+                         Height="30"
+                         Background="#2D2D30"
+                         Foreground="White"
+                         BorderBrush="#555555"
+                         Padding="6"
+                         TextChanged="CredentialField_TextChanged"/>
+
+                <TextBlock Text="Credential Number (1–1048575)"
+                           Foreground="#CCCCCC"
+                           Margin="0,10,0,4"/>
+
+                <TextBox x:Name="FascN75CredentialNumberTextBox"
+                         Height="30"
+                         Background="#2D2D30"
+                         Foreground="White"
+                         BorderBrush="#555555"
+                         Padding="6"
+                         TextChanged="CredentialField_TextChanged"/>
+
+                <TextBlock Text="Exp Date (1–33554431)"
+                           Foreground="#CCCCCC"
+                           Margin="0,10,0,4"/>
+
+                <TextBox x:Name="FascN75ExpDateTextBox"
+                         Height="30"
+                         Background="#2D2D30"
+                         Foreground="White"
+                         BorderBrush="#555555"
+                         Padding="6"
+                         TextChanged="CredentialField_TextChanged"/>
+
+                <TextBlock Text="FASC-N 75-bit uses Agency Code, System Code, Credential Number, and Exp Date."
+                           Foreground="#888888"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           Margin="0,6,0,0"/>
+                
+            </StackPanel>
+
+            <!-- FASC-N / 200-bit input. Uses 5-bit encoded FASC-N characters and includes sentinels/separators internally. -->
+            <ScrollViewer x:Name="FascN200Panel"
+                          Grid.Row="6"
+                          Visibility="Collapsed"
+                          MaxHeight="420"
+                          VerticalScrollBarVisibility="Auto">
+                
+                <StackPanel>
+
+                    <TextBlock Text="Agency Code (1–9999)"
+                               Foreground="#CCCCCC"
+                               Margin="0,0,0,4"/>
+
+                    <TextBox x:Name="FascN200AgencyCodeTextBox"
+                             Height="30"
+                             Background="#2D2D30"
+                             Foreground="White"
+                             BorderBrush="#555555"
+                             Padding="6"
+                             TextChanged="CredentialField_TextChanged"/>
+
+                    <TextBlock Text="System Code (1–9999)"
+                           Foreground="#CCCCCC"
+                           Margin="0,10,0,4"/>
+
+                    <TextBox x:Name="FascN200SystemCodeTextBox"
+                             Height="30"
+                             Background="#2D2D30"
+                             Foreground="White"
+                             BorderBrush="#555555"
+                             Padding="6"
+                             TextChanged="CredentialField_TextChanged"/>
+
+                    <TextBlock Text="Credential Number (1–999999)"
+                               Foreground="#CCCCCC"
+                               Margin="0,10,0,4"/>
+
+                    <TextBox x:Name="FascN200CredentialNumberTextBox"
+                             Height="30"
+                             Background="#2D2D30"
+                             Foreground="White"
+                             BorderBrush="#555555"
+                             Padding="6"
+                             TextChanged="CredentialField_TextChanged"/>
+
+                    <TextBlock Text="CS (1–9)"
+                               Foreground="#CCCCCC"
+                               Margin="0,10,0,4"/>
+
+                    <TextBox x:Name="FascN200CsTextBox"
+                             Height="30"
+                             Background="#2D2D30"
+                             Foreground="White"
+                             BorderBrush="#555555"
+                             Padding="6"
+                             TextChanged="CredentialField_TextChanged"/>
+
+                    <TextBlock Text="ICI (1–9)"
+                               Foreground="#CCCCCC"
+                               Margin="0,10,0,4"/>
+
+                    <TextBox x:Name="FascN200IciTextBox"
+                             Height="30"
+                             Background="#2D2D30"
+                             Foreground="White"
+                             BorderBrush="#555555"
+                             Padding="6"
+                             TextChanged="CredentialField_TextChanged"/>
+
+                    <TextBlock Text="PI (1–9999999999)"
+                               Foreground="#CCCCCC"
+                               Margin="0,10,0,4"/>
+
+                    <TextBox x:Name="FascN200PiTextBox"
+                             Height="30"
+                             Background="#2D2D30"
+                             Foreground="White"
+                             BorderBrush="#555555"
+                             Padding="6"
+                             TextChanged="CredentialField_TextChanged"/>
+
+                    <TextBlock Text="OC (1–9)"
+                               Foreground="#CCCCCC"
+                               Margin="0,10,0,4"/>
+
+                    <TextBox x:Name="FascN200OcTextBox"
+                             Height="30"
+                             Background="#2D2D30"
+                             Foreground="White"
+                             BorderBrush="#555555"
+                             Padding="6"
+                             TextChanged="CredentialField_TextChanged"/>
+
+                    <TextBlock Text="OI (1–9999)"
+                               Foreground="#CCCCCC"
+                               Margin="0,10,0,4"/>
+
+                    <TextBox x:Name="FascN200OiTextBox"
+                             Height="30"
+                             Background="#2D2D30"
+                             Foreground="White"
+                             BorderBrush="#555555"
+                             Padding="6"
+                             TextChanged="CredentialField_TextChanged"/>
+
+                    <TextBlock Text="POA (1–9)"
+                               Foreground="#CCCCCC"
+                               Margin="0,10,0,4"/>
+
+                    <TextBox x:Name="FascN200PoaTextBox"
+                             Height="30"
+                             Background="#2D2D30"
+                             Foreground="White"
+                             BorderBrush="#555555"
+                             Padding="6"
+                             TextChanged="CredentialField_TextChanged"/>
+
+                    <TextBlock Text="LRC (1–9 or A–F)"
+                               Foreground="#CCCCCC"
+                               Margin="0,10,0,4"/>
+
+                    <TextBox x:Name="FascN200LrcTextBox"
+                             Height="30"
+                             MaxLength="1"
+                             Background="#2D2D30"
+                             Foreground="White"
+                             BorderBrush="#555555"
+                             Padding="6"
+                             TextChanged="CredentialField_TextChanged"/>
+
+                    <TextBlock Text="FASC-N 200-bit uses 5-bit encoded FASC-N characters, including sentinels, separators, and LRC."
+                               Foreground="#888888"
+                               FontSize="12"
+                               TextWrapping="Wrap"
+                               Margin="0,6,0,0"/>
+                
+                </StackPanel>
+                
+            </ScrollViewer>
+
+            <!-- Custom card format input fields. DoorSim does not calculate Security Center card format rules here. It sends the raw hex and bit count directly to the reader. -->
+            <StackPanel x:Name="CustomFormatPanel"
+                        Grid.Row="6"
+                        Visibility="Collapsed">
+
+                <StackPanel Orientation="Horizontal"
+                            Margin="0,0,0,4">
+
+                    <TextBlock Text="Custom card format"
+                                Foreground="#CCCCCC"/>
+
+                    <TextBlock Text=" ⓘ"
+                               Foreground="#00AEEF"
+                               FontWeight="Bold"
+                               ToolTip="DoorSim sends the raw hex and bit count directly to the reader. Security Center handles whether that value can be enrolled against a configured card format."/>
+                </StackPanel>
+
+                <TextBlock Text="Bit Count (8–512)"
+                           Foreground="#CCCCCC"
+                           Margin="0,0,0,4"/>
+
+                <TextBox x:Name="CustomBitCountTextBox"
+                         Height="30"
+                         Background="#2D2D30"
+                         Foreground="White"
+                         BorderBrush="#555555"
+                         Padding="6"
+                         TextChanged="CredentialField_TextChanged"/>
+
+                <TextBlock Text="Raw Hex Credential"
+                           Foreground="#CCCCCC"
+                           Margin="0,10,0,4"/>
+
+                <TextBox x:Name="CustomRawHexTextBox"
+                         Height="30"
+                         Background="#2D2D30"
+                         Foreground="White"
+                         BorderBrush="#555555"
+                         Padding="6"
+                         TextChanged="CredentialField_TextChanged"/>
+                
+            </StackPanel>
+
+            <!-- Validation and preview -->
+            <StackPanel Grid.Row="8">
+
+                <TextBlock x:Name="ValidationText"
+                           Text="Enter a valid facility code and card number."
+                           Foreground="#FFAA00"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           MaxWidth="410"
+                           Margin="0,0,0,6"/>
+
+                <TextBlock Text="Generated raw credential"
+                           Foreground="#CCCCCC"
+                           FontSize="12"
+                           Margin="0,0,0,4"/>
+
+                <TextBox x:Name="GeneratedRawHexTextBox"
+                         MinHeight="30"
+                         MaxHeight="70"
+                         IsReadOnly="True"
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto"
+                         Background="#252526"
+                         Foreground="#CCCCCC"
+                         BorderBrush="#555555"
+                         Padding="6"/>
+                
+            </StackPanel>
+
+            <!-- Buttons -->
+            <StackPanel Grid.Row="10"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right">
+
+                <Button Content="Cancel"
+                        Width="90"
+                        Height="30"
+                        Margin="0,0,8,0"
+                        IsCancel="True"
+                        Click="CancelButton_Click"/>
+
+                <Button x:Name="EnrollButton"
+                        Content="Enrol"
+                        Width="90"
+                        Height="30"
+                        IsDefault="True"
+                        IsEnabled="False"
+                        Click="EnrollButton_Click"/>
+                
+            </StackPanel>
+            
+        </Grid>
+        
+    </Border>
+    
+</Window>

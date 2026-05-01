@@ -108,7 +108,7 @@ public partial class DoorsViewModel : ObservableObject
       #############################################################################
     */
 
-    // Shared UI colours used for live hardware status
+    // Shared UI colours used for live hardware status - cause we love colours don't we Barry ;)
     private static readonly Brush GoodBrush = new SolidColorBrush(Color.FromRgb(40, 200, 120)); // green
     private static readonly Brush BadBrush = new SolidColorBrush(Color.FromRgb(220, 80, 80));  // red
     private static readonly Brush WarningBrush = new SolidColorBrush(Color.FromRgb(255, 165, 0)); // orange
@@ -247,14 +247,14 @@ public partial class DoorsViewModel : ObservableObject
             if (!SelectedDoor.HasLock)
                 return "No door lock configured";
 
+            if (SelectedDoor.UnlockedForMaintenance)
+                return "Maintenance mode";
+
             if (SelectedDoor.BreakGlassIsActive)
             {
                 var lockState = SelectedDoor.DoorIsLocked ? "Locked" : "Unlocked";
                 return $"No power ({lockState})";
             }
-
-            if (SelectedDoor.UnlockedForMaintenance)
-                return "Maintenance mode";
 
             return SelectedDoor.DoorIsLocked ? "Locked" : "Unlocked";
         }
@@ -791,9 +791,8 @@ public partial class DoorsViewModel : ObservableObject
                 refreshedSelectedDoor.DoorSensorIsOpen = previousSelectedDoor.DoorSensorIsOpen;
                 refreshedSelectedDoor.DoorSensorIsShunted = previousSelectedDoor.DoorSensorIsShunted;
 
-                // Preserve Door Lock live state so it does not flicker during the 3-second door list refresh
-                refreshedSelectedDoor.DoorIsLocked = previousSelectedDoor.DoorIsLocked;
-                refreshedSelectedDoor.UnlockedForMaintenance = previousSelectedDoor.UnlockedForMaintenance;
+                // Do NOT preserve DoorIsLocked or UnlockedForMaintenance here.
+                // They come from the refreshed door JSON and must reflect the current Softwire state.
 
                 // Preserve In Reader live state so it does not flicker during the 3-second door list refresh
                 refreshedSelectedDoor.InReaderIsOnline = previousSelectedDoor.InReaderIsOnline;

@@ -220,13 +220,16 @@
 
                                 <!-- Right-click menu for reader actions. -->
                                 <Grid.ContextMenu>
-                                      <ContextMenu>
-                                          <MenuItem Header="Enter PIN"
-                                                    Click="InReaderEnterPin_Click"/>
+                                    <ContextMenu>
+                                        <MenuItem Header="Enter PIN"
+                                                  Click="InReaderEnterPin_Click"/>
 
-                                          <MenuItem Header="Auto-enrol credential"
-                                                    IsEnabled="False"/>
-                                      </ContextMenu>
+                                        <MenuItem Header="Auto-enrol card"
+                                                  Click="InReaderAutoEnrollCard_Click"/>
+
+                                        <MenuItem Header="Auto-enrol PIN"
+                                                  Click="InReaderAutoEnrollPin_Click"/>
+                                    </ContextMenu>
                                 </Grid.ContextMenu>
 
                                 <Image Source="{Binding ReaderImagePath}"
@@ -313,8 +316,11 @@
                                         <MenuItem Header="Enter PIN"
                                                   Click="OutReaderEnterPin_Click"/>
 
-                                        <MenuItem Header="Auto-enrol credential"
-                                                  IsEnabled="False"/>
+                                        <MenuItem Header="Auto-enrol card"
+                                                  Click="OutReaderAutoEnrollCard_Click"/>
+
+                                        <MenuItem Header="Auto-enrol PIN"
+                                                  Click="OutReaderAutoEnrollPin_Click"/>
                                     </ContextMenu>
                                 </Grid.ContextMenu>
 
