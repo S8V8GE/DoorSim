@@ -16,7 +16,7 @@ public partial class MainWindow : Window
 
         DataContext = mainViewModel;
 
-        // Listen for view mode changes so the window can jump between the fixed Single Door and Two Door sizes.
+        // Listen for view mode changes so the window can jump between the fixed Single Door and Two Door sizes. 
         mainViewModel.PropertyChanged += MainViewModel_PropertyChanged;
 
         // Apply the starting Single Door size.
