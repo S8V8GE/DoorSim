@@ -4,7 +4,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
-using System.Media;
 
 namespace DoorSim.Views;
 
@@ -20,7 +19,8 @@ public partial class DoorPanelView : UserControl
 
     private readonly DispatcherTimer _floatingToolTipTimer;
 
-    private int _soundVersion;
+    // Centralised audio service. Keeps sound playback out of the view logic and gives us one place for future easter eggs, denied sounds, and sound timing fixes.
+    private readonly SoundService _soundService = new SoundService();
 
     public DoorPanelView() 
     {
@@ -104,7 +104,7 @@ public partial class DoorPanelView : UserControl
         {
             if (pinWindow.TimedOut)
             {
-                _ = PlayTripleBeepAsync();
+                _ = _soundService.PlayAccessDeniedAsync();
 
                 ShowAppMessage(
                     "PIN entry timed out. Access was denied.",
@@ -183,7 +183,7 @@ public partial class DoorPanelView : UserControl
         if (service == null)
             return;
 
-        _ = PlayCardPresentedSoundAsync();
+        _soundService.PlayCredentialPresented();
 
         await service.SwipeRawAsync(
             readerPath,
@@ -232,84 +232,17 @@ public partial class DoorPanelView : UserControl
 
     // -- SOUND HELPERS:
     //    --------------
-    // Plays a short local sound when a card is presented to a reader.
-    // Uses a WAV resource rather than SystemSounds because system event sounds may be muted or disabled in Windows / VM environments.
-    private void PlayCredentialPresentedSound()
-    {
-        try
-        {
-            var stream = Application.GetResourceStream(
-                new Uri("pack://application:,,,/Sounds/Credential_Beep.wav"));
-
-            if (stream == null)
-                return;
-
-            using var player = new SoundPlayer(stream.Stream);
-            player.Play();
-        }
-        catch
-        {
-            // Sound is non-critical. If playback fails, ignore it.
-        }
-    }
-
-    // Plays the card-presented beep after a short delay.
-    // If another important sound starts during that delay, this beep is skipped.
-    // This prevents the normal card beep overlapping with access denied warning beeps.
-    private async Task PlayCardPresentedSoundAsync()
-    {
-        var versionAtStart = _soundVersion;
-
-        await Task.Delay(250);
-
-        if (versionAtStart != _soundVersion)
-            return;
-
-        PlayCredentialPresentedSound();
-    }
-
-    // Plays the credential beep three times (Used for timeout / warning feedback if PIN not entered within the allowed time).
-    // Uses PlaySync inside a background task so each beep finishes before the next starts.
-    private async Task PlayTripleBeepAsync()
-    {
-        _soundVersion++;
-
-        await Task.Run(() =>
-        {
-            for (var i = 0; i < 3; i++)
-            {
-                try
-                {
-                    var streamInfo = Application.GetResourceStream(
-                        new Uri("pack://application:,,,/Sounds/Credential_Beep.wav"));
-
-                    if (streamInfo == null)
-                        return;
-
-                    using var player = new System.Media.SoundPlayer(streamInfo.Stream);
-
-                    player.PlaySync();
-
-                    System.Threading.Thread.Sleep(100);
-                }
-                catch
-                {
-                    // Sound is non-critical. If playback fails, ignore it.
-                }
-            }
-        });
-    }
 
     // Plays a sound when a reader LED colour changes.
     private void OnReaderLedChanged()
     {
-        _ = PlayCardPresentedSoundAsync();
+        _soundService.PlayCredentialPresented();
     }
 
     // Plays warning beeps when Softwire reports an access denied decision.
     private async void OnReaderAccessDenied()
     {
-        await PlayTripleBeepAsync();
+        await _soundService.PlayAccessDeniedAsync();
     }
 
 
@@ -542,7 +475,8 @@ public partial class DoorPanelView : UserControl
         }
 
         // Local feedback: card has been presented to the reader.
-        _ = PlayCardPresentedSoundAsync();
+        // SoundService also gives us one place for future easter eggs.
+        _soundService.PlayCardholderPresented(cardholder);
 
         var swipeSent = await service.SwipeRawAsync(vm.SelectedDoor.ReaderSideInDevicePath, cardholder.TrimmedCredential, cardholder.BitCount);
 
@@ -770,7 +704,8 @@ public partial class DoorPanelView : UserControl
         }
 
         // Local feedback: card has been presented to the reader.
-        _ = PlayCardPresentedSoundAsync();
+        // SoundService also gives us one place for future easter eggs.
+        _soundService.PlayCardholderPresented(cardholder);
 
         var swipeSent = await service.SwipeRawAsync(vm.SelectedDoor.ReaderSideOutDevicePath, cardholder.TrimmedCredential, cardholder.BitCount);
 
