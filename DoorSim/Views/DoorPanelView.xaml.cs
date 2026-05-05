@@ -93,7 +93,7 @@ public partial class DoorPanelView : UserControl
     // PINs are sent to Softwire as Wiegand26:
     // - Facility code = 0
     // - Card number   = entered PIN
-    private async Task OpenPinDialogAndSendAsync(DoorSim.ViewModels.DoorsViewModel vm, string readerName, string readerPath, bool isInReader, int? timeoutSeconds = null)
+    private async Task OpenPinDialogAndSendAsync(DoorSim.ViewModels.DoorsViewModel vm, string readerName, string readerPath, bool isInReader, int? timeoutSeconds = null, Cardholder? cardholder = null)
     {
         if (string.IsNullOrWhiteSpace(readerPath))
             return;
@@ -135,7 +135,7 @@ public partial class DoorPanelView : UserControl
         if (!sent)
             return;
 
-        RegisterPendingReaderDecision(readerPath, isInReader, null);
+        RegisterPendingReaderDecision(readerPath, isInReader, cardholder);
 
         if (isInReader)
         {
@@ -524,13 +524,17 @@ public partial class DoorPanelView : UserControl
         {
             if (!cardholder.HasPin)
             {
+                _ = _soundService.PlayAccessDeniedAsync(cardholder);
+
+                _ = vm.ShowInReaderDecisionFeedbackAsync("Access denied", false);
+
                 ShowAppMessage(
                     "This reader requires Card + PIN, but this cardholder does not have a PIN configured.",
                     "PIN required");
             }
             else
             {
-                await OpenPinDialogAndSendAsync(vm, "In Reader", vm.SelectedDoor.ReaderSideInDevicePath, true, vm.SelectedDoor.InReaderPinTimeoutSeconds);
+                await OpenPinDialogAndSendAsync(vm, "In Reader", vm.SelectedDoor.ReaderSideInDevicePath, true, vm.SelectedDoor.InReaderPinTimeoutSeconds, cardholder);
             }
         }
 
@@ -751,13 +755,17 @@ public partial class DoorPanelView : UserControl
         {
             if (!cardholder.HasPin)
             {
+                _ = _soundService.PlayAccessDeniedAsync(cardholder);
+
+                _ = vm.ShowOutReaderDecisionFeedbackAsync("Access denied", false);
+
                 ShowAppMessage(
                     "This reader requires Card + PIN, but this cardholder does not have a PIN configured.",
                     "PIN required");
             }
             else
             {
-                await OpenPinDialogAndSendAsync(vm, "Out Reader", vm.SelectedDoor.ReaderSideOutDevicePath, false, vm.SelectedDoor.OutReaderPinTimeoutSeconds);
+                await OpenPinDialogAndSendAsync(vm, "Out Reader", vm.SelectedDoor.ReaderSideOutDevicePath, false, vm.SelectedDoor.OutReaderPinTimeoutSeconds, cardholder);
             }
         }
 
