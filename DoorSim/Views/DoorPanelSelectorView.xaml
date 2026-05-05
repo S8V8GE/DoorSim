@@ -1,0 +1,55 @@
+﻿<UserControl x:Class="DoorSim.Views.DoorPanelSelectorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#1E1E1E"
+             Foreground="White">
+
+    <!--
+        Door selector for one reusable door panel.
+
+        Unlike DoorSelectorView, this binds to DoorPanelViewModel.
+        That allows TwoDoorView to have:
+        - one selector for the left door panel
+        - one selector for the right door panel
+
+        Each selector owns its own SelectedDoor.
+    -->
+
+    <Border Background="#1F3A5F"
+            Padding="10,6">
+
+        <Grid>
+            
+            <Grid.ColumnDefinitions>
+                
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="10"/>
+                <ColumnDefinition Width="*"/>
+                
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0"
+                       Text="{Binding PanelTitle}"
+                       FontSize="14"
+                       FontWeight="Bold"
+                       Foreground="White"
+                       VerticalAlignment="Center"/>
+
+            <ComboBox Grid.Column="2"
+                      ItemsSource="{Binding Doors}"
+                      SelectedItem="{Binding SelectedDoor, Mode=TwoWay}"
+                      DisplayMemberPath="Name"
+                      Height="28"
+                      MinWidth="240"
+                      MaxWidth="320"
+                      HorizontalAlignment="Left"
+                      Background="#2D2D30"
+                      Foreground="White"
+                      BorderBrush="#555555"
+                      Padding="4"/>
+            
+        </Grid>
+        
+    </Border>
+    
+</UserControl>

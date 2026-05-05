@@ -48,15 +48,13 @@
                 
             </Grid.RowDefinitions>
 
-            <!-- Left door selector.
-                 Currently uses the existing shared DoorsViewModel. -->
+            <!-- Left door selector. -->
             <views:DoorSelectorView Grid.Row="0"
-                                    DataContext="{Binding Doors}"/>
+                                    DataContext="{Binding LeftDoorPanel}"/>
 
-            <!-- Left interactive door panel.
-                 Currently mirrors the existing selected door. -->
+            <!-- Left interactive door panel. -->
             <views:DoorPanelView Grid.Row="1"
-                                 DataContext="{Binding Doors}"
+                                 DataContext="{Binding LeftDoorPanel.DoorState}"
                                  Margin="20"/>
 
         </Grid>
@@ -75,15 +73,13 @@
                 
             </Grid.RowDefinitions>
 
-            <!-- Right door selector.
-                 Currently uses the existing shared DoorsViewModel. -->
+            <!-- Right door selector. -->
             <views:DoorSelectorView Grid.Row="0"
-                                    DataContext="{Binding Doors}"/>
+                                    DataContext="{Binding RightDoorPanel}"/>
 
-            <!-- Right interactive door panel.
-                 Currently mirrors the existing selected door. -->
+            <!-- Right interactive door panel. -->
             <views:DoorPanelView Grid.Row="1"
-                                 DataContext="{Binding Doors}"
+                                 DataContext="{Binding RightDoorPanel.DoorState}"
                                  Margin="20"/>
 
         </Grid>

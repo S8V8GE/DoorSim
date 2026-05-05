@@ -47,6 +47,12 @@ public partial class MainViewModel : ObservableObject
     // ViewModel for the door selector and door display area
     public DoorsViewModel Doors { get; } = new DoorsViewModel();
 
+    // ViewModel for the Two Door View.
+    //
+    // This wraps the shared door/cardholder ViewModels for now.
+    // Later it will own independent left/right selected-door state.
+    public TwoDoorViewModel TwoDoor { get; }
+
     // Used by the View menu to show a checkmark next to Single Door.
     public bool IsSingleDoorViewSelected => CurrentViewMode == "SingleDoor";
 
@@ -117,6 +123,10 @@ public partial class MainViewModel : ObservableObject
     {
         _softwireService = softwireService;
         _owner = owner;
+
+        // Two Door View uses the existing shared door and cardholder ViewModels for now.
+        // Later, this will be expanded so each side has its own selected door state.
+        TwoDoor = new TwoDoorViewModel(Doors, Cardholders);
     }
 
 
@@ -140,6 +150,10 @@ public partial class MainViewModel : ObservableObject
         var doors = await _softwireService.GetDoorsAsync();
 
         Doors.LoadDoors(doors);
+
+        // Keep the Two Door View's independent left/right door lists in sync
+        // with the latest doors returned by Softwire.
+        TwoDoor.LoadDoors(doors);
 
         return doors.Count;
     }

@@ -264,13 +264,13 @@
                     - Door selector and simulator panel for Door 2
                     - Shared cardholder panel / interlocking controls
                 -->
-                <views:TwoDoorView>
+                <views:TwoDoorView DataContext="{Binding TwoDoor}">
                     <views:TwoDoorView.Style>
                         <Style TargetType="views:TwoDoorView">
                             <Setter Property="Visibility" Value="Collapsed"/>
 
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsTwoDoorViewSelected}"
+                                <DataTrigger Binding="{Binding DataContext.IsTwoDoorViewSelected, RelativeSource={RelativeSource AncestorType=Window}}"
                                              Value="True">
                                     <Setter Property="Visibility" Value="Visible"/>
                                 </DataTrigger>
