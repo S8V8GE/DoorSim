@@ -38,6 +38,9 @@ public partial class MainViewModel : ObservableObject
     // Service used to retrieve cardholders from the Directory SQL database
     private readonly CardholderSqlService _cardholderSqlService = new CardholderSqlService();
 
+    // Centralised application sound service. Used here for access granted / denied decision sounds because MainViewModel is where Softwire access decisions are detected.
+    private readonly SoundService _soundService = new SoundService();
+
 
     // Child ViewModels bound to UI panels:
 
@@ -88,9 +91,20 @@ public partial class MainViewModel : ObservableObject
     private DateTime? _pendingDecisionSentUtc;
     private bool _pendingDecisionIsInReader;
 
+    // The cardholder involved in the pending reader action. Used for future easter egg sounds, such as Simpson granted/denied audio.
+    private Cardholder? _pendingDecisionCardholder;
+
     // The specific door panel state that sent the pending reader action.
     // This is required for Two Door View so feedback appears under the correct reader.
     private DoorsViewModel? _pendingDecisionTargetDoors;
+
+    // Suppresses reader LED alert sounds briefly after an access decision.
+    //
+    // Reader LEDs often change as part of normal granted/denied behaviour.
+    // We do not want those LED changes to also play reader-alert sounds.
+    // Reader-alert sounds are intended for non-access-decision events, such as door forced / door held open behaviour.
+    private DoorsViewModel? _readerAlertSuppressedTargetDoors;
+    private DateTime? _readerAlertSuppressedUntilUtc;
 
 
     /*
@@ -171,7 +185,7 @@ public partial class MainViewModel : ObservableObject
     }
 
     // Records that a card or PIN was sent to a reader. The selected-door polling loop uses this to match the next Softwire LastDecision back to the reader that triggered it.
-    public void RegisterPendingReaderDecision(string readerPath, bool isInReader, DoorsViewModel targetDoors)
+    public void RegisterPendingReaderDecision(string readerPath, bool isInReader, DoorsViewModel targetDoors, Cardholder? cardholder)
     {
         if (string.IsNullOrWhiteSpace(readerPath))
             return;
@@ -180,6 +194,31 @@ public partial class MainViewModel : ObservableObject
         _pendingDecisionSentUtc = DateTime.UtcNow;
         _pendingDecisionIsInReader = isInReader;
         _pendingDecisionTargetDoors = targetDoors;
+        _pendingDecisionCardholder = cardholder;
+    }
+
+    // Returns true when reader LED change sounds should be suppressed for the supplied door panel.
+    //
+    // We suppress if:
+    // - that panel has a pending access decision, or
+    // - that panel has just completed an access decision and LEDs may still be
+    //   returning to normal.
+    public bool ShouldSuppressReaderLedSound(DoorsViewModel targetDoors)
+    {
+        if (_pendingDecisionSentUtc != null &&
+            _pendingDecisionTargetDoors == targetDoors)
+        {
+            return true;
+        }
+
+        if (_readerAlertSuppressedTargetDoors == targetDoors &&
+            _readerAlertSuppressedUntilUtc != null &&
+            DateTime.UtcNow < _readerAlertSuppressedUntilUtc.Value)
+        {
+            return true;
+        }
+
+        return false;
     }
 
     // Checks whether Softwire has reported a LastDecision after a reader action.
@@ -205,6 +244,9 @@ public partial class MainViewModel : ObservableObject
                 _ = targetDoors.ShowInReaderDecisionFeedbackAsync("Access granted", true);
             else
                 _ = targetDoors.ShowOutReaderDecisionFeedbackAsync("Access granted", true);
+
+            // Access decision audio happens here, not from reader LED changes.
+            _soundService.PlayAccessGranted(_pendingDecisionCardholder);
         }
         else if (updatedDoor.LastDecisionDenied)
         {
@@ -212,12 +254,21 @@ public partial class MainViewModel : ObservableObject
                 _ = targetDoors.ShowInReaderDecisionFeedbackAsync("Access denied", false);
             else
                 _ = targetDoors.ShowOutReaderDecisionFeedbackAsync("Access denied", false);
+
+            // Access denied gets its own warning pattern.
+            _ = _soundService.PlayAccessDeniedAsync(_pendingDecisionCardholder);
         }
+
+        // Suppress reader LED alert sounds briefly after the decision.
+        // This prevents normal access LED changes from causing extra alert beeps.
+        _readerAlertSuppressedTargetDoors = targetDoors;
+        _readerAlertSuppressedUntilUtc = DateTime.UtcNow.AddSeconds(2);
 
         // Clear pending action so this decision is only handled once.
         _pendingDecisionReaderPath = string.Empty;
         _pendingDecisionSentUtc = null;
         _pendingDecisionTargetDoors = null;
+        _pendingDecisionCardholder = null;
     }
 
     // Refreshes View menu checkmarks when the selected view mode changes.

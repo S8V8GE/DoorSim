@@ -22,6 +22,11 @@ public partial class DoorPanelView : UserControl
     // Centralised audio service. Keeps sound playback out of the view logic and gives us one place for future easter eggs, denied sounds, and sound timing fixes.
     private readonly SoundService _soundService = new SoundService();
 
+    // Prevents multiple reader LED changes from producing stacked alert beeps.
+    //
+    // Door forced / held-open events can cause both In and Out reader LEDs to change at almost the same time. Without this debounce, one event sounds like a double beep.
+    private DateTime _lastReaderAlertSoundUtc = DateTime.MinValue;
+
     public DoorPanelView() 
     {
         InitializeComponent(); // It's actually spelt Initialise... but we can let it go ;)
@@ -104,7 +109,7 @@ public partial class DoorPanelView : UserControl
         {
             if (pinWindow.TimedOut)
             {
-                _ = _soundService.PlayAccessDeniedAsync();
+                _ = _soundService.PlayAccessDeniedAsync(null);
 
                 ShowAppMessage(
                     "PIN entry timed out. Access was denied.",
@@ -130,7 +135,7 @@ public partial class DoorPanelView : UserControl
         if (!sent)
             return;
 
-        RegisterPendingReaderDecision(readerPath, isInReader);
+        RegisterPendingReaderDecision(readerPath, isInReader, null);
 
         if (isInReader)
         {
@@ -233,16 +238,43 @@ public partial class DoorPanelView : UserControl
     // -- SOUND HELPERS:
     //    --------------
 
-    // Plays a sound when a reader LED colour changes.
+    // Reader LED changes can mean different things.
+    //
+    // If a credential decision is pending/recent, do not play sound here because MainViewModel handles granted/denied decision audio.
+    //
+    // If there is no pending/recent access decision, this LED change is treated as a reader alert, such as door forced / door held open behaviour.
     private void OnReaderLedChanged()
     {
-        _soundService.PlayCredentialPresented();
+        if (DataContext is not DoorSim.ViewModels.DoorsViewModel targetDoors)
+            return;
+
+        var mainWindow = Application.Current.MainWindow;
+
+        if (mainWindow?.DataContext is DoorSim.ViewModels.MainViewModel mainVm)
+        {
+            if (mainVm.ShouldSuppressReaderLedSound(targetDoors))
+                return;
+        }
+
+        // Debounce alert sounds so simultaneous In/Out reader LED changes produce one alert beep, not a double beep.
+        var now = DateTime.UtcNow;
+
+        if ((now - _lastReaderAlertSoundUtc).TotalMilliseconds < 750)
+            return;
+
+        _lastReaderAlertSoundUtc = now;
+
+        _soundService.PlayReaderAlert();
     }
 
-    // Plays warning beeps when Softwire reports an access denied decision.
-    private async void OnReaderAccessDenied()
+    // Access denied audio is now handled in MainViewModel when Softwire's access decision is processed.
+    //
+    // Do not play sound here, otherwise denied decisions can double-trigger:
+    // - once from MainViewModel
+    // - once from this ReaderAccessDenied event
+    private void OnReaderAccessDenied()
     {
-        await _soundService.PlayAccessDeniedAsync();
+        // Intentionally no sound here.
     }
 
 
@@ -282,8 +314,9 @@ public partial class DoorPanelView : UserControl
     // Tells MainViewModel that a reader action was just sent.
     //
     // The current DoorPanelView DataContext identifies which door panel sent it.
-    // This is important in Two Door View so feedback appears under the correct reader.
-    private void RegisterPendingReaderDecision(string readerPath, bool isInReader)
+    // The optional cardholder is stored so access granted / denied audio can later
+    // use easter egg rules, such as Simpson "Woo Hoo" / "D'oh".
+    private void RegisterPendingReaderDecision(string readerPath, bool isInReader, Cardholder? cardholder)
     {
         var mainWindow = Application.Current.MainWindow;
 
@@ -293,7 +326,7 @@ public partial class DoorPanelView : UserControl
         if (DataContext is not DoorSim.ViewModels.DoorsViewModel targetDoors)
             return;
 
-        mainVm.RegisterPendingReaderDecision(readerPath, isInReader, targetDoors);
+        mainVm.RegisterPendingReaderDecision(readerPath, isInReader, targetDoors, cardholder);
     }
 
 
@@ -476,7 +509,7 @@ public partial class DoorPanelView : UserControl
 
         // Local feedback: card has been presented to the reader.
         // SoundService also gives us one place for future easter eggs.
-        _soundService.PlayCardholderPresented(cardholder);
+        _soundService.PlayCredentialPresented();
 
         var swipeSent = await service.SwipeRawAsync(vm.SelectedDoor.ReaderSideInDevicePath, cardholder.TrimmedCredential, cardholder.BitCount);
 
@@ -484,9 +517,7 @@ public partial class DoorPanelView : UserControl
         // For Card + PIN readers, the final decision should only be checked after the PIN is sent.
         if (swipeSent && !vm.SelectedDoor.InReaderRequiresCardAndPin)
         {
-            RegisterPendingReaderDecision(
-                vm.SelectedDoor.ReaderSideInDevicePath,
-                true);
+            RegisterPendingReaderDecision(vm.SelectedDoor.ReaderSideInDevicePath, true, cardholder);
         }
 
         if (swipeSent && vm.SelectedDoor.InReaderRequiresCardAndPin)
@@ -705,7 +736,7 @@ public partial class DoorPanelView : UserControl
 
         // Local feedback: card has been presented to the reader.
         // SoundService also gives us one place for future easter eggs.
-        _soundService.PlayCardholderPresented(cardholder);
+        _soundService.PlayCredentialPresented();
 
         var swipeSent = await service.SwipeRawAsync(vm.SelectedDoor.ReaderSideOutDevicePath, cardholder.TrimmedCredential, cardholder.BitCount);
 
@@ -713,9 +744,7 @@ public partial class DoorPanelView : UserControl
         // For Card + PIN readers, the final decision should only be checked after the PIN is sent.
         if (swipeSent && !vm.SelectedDoor.OutReaderRequiresCardAndPin)
         {
-            RegisterPendingReaderDecision(
-                vm.SelectedDoor.ReaderSideOutDevicePath,
-                false);
+            RegisterPendingReaderDecision(vm.SelectedDoor.ReaderSideOutDevicePath, false, cardholder);
         }
 
         if (swipeSent && vm.SelectedDoor.OutReaderRequiresCardAndPin)

@@ -9,12 +9,15 @@ namespace DoorSim.Services;
 // This keeps all application audio behaviour in one place instead of scattering
 // SoundPlayer logic across views.
 //
-// Important design rule:
-// - Credential-presented sounds are played at the moment DoorSim sends the
-//   card/PIN to Softwire.
-// - Reader LED polling does not trigger audio, because polling may happen later
-//   and creates delayed/duplicate beeps.
-// - Access denied feedback may play a warning pattern.
+// Sound categories:
+// - Credential presented: immediate single beep when DoorSim sends a card/PIN.
+// - Access granted: confirmation sound after Softwire grants access.
+// - Access denied: warning sound after Softwire denies access.
+// - Reader alert: used for reader LED changes not caused by a pending credential decision.
+//
+// Future easter eggs belong here, for example:
+// - Simpson + granted = "Woo Hoo"
+// - Simpson + denied  = "D'oh"
 public class SoundService
 {
     /*
@@ -25,6 +28,18 @@ public class SoundService
 
     private const string CredentialBeepPath = "pack://application:,,,/Sounds/Credential_Beep.wav";
 
+    // Easter Egg sounds (future ones added here):
+    private const string SimpsonGrantedPath = "pack://application:,,,/Sounds/Simpsons_Granted.wav";
+    private const string SimpsonDeniedPath = "pack://application:,,,/Sounds/Simpsons_Denied.wav";
+
+    // Tracks when the immediate credential-presented beep last started.
+    //
+    // Access granted / denied sounds use this so they do not fire too close to the initial card-presented beep.
+    private DateTime _lastCredentialPresentedUtc = DateTime.MinValue;
+
+    // Minimum gap between the initial card-presented beep and the final decision sound. Adjust this later if needed... (worked OK for me at 900ms, but could be tweaked based on testing/feedback).
+    private static readonly TimeSpan MinimumDecisionSoundGap = TimeSpan.FromMilliseconds(900);
+
 
     /*
       #############################################################################
@@ -32,20 +47,148 @@ public class SoundService
       #############################################################################
     */
 
-    // Plays the standard credential-presented sound immediately.
+    // Plays the immediate credential-presented sound.
     //
-    // Fire-and-forget is intentional here because UI actions should not wait for
-    // the WAV file to finish playing.
+    // This should fire as soon as DoorSim sends the card/PIN to Softwire,
+    // just like presenting a real credential to a reader.
     public void PlayCredentialPresented()
+    {
+        _lastCredentialPresentedUtc = DateTime.UtcNow;
+
+        _ = PlayResourceSoundAsync(CredentialBeepPath);
+    }
+
+    // Plays the sound for an access granted decision.
+    //
+    // This happens shortly after Softwire reports that access was granted.
+    // The small delay makes the sequence feel like:
+    // credential presented beep -> reader decision beep.
+    public async void PlayAccessGranted(Cardholder? cardholder)
+    {
+        await WaitForDecisionSoundGapAsync();
+
+        if (ShouldPlaySimpsonEasterEgg(cardholder))
+        {
+            var played = await TryPlayResourceSoundAsync(SimpsonGrantedPath);
+
+            if (!played)
+            {
+                // Fallback so a bad/missing easter egg sound does not make the app silent.
+                await PlayResourceSoundAsync(CredentialBeepPath);
+            }
+
+            return;
+        }
+
+        await PlayResourceSoundAsync(CredentialBeepPath);
+    }
+
+    // Plays the sound for an access denied decision.
+    //
+    // This happens after Softwire reports that access was denied.
+    // Later, easter egg sounds such as "D'oh" can be added here.
+    public async Task PlayAccessDeniedAsync(Cardholder? cardholder)
+    {
+        await WaitForDecisionSoundGapAsync();
+
+        if (ShouldPlaySimpsonEasterEgg(cardholder))
+        {
+            var played = await TryPlayResourceSoundAsync(SimpsonDeniedPath);
+
+            if (!played)
+            {
+                // Fallback so a bad/missing easter egg sound does not make the app silent.
+                await PlayTripleBeepAsync();
+            }
+
+            return;
+        }
+
+        await PlayTripleBeepAsync();
+    }
+
+    // Plays a reader alert sound.
+    //
+    // This is for reader LED changes that are NOT part of a pending access
+    // decision, such as door forced / door held open style behaviour.
+    public void PlayReaderAlert()
     {
         _ = PlayResourceSoundAsync(CredentialBeepPath);
     }
 
-    // Plays the standard access denied warning sound.
+
+    /*
+      #############################################################################
+                                  Easter egg rules
+      #############################################################################
+    */
+
+    // Detects whether the cardholder should trigger the future Simpsons easter egg.
+    private bool ShouldPlaySimpsonEasterEgg(Cardholder? cardholder)
+    {
+        if (cardholder == null)
+            return false;
+
+        if (string.IsNullOrWhiteSpace(cardholder.CardholderName))
+            return false;
+
+        return cardholder.CardholderName.Contains("Simpson", StringComparison.OrdinalIgnoreCase);
+    }
+
+
+    /*
+      #############################################################################
+                                  Low-level playback
+      #############################################################################
+    */
+
+    // Attempts to play a WAV resource and returns whether it actually found/played it.
     //
-    // For now this uses the same beep three times.
-    // Later we can replace this with a dedicated denied WAV file.
-    public async Task PlayAccessDeniedAsync()
+    // This is useful for easter egg sounds because if the file path/build action/audio
+    // format is wrong, we still want DoorSim to fall back to normal audio.
+    private async Task<bool> TryPlayResourceSoundAsync(string resourcePath)
+    {
+        try
+        {
+            var streamInfo = Application.GetResourceStream(new Uri(resourcePath));
+
+            if (streamInfo == null)
+                return false;
+
+            await Task.Run(() =>
+            {
+                using var player = new SoundPlayer(streamInfo.Stream);
+                player.PlaySync();
+            });
+
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    // Waits until enough time has passed since the initial credential-presented beep before playing the access decision sound.
+    //
+    // This gives the user a natural sequence:
+    // - card presented beep
+    // - short pause
+    // - granted / denied sound
+    private async Task WaitForDecisionSoundGapAsync()
+    {
+        var elapsed = DateTime.UtcNow - _lastCredentialPresentedUtc;
+
+        if (elapsed >= MinimumDecisionSoundGap)
+            return;
+
+        var remainingDelay = MinimumDecisionSoundGap - elapsed;
+
+        await Task.Delay(remainingDelay);
+    }
+
+    // Plays three quick beeps in sequence.
+    private async Task PlayTripleBeepAsync()
     {
         await Task.Run(() =>
         {
@@ -58,63 +201,17 @@ public class SoundService
         });
     }
 
-    // Plays the appropriate sound when a cardholder is presented to a reader.
-    //
-    // Future easter eggs belong here.
-    public void PlayCardholderPresented(Cardholder cardholder)
-    {
-        if (ShouldPlaySimpsonEasterEgg(cardholder))
-        {
-            // Future:
-            // PlayResourceSoundAsync("pack://application:,,,/Sounds/Doh.wav");
-            //
-            // For now, fall back to the normal credential beep.
-            PlayCredentialPresented();
-            return;
-        }
-
-        PlayCredentialPresented();
-    }
-
-
-    /*
-      #############################################################################
-                                  Easter egg rules
-      #############################################################################
-    */
-
-    // Detects whether the cardholder should trigger the future Simpsons easter egg.
-    private bool ShouldPlaySimpsonEasterEgg(Cardholder cardholder)
-    {
-        if (string.IsNullOrWhiteSpace(cardholder.CardholderName))
-            return false;
-
-        return cardholder.CardholderName.Contains(
-            "Simpson",
-            StringComparison.OrdinalIgnoreCase);
-    }
-
-
-    /*
-      #############################################################################
-                                  Low-level playback
-      #############################################################################
-    */
-
     // Plays a WAV resource on a background thread.
     //
-    // Uses PlaySync inside Task.Run so the SoundPlayer and stream stay alive for
-    // the whole sound. This is more reliable than calling Play() and immediately
-    // disposing the player.
+    // Uses PlaySync inside Task.Run so the SoundPlayer and stream stay alive
+    // for the whole sound. This is more reliable than calling Play() and
+    // immediately disposing the player.
     private async Task PlayResourceSoundAsync(string resourcePath)
     {
         await Task.Run(() => PlayResourceSoundSync(resourcePath));
     }
 
     // Plays a WAV resource synchronously.
-    //
-    // This method is intentionally private. Public methods decide whether to run
-    // it on a background thread or as part of a sequence.
     private void PlayResourceSoundSync(string resourcePath)
     {
         try
@@ -133,4 +230,5 @@ public class SoundService
             // Sound is non-critical. If playback fails, ignore it.
         }
     }
+
 }
