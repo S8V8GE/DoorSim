@@ -37,6 +37,12 @@ public partial class TwoDoorViewModel : ObservableObject
     // Independent right-side door panel state.
     public DoorPanelViewModel RightDoorPanel { get; }
 
+    // Prevents RefreshAvailableDoorSelections from recursively triggering itself.
+    //
+    // Loading the filtered door lists can reassign SelectedDoor to a refreshed object with the same Id. That raises PropertyChanged, which would normally
+    // call RefreshAvailableDoorSelections again. Without this guard, the RHS panel can flicker as its selector/panel state is repeatedly refreshed.
+    private bool _isRefreshingAvailableDoorSelections;
+
     /*
       #############################################################################
                                     Constructor
@@ -55,6 +61,9 @@ public partial class TwoDoorViewModel : ObservableObject
         // When either side changes selection, refresh the opposite dropdown so the same door cannot be selected twice.
         LeftDoorPanel.PropertyChanged += (s, e) =>
         {
+            if (_isRefreshingAvailableDoorSelections)
+                return;
+
             if (e.PropertyName == nameof(DoorPanelViewModel.SelectedDoor))
             {
                 RefreshAvailableDoorSelections();
@@ -63,6 +72,9 @@ public partial class TwoDoorViewModel : ObservableObject
 
         RightDoorPanel.PropertyChanged += (s, e) =>
         {
+            if (_isRefreshingAvailableDoorSelections)
+                return;
+
             if (e.PropertyName == nameof(DoorPanelViewModel.SelectedDoor))
             {
                 RefreshAvailableDoorSelections();
@@ -115,21 +127,33 @@ public partial class TwoDoorViewModel : ObservableObject
     // This prevents the trainer selecting the same door on both sides of Two Door View, which would make interlocking tests meaningless.
     private void RefreshAvailableDoorSelections()
     {
-        var allDoors = Doors.Doors.ToList();
+        if (_isRefreshingAvailableDoorSelections)
+            return;
 
-        var leftSelectedId = LeftDoorPanel.SelectedDoor?.Id;
-        var rightSelectedId = RightDoorPanel.SelectedDoor?.Id;
+        try
+        {
+            _isRefreshingAvailableDoorSelections = true;
 
-        var leftAvailableDoors = allDoors
-            .Where(d => string.IsNullOrWhiteSpace(rightSelectedId) || d.Id != rightSelectedId)
-            .ToList();
+            var allDoors = Doors.Doors.ToList();
 
-        var rightAvailableDoors = allDoors
-            .Where(d => string.IsNullOrWhiteSpace(leftSelectedId) || d.Id != leftSelectedId)
-            .ToList();
+            var leftSelectedId = LeftDoorPanel.SelectedDoor?.Id;
+            var rightSelectedId = RightDoorPanel.SelectedDoor?.Id;
 
-        LeftDoorPanel.LoadDoors(leftAvailableDoors);
-        RightDoorPanel.LoadDoors(rightAvailableDoors);
+            var leftAvailableDoors = allDoors
+                .Where(d => string.IsNullOrWhiteSpace(rightSelectedId) || d.Id != rightSelectedId)
+                .ToList();
+
+            var rightAvailableDoors = allDoors
+                .Where(d => string.IsNullOrWhiteSpace(leftSelectedId) || d.Id != leftSelectedId)
+                .ToList();
+
+            LeftDoorPanel.LoadDoors(leftAvailableDoors);
+            RightDoorPanel.LoadDoors(rightAvailableDoors);
+        }
+        finally
+        {
+            _isRefreshingAvailableDoorSelections = false;
+        }
     }
 
 }
