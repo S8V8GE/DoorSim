@@ -1,0 +1,74 @@
+﻿<UserControl x:Class="DoorSim.Views.DoorInterlockingControlsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#1E1E1E"
+             Foreground="White">
+
+    <!--
+    Door interlocking controls panel.
+
+    This intentionally matches the visual structure of CardholdersView:
+    - Outer Grid
+    - Border with Margin=10 and Padding=10
+    - Blue title bar
+    - 10px spacer
+    - Content area
+
+    Later this will contain:
+    - Door interlocking ON/OFF
+    - Override input selector
+    - Lockdown input selector
+    -->
+
+    <Grid>
+
+        <Border BorderBrush="#3F3F46"
+                BorderThickness="1"
+                Background="#1E1E1E"
+                Margin="10"
+                Padding="10">
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="10"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- Title bar -->
+                <Border Grid.Row="0"
+                        Background="#1F3A5F"
+                        Padding="10,6"
+                        MinHeight="42">
+
+                    <DockPanel LastChildFill="False">
+
+                        <StackPanel Orientation="Horizontal"
+                                    DockPanel.Dock="Left"
+                                    VerticalAlignment="Center">
+
+                            <TextBlock Text="🔒 Door Interlocking Controls"
+                                       FontSize="16"
+                                       FontWeight="Bold"
+                                       Foreground="White"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+
+                    </DockPanel>
+                </Border>
+
+                <!-- Placeholder content -->
+                <Grid Grid.Row="2"
+                      Background="#1E1E1E">
+
+                    <TextBlock Text="Interlocking, override input, and lockdown input controls will go here."
+                               FontSize="14"
+                               Foreground="#888888"
+                               TextWrapping="Wrap"
+                               VerticalAlignment="Center"
+                               Margin="10"/>
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>
