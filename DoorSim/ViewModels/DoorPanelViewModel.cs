@@ -127,18 +127,19 @@ public partial class DoorPanelViewModel : ObservableObject
 
                 if (matchingDoor != null)
                 {
-                    // Keep the ComboBox selected item aligned with the refreshed list.
-                    // Do not update DoorState here if it is already showing the same door.
+                    // Keep the ComboBox selected item aligned with the refreshed list. Do not update DoorState here if it is already showing the same door.
                     SelectedDoor = matchingDoor;
                 }
                 else
                 {
-                    SelectedDoor = Doors.Count > 0 ? Doors[0] : null;
+                    // Previously selected door no longer exists. Clear selection so the dropdown shows "Select a door".
+                    SelectedDoor = null;
                 }
             }
             else
             {
-                SelectedDoor = Doors.Count > 0 ? Doors[0] : null;
+                // Do not auto-select the first door. This allows the dropdown placeholder text to show.
+                SelectedDoor = null;
             }
         }
         finally
@@ -151,8 +152,7 @@ public partial class DoorPanelViewModel : ObservableObject
         // - the user-selected door is different
         // - the selected door no longer exists
         //
-        // This prevents the 3-second list refresh from replacing the live/polled
-        // door object and causing visual flicker.
+        // This prevents the 3-second list refresh from replacing the live/polled door object and causing visual flicker.
         if (SelectedDoor == null)
         {
             DoorState.SelectedDoor = null;

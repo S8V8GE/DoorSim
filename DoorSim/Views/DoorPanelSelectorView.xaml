@@ -5,38 +5,74 @@
              Foreground="White">
 
     <!--
-        Door selector for one reusable door panel.
+    Door selector for one reusable door panel.
 
-        Unlike DoorSelectorView, this binds to DoorPanelViewModel.
-        That allows TwoDoorView to have:
-        - one selector for the left door panel
-        - one selector for the right door panel
-
-        Each selector owns its own SelectedDoor.
+    This matches the visual layout of DoorSelectorView, but binds to
+    DoorPanelViewModel so Two Door View can have independent left/right
+    selected doors.
     -->
-
     <Border Background="#1F3A5F"
-            Padding="10,6">
+            BorderBrush="#3F3F46"
+            BorderThickness="0,0,0,1"
+            Padding="8,4">
 
         <StackPanel Orientation="Horizontal"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center">
 
             <TextBlock Text="{Binding DoorSelectorTitle}"
-                       FontSize="14"
-                       FontWeight="Bold"
+                       FontWeight="SemiBold"
                        Foreground="White"
                        VerticalAlignment="Center"
-                       Margin="0,0,8,0"/>
+                       Margin="0,0,10,0"/>
 
-            <ComboBox ItemsSource="{Binding Doors}"
-                      SelectedItem="{Binding SelectedDoor, Mode=TwoWay}"
-                      DisplayMemberPath="Name"
-                      Width="270"
-                      Height="28"/>
-            
+            <Grid Width="300"
+                  Height="28">
+
+                <ComboBox ItemsSource="{Binding Doors}"
+                          SelectedItem="{Binding SelectedDoor, Mode=TwoWay}"
+                          DisplayMemberPath="Name"
+                          Background="White"
+                          Foreground="#1E1E1E"
+                          BorderBrush="#555555"
+                          Padding="6"
+                          FontWeight="SemiBold"
+                          HorizontalContentAlignment="Left"
+                          VerticalContentAlignment="Center"/>
+
+                <!-- Placeholder text shown when no door is selected -->
+                <TextBlock Text="Select a door"
+                           Foreground="#666666"
+                           FontWeight="SemiBold"
+                           Margin="8,0,0,0"
+                           VerticalAlignment="Center"
+                           IsHitTestVisible="False">
+
+                    <TextBlock.Style>
+                        
+                        <Style TargetType="TextBlock">
+                            
+                            <Setter Property="Visibility" Value="Collapsed"/>
+
+                            <Style.Triggers>
+                                
+                                <DataTrigger Binding="{Binding SelectedDoor}"
+                                 Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                
+                            </Style.Triggers>
+                            
+                        </Style>
+                        
+                    </TextBlock.Style>
+                    
+                </TextBlock>
+                
+            </Grid>
+
         </StackPanel>
-
+        
     </Border>
     
 </UserControl>

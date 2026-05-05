@@ -636,6 +636,10 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void ShowTwoDoorView()
     {
+        // Carry the current Single Door selection into the left side of Two Door View.
+        // The right side intentionally starts empty so the trainer chooses the second door.
+        TwoDoor.PrepareFromSingleDoorSelection(Doors.SelectedDoor);
+
         CurrentViewMode = "TwoDoor";
     }
 

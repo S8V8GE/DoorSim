@@ -4,38 +4,6 @@
              Background="#1E1E1E"
              Foreground="White">
 
-    <UserControl.Resources>
-
-        <!-- Dropdown item style -->
-        <Style TargetType="ComboBoxItem">
-            <Setter Property="Background" Value="#2D2D30"/>
-            <Setter Property="Foreground" Value="White"/>
-
-            <Style.Triggers>
-                <!-- Hover -->
-                <Trigger Property="IsHighlighted" Value="True">
-                    <Setter Property="Background" Value="#007ACC"/>
-                    <Setter Property="Foreground" Value="White"/>
-                </Trigger>
-
-                <!-- Selected -->
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#007ACC"/>
-                    <Setter Property="Foreground" Value="White"/>
-                    <Setter Property="FontWeight" Value="Bold"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <!-- ComboBox (closed state text fix) -->
-        <Style TargetType="ComboBox">
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="Background" Value="#2D2D30"/>
-            <Setter Property="BorderBrush" Value="#555555"/>
-        </Style>
-
-    </UserControl.Resources>
-
     <!--
     Door selector bar.
 
@@ -60,18 +28,53 @@
                        VerticalAlignment="Center"
                        Margin="0,0,10,0"/>
 
-            <ComboBox Width="300"
-                      ItemsSource="{Binding Doors}"
-                      SelectedItem="{Binding SelectedDoor}"
-                      DisplayMemberPath="Name"
-                      Background="White"
-                      Foreground="#1E1E1E"
-                      BorderBrush="#555555"
-                      Padding="6"
-                      FontWeight="SemiBold"
-                      HorizontalContentAlignment="Left"
-                      VerticalContentAlignment="Center"/>
+            <Grid Width="300"
+                  Height="28">
+
+                <ComboBox ItemsSource="{Binding Doors}"
+                          SelectedItem="{Binding SelectedDoor}"
+                          DisplayMemberPath="Name"
+                          Background="White"
+                          Foreground="#1E1E1E"
+                          BorderBrush="#555555"
+                          Padding="6"
+                          FontWeight="SemiBold"
+                          HorizontalContentAlignment="Left"
+                          VerticalContentAlignment="Center"/>
+
+                <!-- Placeholder text shown when no door is selected -->
+                <TextBlock Text="Select a door"
+                           Foreground="#666666"
+                           FontWeight="SemiBold"
+                           Margin="8,0,0,0"
+                           VerticalAlignment="Center"
+                           IsHitTestVisible="False">
+
+                    <TextBlock.Style>
+                        
+                        <Style TargetType="TextBlock">
+                            
+                            <Setter Property="Visibility" Value="Collapsed"/>
+
+                            <Style.Triggers>
+                                
+                                <DataTrigger Binding="{Binding SelectedDoor}"
+                                             Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                
+                            </Style.Triggers>
+                            
+                        </Style>
+                        
+                    </TextBlock.Style>
+                    
+                </TextBlock>
+                
+            </Grid>
 
         </StackPanel>
+        
     </Border>
+    
 </UserControl>

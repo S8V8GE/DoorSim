@@ -48,10 +48,27 @@ public partial class TwoDoorViewModel : ObservableObject
         Doors = doors;
         Cardholders = cardholders;
 
-        // Two Door View uses two independent door panel states.
-        // Each side will eventually select and control its own door.
+        // Two Door View uses two independent door panel states. Each side selects and controls its own door.
         LeftDoorPanel = new DoorPanelViewModel("Left Door");
         RightDoorPanel = new DoorPanelViewModel("Right Door");
+
+        // When either side changes selection, refresh the opposite dropdown so the same door cannot be selected twice.
+        LeftDoorPanel.PropertyChanged += (s, e) =>
+        {
+            if (e.PropertyName == nameof(DoorPanelViewModel.SelectedDoor))
+            {
+                RefreshAvailableDoorSelections();
+            }
+        };
+
+        RightDoorPanel.PropertyChanged += (s, e) =>
+        {
+            if (e.PropertyName == nameof(DoorPanelViewModel.SelectedDoor))
+            {
+                RefreshAvailableDoorSelections();
+            }
+        };
+
     }
 
     /*
@@ -62,15 +79,57 @@ public partial class TwoDoorViewModel : ObservableObject
 
     // Refreshes the available door lists for both door panels.
     //
-    // For now, both panels receive the same list of doors.
-    // Each panel keeps its own SelectedDoor, so changing the left selector
-    // will not automatically change the right selector later.
+    // Each side receives the same base list, but the final available selections are filtered so the same door cannot be selected on both sides.
     public void LoadDoors(IEnumerable<DoorSim.Models.SoftwireDoor> doors)
     {
-        LeftDoorPanel.LoadDoors(doors);
-        RightDoorPanel.LoadDoors(doors);
+        Doors.LoadDoors(doors);
+
+        RefreshAvailableDoorSelections();
     }
 
+    // Prepares Two Door View when the user switches from Single Door View.
+    //
+    // Behaviour:
+    // - Left panel inherits the currently selected Single Door View door.
+    // - Right panel starts empty so the trainer deliberately chooses the second door.
+    public void PrepareFromSingleDoorSelection(DoorSim.Models.SoftwireDoor? singleDoorSelection)
+    {
+        if (singleDoorSelection == null)
+        {
+            LeftDoorPanel.SelectedDoor = null;
+            RightDoorPanel.SelectedDoor = null;
+            return;
+        }
 
+        var matchingLeftDoor = LeftDoorPanel.Doors
+            .FirstOrDefault(d => d.Id == singleDoorSelection.Id);
+
+        LeftDoorPanel.SelectedDoor = matchingLeftDoor;
+
+        // Always start the right panel empty when switching into Two Door View.
+        RightDoorPanel.SelectedDoor = null;
+    }
+
+    // Removes already-selected doors from the opposite selector.
+    //
+    // This prevents the trainer selecting the same door on both sides of Two Door View, which would make interlocking tests meaningless.
+    private void RefreshAvailableDoorSelections()
+    {
+        var allDoors = Doors.Doors.ToList();
+
+        var leftSelectedId = LeftDoorPanel.SelectedDoor?.Id;
+        var rightSelectedId = RightDoorPanel.SelectedDoor?.Id;
+
+        var leftAvailableDoors = allDoors
+            .Where(d => string.IsNullOrWhiteSpace(rightSelectedId) || d.Id != rightSelectedId)
+            .ToList();
+
+        var rightAvailableDoors = allDoors
+            .Where(d => string.IsNullOrWhiteSpace(leftSelectedId) || d.Id != leftSelectedId)
+            .ToList();
+
+        LeftDoorPanel.LoadDoors(leftAvailableDoors);
+        RightDoorPanel.LoadDoors(rightAvailableDoors);
+    }
 
 }

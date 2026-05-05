@@ -26,6 +26,25 @@
                 HorizontalAlignment="Stretch"
                 VerticalAlignment="Stretch">
 
+            <Border.Style>
+                
+                <Style TargetType="Border">
+                    
+                    <Setter Property="Visibility" Value="Collapsed"/>
+
+                    <Style.Triggers>
+                        
+                        <DataTrigger Binding="{Binding HasSelectedDoor}"
+                         Value="True">
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                        
+                    </Style.Triggers>
+                    
+                </Style>
+                
+            </Border.Style>
+
             <StackPanel HorizontalAlignment="Center"
                         VerticalAlignment="Top">
 
@@ -428,6 +447,46 @@
                 <!-- ############################### END OF HARDWARE LAYOUT ############################### -->
 
             </StackPanel>
+            
+        </Border>
+
+        <!--
+            Empty state shown when no door is selected.
+
+            This is mainly used by Two Door View, where the right-hand door panel
+            intentionally starts empty until the trainer selects a second door.
+        -->
+        <Border BorderBrush="#3F3F46"
+                BorderThickness="1"
+                CornerRadius="6"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch">
+
+            <Border.Style>
+                
+                <Style TargetType="Border">
+                    
+                    <Setter Property="Visibility" Value="Collapsed"/>
+
+                    <Style.Triggers>
+                        
+                        <DataTrigger Binding="{Binding HasSelectedDoor}"
+                                     Value="False">
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                        
+                    </Style.Triggers>
+                    
+                </Style>
+                
+            </Border.Style>
+
+            <TextBlock Text="Select a door to begin"
+                       FontSize="22"
+                       Foreground="#CCCCCC"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       TextAlignment="Center"/>
             
         </Border>
 
