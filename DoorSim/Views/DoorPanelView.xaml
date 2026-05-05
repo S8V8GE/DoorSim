@@ -1,0 +1,455 @@
+﻿<UserControl x:Class="DoorSim.Views.DoorPanelView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:DoorSim.Views"
+             Background="#1E1E1E"
+             Foreground="White">
+
+    <Grid>
+
+        <!--
+            Reusable door simulator panel.
+
+            This control contains the interactive door hardware area:
+                - Door title
+                - Door lock / sensor status
+                - Door image
+                - Readers
+                - REX devices
+                - Breakglass
+        -->
+
+        <Border BorderBrush="#3F3F46"
+                BorderThickness="1"
+                CornerRadius="6"
+                Padding="20"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch">
+
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Top">
+
+                <!-- Door name -->
+                <TextBlock Text="{Binding SelectedDoor.Name}"
+                           FontSize="30"
+                           FontWeight="Bold"
+                           Foreground="#CCCCCC"
+                           HorizontalAlignment="Center"/>
+
+                <!-- Door status area -->
+                <Grid HorizontalAlignment="Center"
+                      Margin="0,12,0,0">
+
+                    <Grid.ColumnDefinitions>
+                        
+                        <ColumnDefinition Width="120"/>
+                        <ColumnDefinition Width="Auto"/>
+                        
+                    </Grid.ColumnDefinitions>
+
+                    <Grid.RowDefinitions>
+                        
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        
+                    </Grid.RowDefinitions>
+
+                    <!-- Door Lock -->
+                    <TextBlock Grid.Row="0"
+                               Grid.Column="0"
+                               Text="Door Lock:"
+                               FontSize="14"
+                               FontWeight="Bold"
+                               Foreground="#CCCCCC"
+                               Margin="0,0,8,5"/>
+
+                    <TextBlock Grid.Row="0"
+                               Grid.Column="1"
+                               Text="{Binding DoorLockStatusText}"
+                               FontSize="14"
+                               Foreground="{Binding DoorLockStatusColor}"
+                               Margin="0,0,0,5"/>
+
+                    <!-- Door Sensor -->
+                    <TextBlock Grid.Row="1"
+                               Grid.Column="0"
+                               Text="Door Sensor:"
+                               FontSize="14"
+                               FontWeight="Bold"
+                               Foreground="#CCCCCC"
+                               Margin="0,0,8,0"/>
+
+                    <TextBlock Grid.Row="1"
+                               Grid.Column="1"
+                               Text="{Binding DoorSensorStatusText}"
+                               FontSize="14"
+                               Foreground="{Binding DoorSensorStatusColor}"/>
+
+                </Grid>
+
+                <!-- ############################### START OF HARDWARE LAYOUT ###############################
+
+                    Hardware layout uses fixed slots so devices do not jump around when optional hardware is missing.
+                    Left side:  REX outside, reader closest to door.
+                    Right side: reader closest to door, REX outside.
+                    No-side REX and Breakglass are positioned independently above the main device row.
+        
+                -->
+
+                <Grid Margin="0,50,0,0"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Top">
+
+                    <Grid.ColumnDefinitions>
+                        
+                        <ColumnDefinition Width="200"/>
+                        <ColumnDefinition Width="230"/>
+                        <ColumnDefinition Width="200"/>
+                        
+                    </Grid.ColumnDefinitions>
+
+                    <!-- No-side REX:
+                         Appears above the normal left-side devices.
+                         Kept separate from the main left-side device row so it does not push the door/readers down. -->
+                    <StackPanel Grid.Column="0"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Margin="0,-40,12,0"
+                                Visibility="{Binding NoSideRexVisibility}">
+
+                        <Image x:Name="NoSideRexImage"
+                               Source="{Binding NoSideRexImagePath}"
+                               Width="78"
+                               Height="90"
+                               Stretch="Uniform"
+                               Cursor="Hand"
+                               MouseMove="NoSideRexImage_MouseMove"
+                               MouseEnter="NoSideRexImage_MouseEnter"
+                               MouseLeave="NoSideRexImage_MouseLeave"
+                               PreviewMouseDown="NoSideRexImage_MouseDown"
+                               PreviewMouseUp="NoSideRexImage_MouseUp"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               SnapsToDevicePixels="True"/>
+
+
+                        <TextBlock Text="REX (No Side)"
+                                   FontWeight="Bold"
+                                   Foreground="#CCCCCC"
+                                   HorizontalAlignment="Center"/>
+
+                        <TextBlock Text="{Binding NoSideRexStatusText}"
+                                   Foreground="{Binding NoSideRexStatusColor}"
+                                   HorizontalAlignment="Center"/>
+                        
+                    </StackPanel>
+
+                    <!-- Breakglass:
+                         Positioned manually above Out Reader.
+                         Mirrors the no-side REX layout on the opposite side. -->
+                    <StackPanel Grid.Column="2"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Top"
+                                Margin="15,-40,0,0"
+                                Visibility="{Binding BreakGlassVisibility}">
+
+                        <Image x:Name="BreakGlassImage"
+                               Source="{Binding BreakGlassImagePath}"
+                               Width="78"
+                               Height="90"
+                               Stretch="Uniform"
+                               Cursor="Hand"
+                               MouseMove="BreakGlassImage_MouseMove"
+                               MouseLeftButtonUp="BreakGlassImage_MouseLeftButtonUp"
+                               MouseEnter="BreakGlassImage_MouseEnter"
+                               MouseLeave="BreakGlassImage_MouseLeave"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               SnapsToDevicePixels="True"/>
+
+                        <TextBlock Text="Breakglass"
+                                   FontWeight="Bold"
+                                   Foreground="#CCCCCC"
+                                   HorizontalAlignment="Center"/>
+
+                        <TextBlock Text="{Binding BreakGlassStatusText}"
+                                   Foreground="{Binding BreakGlassStatusColor}"
+                                   HorizontalAlignment="Center"/>
+                        
+                    </StackPanel>
+
+                    <!-- Left side devices -->
+                    <Grid Grid.Column="0"
+                          VerticalAlignment="Top"
+                          Margin="0,85,6,0"
+                          HorizontalAlignment="Right">
+
+                        <!-- Fixed slots prevent devices moving unpredictably when one is missing.
+                             Column 0 = outside position
+                             Column 1 = closest to the door -->
+                        <Grid.ColumnDefinitions>
+                            
+                            <ColumnDefinition Width="90"/>
+                            <ColumnDefinition Width="90"/>
+                            
+                        </Grid.ColumnDefinitions>
+
+                        <!-- In REX:
+                             If In Reader exists, REX appears outside.
+                             If no In Reader exists, REX moves into the near-door slot. -->
+                        <StackPanel Grid.Column="{Binding InRexColumn}"
+                                    Margin="0"
+                                    VerticalAlignment="Bottom"
+                                    Visibility="{Binding InRexVisibility}">
+
+                            <Image x:Name="InRexImage"
+                                   Source="{Binding InRexImagePath}"
+                                   Width="78"
+                                   Height="90"
+                                   Stretch="Uniform"
+                                   Cursor="Hand"
+                                   MouseMove="InRexImage_MouseMove"
+                                   MouseEnter="InRexImage_MouseEnter"
+                                   MouseLeave="InRexImage_MouseLeave"
+                                   PreviewMouseDown="InRexImage_MouseDown"
+                                   PreviewMouseUp="InRexImage_MouseUp"
+                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                   SnapsToDevicePixels="True"/>
+
+                            <TextBlock Text="In REX"
+                                       FontWeight="Bold"
+                                       Foreground="#CCCCCC"
+                                       HorizontalAlignment="Center"/>
+
+                            <TextBlock Text="{Binding InRexStatusText}"
+                                       Foreground="{Binding InRexStatusColor}"
+                                       HorizontalAlignment="Center"/>
+                            
+                        </StackPanel>
+
+                        <!-- In Reader:
+                             Always occupies the near-door slot when present. -->
+                        <StackPanel Grid.Column="1"
+                                    VerticalAlignment="Bottom"
+                                    Visibility="{Binding InReaderVisibility}">
+
+                            <Grid Width="90"
+                                  Height="90"
+                                  Cursor="Hand"
+                                  MouseEnter="InReader_MouseEnter"
+                                  MouseMove="InReader_MouseMove"
+                                  MouseLeave="InReader_MouseLeave"
+                                  AllowDrop="True"
+                                  DragEnter="InReader_DragEnter"
+                                  DragLeave="InReader_DragLeave"
+                                  Drop="InReader_Drop">
+
+                                <!-- Right-click menu for reader actions. -->
+                                <Grid.ContextMenu>
+                                    
+                                    <ContextMenu>
+                                        
+                                        <MenuItem Header="Enter PIN"
+                                                  Click="InReaderEnterPin_Click"/>
+
+                                        <MenuItem Header="Auto-enrol card"
+                                                  Click="InReaderAutoEnrollCard_Click"/>
+
+                                        <MenuItem Header="Auto-enrol PIN"
+                                                  Click="InReaderAutoEnrollPin_Click"/>
+                                        
+                                    </ContextMenu>
+                                    
+                                </Grid.ContextMenu>
+
+                                <Image Source="{Binding ReaderImagePath}"
+                                       Width="90"
+                                       Height="90"
+                                       Stretch="Uniform"
+                                       RenderOptions.BitmapScalingMode="HighQuality"
+                                       SnapsToDevicePixels="True"/>
+
+                                <!-- In Reader LED overlay -->
+                                <Border Width="36"
+                                        Height="12"
+                                        CornerRadius="3"
+                                        Background="{Binding InReaderLedBrush}"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Top"
+                                        Margin="-2,12,0,0"/>
+                                
+                            </Grid>
+
+                            <TextBlock Text="In Reader"
+                                       FontWeight="Bold"
+                                       Foreground="#CCCCCC"
+                                       HorizontalAlignment="Center"/>
+
+                            <TextBlock Text="{Binding InReaderStatusText}"
+                                       Foreground="{Binding InReaderStatusColor}"
+                                       HorizontalAlignment="Center"/>
+                            
+                        </StackPanel>
+                        
+                    </Grid>
+
+                    <!-- Door image:
+                         Main interactive door sensor control.
+                         Click toggles the simulated door sensor input. -->
+                    <Image Grid.Column="1"
+                           x:Name="DoorImage"
+                           Source="{Binding DoorImagePath}"
+                           Width="220"
+                           Height="220"
+                           Margin="0,15,0,0"
+                           Stretch="Uniform"
+                           Cursor="Hand"
+                           MouseMove="DoorImage_MouseMove"
+                           MouseEnter="DoorImage_MouseEnter"
+                           MouseLeftButtonUp="DoorImage_MouseLeftButtonUp"
+                           MouseLeave="DoorImage_MouseLeave"
+                           RenderOptions.BitmapScalingMode="HighQuality"
+                           SnapsToDevicePixels="True"/>
+
+                    <!-- Right side devices -->
+                    <Grid Grid.Column="2"
+                          VerticalAlignment="Top"
+                          Margin="8,85,0,0"
+                          HorizontalAlignment="Left">
+
+                        <!-- Fixed slots prevent devices moving unpredictably when one is missing.
+                             Column 0 = closest to the door
+                             Column 1 = outside position -->
+                        <Grid.ColumnDefinitions>
+                            
+                            <ColumnDefinition Width="90"/>
+                            <ColumnDefinition Width="90"/>
+                            
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Out Reader: Always occupies the near-door slot when present. -->
+                        <StackPanel Grid.Column="0"
+                                    Margin="0"
+                                    VerticalAlignment="Bottom"
+                                    Visibility="{Binding OutReaderVisibility}">
+
+                            <Grid Width="90"
+                                  Height="90"
+                                  Cursor="Hand"
+                                  AllowDrop="True"
+                                  MouseEnter="OutReader_MouseEnter"
+                                  MouseMove="OutReader_MouseMove"
+                                  MouseLeave="OutReader_MouseLeave"
+                                  DragEnter="OutReader_DragEnter"
+                                  DragLeave="OutReader_DragLeave"
+                                  Drop="OutReader_Drop">
+
+                                <!-- Right-click menu for reader actions.-->
+                                <Grid.ContextMenu>
+                                    
+                                    <ContextMenu>
+                                        
+                                        <MenuItem Header="Enter PIN"
+                                          Click="OutReaderEnterPin_Click"/>
+
+                                        <MenuItem Header="Auto-enrol card"
+                                          Click="OutReaderAutoEnrollCard_Click"/>
+
+                                        <MenuItem Header="Auto-enrol PIN"
+                                          Click="OutReaderAutoEnrollPin_Click"/>
+                                        
+                                    </ContextMenu>
+                                    
+                                </Grid.ContextMenu>
+
+                                <Image Source="{Binding ReaderImagePath}"
+                                       Width="90"
+                                       Height="90"
+                                       Stretch="Uniform"
+                                       RenderOptions.BitmapScalingMode="HighQuality"
+                                       SnapsToDevicePixels="True"/>
+
+                                <!-- Out Reader LED overlay -->
+                                <Border Width="36"
+                                        Height="12"
+                                        CornerRadius="3"
+                                        Background="{Binding OutReaderLedBrush}"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Top"
+                                        Margin="-2,12,0,0"/>
+                                
+                            </Grid>
+
+                            <TextBlock Text="Out Reader"
+                                       FontWeight="Bold"
+                                       Foreground="#CCCCCC"
+                                       HorizontalAlignment="Center"/>
+
+                            <TextBlock Text="{Binding OutReaderStatusText}"
+                                       Foreground="{Binding OutReaderStatusColor}"
+                                       HorizontalAlignment="Center"/>
+                            
+                        </StackPanel>
+
+                        <!-- Out REX:
+                             If Out Reader exists, REX appears outside.
+                             If no Out Reader exists, REX moves into the near-door slot. -->
+                        <StackPanel Grid.Column="{Binding OutRexColumn}"
+                                    VerticalAlignment="Bottom"
+                                    Visibility="{Binding OutRexVisibility}">
+
+                            <Image x:Name="OutRexImage"
+                                   Source="{Binding OutRexImagePath}"
+                                   Width="78"
+                                   Height="90"
+                                   Stretch="Uniform"
+                                   Cursor="Hand"
+                                   MouseMove="OutRexImage_MouseMove"
+                                   MouseEnter="OutRexImage_MouseEnter"
+                                   MouseLeave="OutRexImage_MouseLeave"
+                                   PreviewMouseDown="OutRexImage_MouseDown"
+                                   PreviewMouseUp="OutRexImage_MouseUp"
+                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                   SnapsToDevicePixels="True"/>
+
+                            <TextBlock Text="Out REX"
+                                       FontWeight="Bold"
+                                       Foreground="#CCCCCC"
+                                       HorizontalAlignment="Center"/>
+
+                            <TextBlock Text="{Binding OutRexStatusText}"
+                                       Foreground="{Binding OutRexStatusColor}"
+                                       HorizontalAlignment="Center"/>
+                            
+                        </StackPanel>
+                        
+                    </Grid>
+
+                </Grid>
+
+                <!-- ############################### END OF HARDWARE LAYOUT ############################### -->
+
+            </StackPanel>
+            
+        </Border>
+
+        <Popup x:Name="FloatingToolTip"
+               Placement="Relative"
+               AllowsTransparency="True"
+               IsHitTestVisible="False">
+
+            <Border Background="#2D2D30"
+                    BorderBrush="#555555"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="6,3">
+
+                <TextBlock x:Name="FloatingToolTipText"
+                           Foreground="White"
+                           FontSize="12"/>
+                
+            </Border>
+            
+        </Popup>
+
+    </Grid>
+    
+</UserControl>
