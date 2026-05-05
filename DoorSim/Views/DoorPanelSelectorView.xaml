@@ -18,38 +18,25 @@
     <Border Background="#1F3A5F"
             Padding="10,6">
 
-        <Grid>
-            
-            <Grid.ColumnDefinitions>
-                
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="10"/>
-                <ColumnDefinition Width="*"/>
-                
-            </Grid.ColumnDefinitions>
+        <StackPanel Orientation="Horizontal"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
 
-            <TextBlock Grid.Column="0"
-                       Text="{Binding PanelTitle}"
+            <TextBlock Text="{Binding DoorSelectorTitle}"
                        FontSize="14"
                        FontWeight="Bold"
                        Foreground="White"
-                       VerticalAlignment="Center"/>
+                       VerticalAlignment="Center"
+                       Margin="0,0,8,0"/>
 
-            <ComboBox Grid.Column="2"
-                      ItemsSource="{Binding Doors}"
+            <ComboBox ItemsSource="{Binding Doors}"
                       SelectedItem="{Binding SelectedDoor, Mode=TwoWay}"
                       DisplayMemberPath="Name"
-                      Height="28"
-                      MinWidth="240"
-                      MaxWidth="320"
-                      HorizontalAlignment="Left"
-                      Background="#2D2D30"
-                      Foreground="White"
-                      BorderBrush="#555555"
-                      Padding="4"/>
+                      Width="270"
+                      Height="28"/>
             
-        </Grid>
-        
+        </StackPanel>
+
     </Border>
     
 </UserControl>

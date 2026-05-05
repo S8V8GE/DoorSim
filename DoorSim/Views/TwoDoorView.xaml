@@ -49,8 +49,8 @@
             </Grid.RowDefinitions>
 
             <!-- Left door selector. -->
-            <views:DoorSelectorView Grid.Row="0"
-                                    DataContext="{Binding LeftDoorPanel}"/>
+            <views:DoorPanelSelectorView Grid.Row="0"
+                                         DataContext="{Binding LeftDoorPanel}"/>
 
             <!-- Left interactive door panel. -->
             <views:DoorPanelView Grid.Row="1"
@@ -74,8 +74,8 @@
             </Grid.RowDefinitions>
 
             <!-- Right door selector. -->
-            <views:DoorSelectorView Grid.Row="0"
-                                    DataContext="{Binding RightDoorPanel}"/>
+            <views:DoorPanelSelectorView Grid.Row="0"
+                                         DataContext="{Binding RightDoorPanel}"/>
 
             <!-- Right interactive door panel. -->
             <views:DoorPanelView Grid.Row="1"

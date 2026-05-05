@@ -347,7 +347,9 @@ public partial class DoorPanelView : UserControl
     }
 
     // Tells MainViewModel that a reader action was just sent.
-    // MainViewModel will watch Softwire's LastDecision and show Granted / Denied feedback.
+    //
+    // The current DoorPanelView DataContext identifies which door panel sent it.
+    // This is important in Two Door View so feedback appears under the correct reader.
     private void RegisterPendingReaderDecision(string readerPath, bool isInReader)
     {
         var mainWindow = Application.Current.MainWindow;
@@ -355,7 +357,10 @@ public partial class DoorPanelView : UserControl
         if (mainWindow?.DataContext is not DoorSim.ViewModels.MainViewModel mainVm)
             return;
 
-        mainVm.RegisterPendingReaderDecision(readerPath, isInReader);
+        if (DataContext is not DoorSim.ViewModels.DoorsViewModel targetDoors)
+            return;
+
+        mainVm.RegisterPendingReaderDecision(readerPath, isInReader, targetDoors);
     }
 
 

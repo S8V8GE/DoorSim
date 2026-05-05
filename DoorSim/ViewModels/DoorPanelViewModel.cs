@@ -31,6 +31,9 @@ public partial class DoorPanelViewModel : ObservableObject
     // This will be populated from the shared DoorsViewModel door list.
     public ObservableCollection<SoftwireDoor> Doors { get; } = new ObservableCollection<SoftwireDoor>();
 
+    // Text shown in the selector bar.
+    public string DoorSelectorTitle => $"Select a door ({Doors.Count})";
+
     // The door selected for this specific panel.
     //
     // In Two Door View, the left and right panels will each have their own
@@ -46,6 +49,13 @@ public partial class DoorPanelViewModel : ObservableObject
     // without rewriting DoorPanelView yet.
     public DoorsViewModel DoorState { get; } = new DoorsViewModel();
 
+    // True while LoadDoors is refreshing the selector list.
+    //
+    // During refresh, SelectedDoor may be reassigned to a refreshed selector-list
+    // object with the same Id. We do not want that to replace DoorState.SelectedDoor,
+    // because DoorState is the live object used by DoorPanelView.
+    private bool _isLoadingDoors;
+
 
     /*
       #############################################################################
@@ -58,13 +68,18 @@ public partial class DoorPanelViewModel : ObservableObject
         PanelTitle = panelTitle;
     }
 
-    // Keeps the full DoorState ViewModel in sync when this panel's selector changes.
+    // Called when the user changes the selected door in this panel's selector.
     //
-    // The selector binds to DoorPanelViewModel.SelectedDoor.
-    // The actual DoorPanelView binds to DoorPanelViewModel.DoorState.
-    // This bridge keeps both pointing at the same selected door.
+    // If the change was caused by LoadDoors refreshing the selector list, we ignore
+    // it here. LoadDoors will decide whether DoorState needs to change.
+    //
+    // If the user genuinely selects a different door, update DoorState so the
+    // DoorPanelView follows that selection.
     partial void OnSelectedDoorChanged(SoftwireDoor? value)
     {
+        if (_isLoadingDoors)
+            return;
+
         DoorState.SelectedDoor = value;
     }
 
@@ -78,12 +93,13 @@ public partial class DoorPanelViewModel : ObservableObject
     // Replaces the available door list for this panel while preserving the
     // currently selected door by Id whenever possible.
     //
-    // Softwire returns fresh door objects on each refresh. If we simply clear
-    // and reload the list, the ComboBox can lose its selected item because the
-    // old selected object no longer exists in the new collection.
+    // Important:
+    // This refreshes the selector list only.
     //
-    // To avoid that, we remember the selected door Id before refreshing,
-    // reload the list, then reselect the matching refreshed door.
+    // It does NOT call DoorState.LoadDoors(...), because DoorState is the live
+    // state object used by DoorPanelView. Replacing DoorState.SelectedDoor every
+    // 3 seconds causes the door image, lock text, reader status, and LED state to
+    // flicker between old/default and live-polled values.
     public void LoadDoors(IEnumerable<SoftwireDoor> doors)
     {
         var selectedDoorId = SelectedDoor?.Id;
@@ -92,31 +108,60 @@ public partial class DoorPanelViewModel : ObservableObject
             .OrderBy(d => d.Name)
             .ToList();
 
-        Doors.Clear();
+        _isLoadingDoors = true;
 
-        foreach (var door in orderedDoors)
+        try
         {
-            Doors.Add(door);
-        }
+            Doors.Clear();
 
-        // Keep the full door-state ViewModel loaded with the same refreshed doors.
-        DoorState.LoadDoors(orderedDoors);
-
-        if (!string.IsNullOrWhiteSpace(selectedDoorId))
-        {
-            var matchingDoor = Doors.FirstOrDefault(d => d.Id == selectedDoorId);
-
-            if (matchingDoor != null)
+            foreach (var door in orderedDoors)
             {
-                SelectedDoor = matchingDoor;
-                DoorState.SelectedDoor = matchingDoor;
-                return;
+                Doors.Add(door);
+            }
+
+            OnPropertyChanged(nameof(DoorSelectorTitle));
+
+            if (!string.IsNullOrWhiteSpace(selectedDoorId))
+            {
+                var matchingDoor = Doors.FirstOrDefault(d => d.Id == selectedDoorId);
+
+                if (matchingDoor != null)
+                {
+                    // Keep the ComboBox selected item aligned with the refreshed list.
+                    // Do not update DoorState here if it is already showing the same door.
+                    SelectedDoor = matchingDoor;
+                }
+                else
+                {
+                    SelectedDoor = Doors.Count > 0 ? Doors[0] : null;
+                }
+            }
+            else
+            {
+                SelectedDoor = Doors.Count > 0 ? Doors[0] : null;
             }
         }
-
-        if (SelectedDoor == null && Doors.Count > 0)
+        finally
         {
-            SelectedDoor = Doors[0];
+            _isLoadingDoors = false;
+        }
+
+        // Only change the live DoorState if:
+        // - it has nothing selected yet
+        // - the user-selected door is different
+        // - the selected door no longer exists
+        //
+        // This prevents the 3-second list refresh from replacing the live/polled
+        // door object and causing visual flicker.
+        if (SelectedDoor == null)
+        {
+            DoorState.SelectedDoor = null;
+            return;
+        }
+
+        if (DoorState.SelectedDoor == null ||
+            DoorState.SelectedDoor.Id != SelectedDoor.Id)
+        {
             DoorState.SelectedDoor = SelectedDoor;
         }
     }
