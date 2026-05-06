@@ -11,27 +11,38 @@ public partial class DoorPanelView : UserControl
 {
     /*
       #############################################################################
-                           Constructor and Initialisation
+                                  Private Fields
       #############################################################################
     */
 
+    // Tooltip state
+    // -------------
     private Func<string>? _floatingToolTipTextProvider;
-
     private readonly DispatcherTimer _floatingToolTipTimer;
 
+    // Services
+    // --------
     // Centralised audio service. Keeps sound playback out of the view logic and gives us one place for future easter eggs, denied sounds, and sound timing fixes.
     private readonly SoundService _soundService = new SoundService();
 
+    // Reader alert debounce
+    // ---------------------
     // Prevents multiple reader LED changes from producing stacked alert beeps.
-    //
     // Door forced / held-open events can cause both In and Out reader LEDs to change at almost the same time. Without this debounce, one event sounds like a double beep.
     private DateTime _lastReaderAlertSoundUtc = DateTime.MinValue;
+
+
+    /*
+      #############################################################################
+                           Constructor and Initialisation
+      #############################################################################
+    */
 
     public DoorPanelView() 
     {
         InitializeComponent(); // It's actually spelt Initialise... but we can let it go ;)
 
-        DataContextChanged += SingleDoorView_DataContextChanged;
+        DataContextChanged += DoorPanelView_DataContextChanged;
 
         _floatingToolTipTimer = new DispatcherTimer
         {
@@ -50,15 +61,16 @@ public partial class DoorPanelView : UserControl
 
     /*
       #############################################################################
-                                   Helper methods
+                        MainWindow / Service Access Helpers
       #############################################################################
     */
 
     // -- SERVICE HELPERS:
     //    ---------------
-    // Temporary helper used by UI event handlers to access Softwire commands.
-    // This keeps repeated service lookup code out of each click handler.
-    // TODO: Later, this should be replaced with proper MVVM commands / dependency injection... or maybe i'll just leave it if it works...
+    // TEMPORARY ARCHITECTURE NOTE:
+    // DoorPanelView is still using code-behind for direct UI interactions such as drag/drop, mouse input, PIN windows, and simulated hardware clicks.
+    // Long-term, this should be replaced with proper commands/services exposed through ViewModels or dependency injection.
+    // For now, this helper avoids duplicating MainWindow/DataContext lookup code throughout the event handlers.
     private ISoftwireService? GetSoftwireService()
     {
         var mainWindow = Application.Current.MainWindow;
@@ -71,8 +83,7 @@ public partial class DoorPanelView : UserControl
             .GetValue(mainVm) as ISoftwireService;
     }
 
-    // Sends an Active/Inactive state change to a Softwire input.
-    // Used by REX buttons and other simulated input devices.
+    // Sends an Active/Inactive state change to a Softwire input. Used by REX buttons and other simulated input devices.
     private async Task SetInputStateAsync(string inputPath, string state)
     {
         if (string.IsNullOrWhiteSpace(inputPath))
@@ -86,13 +97,21 @@ public partial class DoorPanelView : UserControl
         await service.SetInputStateAsync(inputPath, state);
     }
 
+
+    /*
+      #############################################################################
+                            Dialog and Message Helpers
+      #############################################################################
+    */
+
     // -- PIN AND AUTO-ENROL HELPERS:
     //    --------------------------
-    // Opens the PIN entry window and sends the entered PIN to Softwire.
+    // Opens the PIN entry window and sends the entered PIN to Softwire. Used by:
+    //      - Manual PIN entry from the reader context menu.
+    //      - Auto-enrol PIN.
+    //      - Card + PIN flows after a cardholder has been presented.
     //
-    // PINs are sent to Softwire as Wiegand26:
-    // - Facility code = 0
-    // - Card number   = entered PIN
+    // When cardholder is provided, the final Softwire access decision can trigger cardholder-specific audio, including future easter eggs (exciting stuff right!).
     private async Task OpenPinDialogAndSendAsync(DoorSim.ViewModels.DoorsViewModel vm, string readerName, string readerPath, bool isInReader, int? timeoutSeconds = null, Cardholder? cardholder = null)
     {
         if (string.IsNullOrWhiteSpace(readerPath))
@@ -156,7 +175,6 @@ public partial class DoorPanelView : UserControl
     }
 
     // Opens the existing PIN dialog and sends the entered PIN to the selected Softwire reader using the Wiegand26 PIN swipe method.
-    //
     // This is used by auto-enrol PIN. It does not use a countdown because this is a manual enrolment action, not an automatic Card + PIN access flow.
     private async Task OpenAutoEnrollPinAsync(DoorSim.ViewModels.DoorsViewModel vm, string readerName, string readerPath, bool isInReader)
     {
@@ -196,10 +214,16 @@ public partial class DoorPanelView : UserControl
             autoEnrollWindow.Result.BitCount);
     }
 
+
+    /*
+      #############################################################################
+                                 Tooltip Helpers
+      #############################################################################
+    */
+
     // -- TOOLTIP HELPERS:
     //    ---------------
-    // Shows a custom tooltip that follows the mouse.
-    // Standard WPF ToolTips do not continuously follow the cursor once opened.
+    // Shows a custom tooltip that follows the mouse. Standard WPF ToolTips do not continuously follow the cursor once opened.
     private void ShowFloatingToolTip(Func<string> textProvider, MouseEventArgs e)
     {
         _floatingToolTipTextProvider = textProvider;
@@ -235,13 +259,17 @@ public partial class DoorPanelView : UserControl
         _floatingToolTipTextProvider = null;
     }
 
+
+    /*
+      #############################################################################
+                               Audio Event Helpers
+      #############################################################################
+    */
+
     // -- SOUND HELPERS:
     //    --------------
-
     // Reader LED changes can mean different things.
-    //
     // If a credential decision is pending/recent, do not play sound here because MainViewModel handles granted/denied decision audio.
-    //
     // If there is no pending/recent access decision, this LED change is treated as a reader alert, such as door forced / door held open behaviour.
     private void OnReaderLedChanged()
     {
@@ -267,16 +295,12 @@ public partial class DoorPanelView : UserControl
         _soundService.PlayReaderAlert();
     }
 
-    // Access denied audio is now handled in MainViewModel when Softwire's access decision is processed.
-    //
-    // Do not play sound here, otherwise denied decisions can double-trigger:
-    // - once from MainViewModel
-    // - once from this ReaderAccessDenied event
-    private void OnReaderAccessDenied()
-    {
-        // Intentionally no sound here.
-    }
 
+    /*
+      #############################################################################
+                           DataContext Subscription Helpers
+      #############################################################################
+    */
 
     // -- MESSAGE HELPERS:
     //    ---------------
@@ -294,28 +318,36 @@ public partial class DoorPanelView : UserControl
 
     // -- DATA CONTEXT HELPERS:
     //    --------------------
-    // Called when the view receives or changes its DataContext.
-    // Used to subscribe to reader LED change events from DoorsViewModel.
-    private void SingleDoorView_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+    // Called whenever this reusable door panel receives a new DoorsViewModel.
+    //
+    // This happens in:
+    //      - Single Door View, where the panel uses the main DoorsViewModel.
+    //      - Two Door View, where each panel has its own independent DoorState.
+    //
+    // The handler subscribes/unsubscribes reader LED events so alert audio follows whichever door state this specific panel is currently displaying.
+    private void DoorPanelView_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         if (e.OldValue is DoorSim.ViewModels.DoorsViewModel oldVm)
         {
             oldVm.ReaderLedChanged -= OnReaderLedChanged;
-            oldVm.ReaderAccessDenied -= OnReaderAccessDenied;
         }
 
         if (e.NewValue is DoorSim.ViewModels.DoorsViewModel newVm)
         {
             newVm.ReaderLedChanged += OnReaderLedChanged;
-            newVm.ReaderAccessDenied += OnReaderAccessDenied;
         }
     }
 
-    // Tells MainViewModel that a reader action was just sent.
-    //
-    // The current DoorPanelView DataContext identifies which door panel sent it.
-    // The optional cardholder is stored so access granted / denied audio can later
-    // use easter egg rules, such as Simpson "Woo Hoo" / "D'oh".
+
+    /*
+      #############################################################################
+                           Reader Decision Registration
+      #############################################################################
+    */
+
+
+    // Tells MainViewModel that a reader action was just sent. The current DoorPanelView DataContext identifies which door panel sent it.
+    // The optional cardholder is stored so access granted / denied audio can later use easter egg rules, such as Simpson "Woo Hoo" / "D'oh".
     private void RegisterPendingReaderDecision(string readerPath, bool isInReader, Cardholder? cardholder)
     {
         var mainWindow = Application.Current.MainWindow;
@@ -332,7 +364,7 @@ public partial class DoorPanelView : UserControl
 
     /*
       #############################################################################
-                                Door image handlers
+                           Door Sensor (image) handlers
       #############################################################################
     */
 
@@ -397,7 +429,7 @@ public partial class DoorPanelView : UserControl
 
     /*
       #############################################################################
-                            Reader image handlers
+                            Reader (image) handlers
       #############################################################################
     */
 
@@ -424,8 +456,7 @@ public partial class DoorPanelView : UserControl
         HideFloatingToolTip();
     }
 
-    // Allows the In Reader to accept dragged Cardholder objects.
-    // While a valid cardholder is hovering over the reader, the reader LED is shown as blue.
+    // Allows the In Reader to accept dragged Cardholder objects. While a valid cardholder is hovering over the reader, the reader LED is shown as blue.
     private void InReader_DragEnter(object sender, DragEventArgs e)
     {
         if (e.Data.GetDataPresent(typeof(Cardholder)))
@@ -445,8 +476,7 @@ public partial class DoorPanelView : UserControl
         e.Handled = true;
     }
 
-    // Clears the drag-over state when the dragged cardholder leaves the In Reader.
-    // This returns the LED to its normal live Softwire state.
+    // Clears the drag-over state when the dragged cardholder leaves the In Reader. This returns the LED to its normal live Softwire state.
     private void InReader_DragLeave(object sender, DragEventArgs e)
     {
         if (DataContext is DoorSim.ViewModels.DoorsViewModel vm)
@@ -457,8 +487,7 @@ public partial class DoorPanelView : UserControl
         e.Handled = true;
     }
 
-    // Handles dropping a cardholder onto the In Reader.
-    // Sends the cardholder credential to Softwire using SwipeRaw.
+    // Handles dropping a cardholder onto the In Reader. Sends the cardholder credential to Softwire using SwipeRaw.
     private async void InReader_Drop(object sender, DragEventArgs e)
     {
         if (DataContext is not DoorSim.ViewModels.DoorsViewModel vm)
@@ -541,8 +570,7 @@ public partial class DoorPanelView : UserControl
         e.Handled = true;
     }
 
-    // Opens PIN entry for the In Reader.
-    // The dialog validates that the PIN is 4 or 5 digits before allowing OK.
+    // Opens PIN entry for the In Reader. The dialog validates that the PIN is 4 or 5 digits before allowing OK.
     private async void InReaderEnterPin_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is not DoorSim.ViewModels.DoorsViewModel vm)
@@ -655,8 +683,7 @@ public partial class DoorPanelView : UserControl
         HideFloatingToolTip();
     }
 
-    // Allows the Out Reader to accept dragged Cardholder objects.
-    // While a valid cardholder is hovering over the reader, the reader LED is shown as blue.
+    // Allows the Out Reader to accept dragged Cardholder objects. While a valid cardholder is hovering over the reader, the reader LED is shown as blue.
     private void OutReader_DragEnter(object sender, DragEventArgs e)
     {
         if (e.Data.GetDataPresent(typeof(Cardholder)))
@@ -676,8 +703,7 @@ public partial class DoorPanelView : UserControl
         e.Handled = true;
     }
 
-    // Clears the drag-over state when the dragged cardholder leaves the Out Reader.
-    // This returns the LED to its normal live Softwire state.
+    // Clears the drag-over state when the dragged cardholder leaves the Out Reader. This returns the LED to its normal live Softwire state.
     private void OutReader_DragLeave(object sender, DragEventArgs e)
     {
         if (DataContext is DoorSim.ViewModels.DoorsViewModel vm)
@@ -688,8 +714,7 @@ public partial class DoorPanelView : UserControl
         e.Handled = true;
     }
 
-    // Handles dropping a cardholder onto the Out Reader.
-    // Sends the cardholder credential to Softwire using SwipeRaw.
+    // Handles dropping a cardholder onto the Out Reader. Sends the cardholder credential to Softwire using SwipeRaw.
     private async void OutReader_Drop(object sender, DragEventArgs e)
     {
         if (DataContext is not DoorSim.ViewModels.DoorsViewModel vm)
@@ -772,8 +797,7 @@ public partial class DoorPanelView : UserControl
         e.Handled = true;
     }
 
-    // Opens PIN entry for the Out Reader.
-    // The dialog validates that the PIN is 4 or 5 digits before allowing OK.
+    // Opens PIN entry for the Out Reader. The dialog validates that the PIN is 4 or 5 digits before allowing OK.
     private async void OutReaderEnterPin_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is not DoorSim.ViewModels.DoorsViewModel vm)
@@ -866,15 +890,15 @@ public partial class DoorPanelView : UserControl
 
     /*
       #############################################################################
-                              REX image handlers
+                              REX (image) handlers
       #############################################################################
     */
     // REX behaviour:
-    // - Mouse down sets the input Active
-    // - Mouse up sets the input Inactive after a short delay
-    // - Mouse leave safely releases the input if it is still active
-    // - Mouse move updates the tooltip position and text if needed
-    // - Shunted REX inputs ignore mouse interaction
+    //      - Mouse down sets the input Active
+    //      - Mouse up sets the input Inactive after a short delay
+    //      - Mouse leave safely releases the input if it is still active
+    //      - Mouse move updates the tooltip position and text if needed
+    //      - Shunted REX inputs ignore mouse interaction
 
     //---------------------------------------------
     // -- IN REX:
@@ -1209,7 +1233,7 @@ public partial class DoorPanelView : UserControl
 
     /*
       #############################################################################
-                              Breakglass image handlers
+                              Breakglass (image) handlers
       #############################################################################
     */
 
@@ -1263,6 +1287,5 @@ public partial class DoorPanelView : UserControl
             vm.SelectedDoor.BreakGlassDevicePath,
             newState);
     }
-
 
 }

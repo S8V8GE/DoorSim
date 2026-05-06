@@ -1,28 +1,18 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
+﻿using System.Windows.Controls;
 
-namespace DoorSim.Views
+namespace DoorSim.Views;
+
+// Lightweight code-behind for the Single Door selector.
+//
+// Selection behaviour is handled by binding:
+//      - ItemsSource -> DoorsViewModel.Doors
+//      - SelectedItem -> DoorsViewModel.SelectedDoor
+//
+// This file currently only initialises the XAML.
+public partial class DoorSelectorView : UserControl
 {
-    /// <summary>
-    /// Interaction logic for DoorSelectorView.xaml
-    /// </summary>
-    public partial class DoorSelectorView : UserControl
+    public DoorSelectorView()
     {
-        public DoorSelectorView()
-        {
-            InitializeComponent();
-        }
+        InitializeComponent();
     }
 }

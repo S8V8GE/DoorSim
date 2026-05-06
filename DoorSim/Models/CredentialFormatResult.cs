@@ -1,15 +1,15 @@
 ﻿namespace DoorSim.Models;
 
-// Represents a generated credential ready to send to Softwire.
+// Represents a generated credential ready to send to a Softwire reader.
 //
-// Auto-enrol card formats eventually produce:
-// - RawHex: the raw hexadecimal credential value
-// - BitCount: the number of valid bits in the credential
-//
-// This can then be sent using SwipeRawAsync(readerPath, RawHex, BitCount).
+// Produced by CredentialFormatService and returned by AutoEnrollCardWindow.
+// The caller sends this using SwipeRawAsync(readerPath, RawHex, BitCount).
 public class CredentialFormatResult
 {
+    // Raw hexadecimal credential value to send to Softwire.
     public string RawHex { get; set; } = string.Empty;
 
+    // Number of valid bits represented by RawHex.
     public int BitCount { get; set; }
+
 }

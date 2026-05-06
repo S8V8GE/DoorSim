@@ -4,13 +4,19 @@
              Background="#1E1E1E"
              Foreground="White">
 
-    <!--
-    Door selector for one reusable door panel.
+<!--
+    Door selector for one reusable door panel in Two Door View.
 
-    This matches the visual layout of DoorSelectorView, but binds to
-    DoorPanelViewModel so Two Door View can have independent left/right
-    selected doors.
-    -->
+    Expected DataContext:
+        - DoorPanelViewModel
+
+    Responsibilities:
+        - Show the number of doors available to this panel.
+        - Let the trainer select the door for this side of Two Door View.
+        - Show placeholder text when no door is selected.
+
+    Note: This intentionally looks like DoorSelectorView, but binds to DoorPanelViewModel instead of DoorsViewModel so the left and right panels can maintain independent selections.
+-->
     <Border Background="#1F3A5F"
             BorderBrush="#3F3F46"
             BorderThickness="0,0,0,1"
@@ -26,6 +32,11 @@
                        VerticalAlignment="Center"
                        Margin="0,0,10,0"/>
 
+            <!--
+                ComboBox wrapper.
+
+                The Grid allows placeholder text to be layered over the ComboBox when SelectedDoor is null.
+            -->
             <Grid Width="300"
                   Height="28">
 
@@ -57,8 +68,10 @@
                             <Style.Triggers>
                                 
                                 <DataTrigger Binding="{Binding SelectedDoor}"
-                                 Value="{x:Null}">
+                                             Value="{x:Null}">
+                                    
                                     <Setter Property="Visibility" Value="Visible"/>
+                                    
                                 </DataTrigger>
                                 
                             </Style.Triggers>

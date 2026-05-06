@@ -1,6 +1,4 @@
-﻿using System;
-using System.Threading.Tasks;
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using DoorSim.Models;
 using System.Collections.ObjectModel;
 using System.Windows.Media;
@@ -8,26 +6,29 @@ using System.Windows;
 
 namespace DoorSim.ViewModels;
 
-// ViewModel for door selection and single-door display.
+// ViewModel for one interactive door panel.
 //
-// Responsible for:
-// - Holding the list of doors retrieved from Softwire
-// - Tracking which door is currently selected by the user
-// - Preserving selection across refreshes (if the door still exists)
-// - Exposing simple UI state (HasDoors / HasSelectedDoor)
+// Responsibilities:
+//      - Hold the available Softwire doors and current SelectedDoor.
+//      - Expose calculated UI state for the door, readers, REX inputs, and breakglass.
+//      - Preserve live UI state across slow door-list refreshes.
+//      - Provide update methods used by polling and UI interactions.
+//      - Show temporary access decision feedback under readers and REX devices.
 //
-// This ViewModel feeds:
-// - DoorSelectorView (dropdown)
-// - SingleDoorView (visual representation of the selected door)
+// Used by:
+//      - Single Door View via MainViewModel.Doors.
+//      - Two Door View via LeftDoorPanel.DoorState and RightDoorPanel.DoorState.
 public partial class DoorsViewModel : ObservableObject
 {
     /*
       #############################################################################
-                   Observable Properties for Door List and Selection
+                          Door List and Selection State
       #############################################################################
     */
 
-    // Collection of all doors available from Softwire
+    // Collection of all doors available to this panel (from Softwire)
+    //      - In Single Door View this is the full Softwire door list.
+    //      - In Two Door View this may be a filtered list to prevent selecting the same door on both sides.
     [ObservableProperty]
     private ObservableCollection<SoftwireDoor> doors = new ObservableCollection<SoftwireDoor>();
 
@@ -39,14 +40,24 @@ public partial class DoorsViewModel : ObservableObject
     [ObservableProperty]
     private bool hasDoors;
 
-    // True when a door has been selected
-    // Used to control visibility of the SingleDoorView
+    // True when a door has been selected. Used by the view to switch between the empty-state message and the live door hardware panel.
     [ObservableProperty]
     private bool hasSelectedDoor;
 
     // Count of doors, for display purposes
     [ObservableProperty]
     private int doorCount;
+
+
+    /*
+      #############################################################################
+                          Temporary Interaction State
+      #############################################################################
+    */
+
+    // Short-lived UI states caused by direct user interaction. These override normal reader status briefly, for example:
+    //      - cardholder being dragged over a reader,
+    //      - PIN just sent to a reader.
 
     // True only while a cardholder is being dragged over the In Reader
     [ObservableProperty]
@@ -64,11 +75,15 @@ public partial class DoorsViewModel : ObservableObject
     [ObservableProperty]
     private bool outReaderPinSent;
 
-    // Raised when a reader LED colour changes (The view can listen to this and play a local sound effect).
-    public event Action? ReaderLedChanged;
 
-    // Raised when Softwire reports an access denied decision.
-    public event Action? ReaderAccessDenied;
+    /*
+      #############################################################################
+                          Temporary Access Feedback State
+      #############################################################################
+    */
+
+    // Temporary feedback shown under devices after an access action.
+    // These values intentionally override normal live status text for a short time, for example "Access granted", "Access denied", or "PIN sent".
 
     // Reader access decision feedback. These values are shown briefly after Softwire reports an access decision.
     [ObservableProperty]
@@ -90,25 +105,35 @@ public partial class DoorsViewModel : ObservableObject
     [ObservableProperty]
     private bool outReaderDecisionIsDenied;
 
-    // In REX access decision feedback. Shown briefly after the REX is pressed.
+    // REX access decision feedback. Shown briefly after the REX is pressed.
     [ObservableProperty]
     private string inRexDecisionText = string.Empty;
 
-    // Out REX access decision feedback. Shown briefly after the REX is pressed.
     [ObservableProperty]
     private string outRexDecisionText = string.Empty;
 
-    // No-side REX access decision feedback. Shown briefly after the REX is pressed.
     [ObservableProperty]
     private string noSideRexDecisionText = string.Empty;
 
+
     /*
       #############################################################################
-                                    Shared brushes
+                           Event for reader LED changes
       #############################################################################
     */
 
-    // Shared UI colours used for live hardware status - cause we love colours don't we Barry ;)
+    // Raised when a reader LED leaves its normal idle state. DoorPanelView listens to this so it can play reader-alert audio for events such as door forced / held open.
+    // Access granted/denied audio is not handled here. That is routed through MainViewModel because it needs the pending reader/cardholder context.
+    public event Action? ReaderLedChanged;
+
+
+    /*
+      #############################################################################
+                                   Shared UI brushes
+      #############################################################################
+    */
+
+    // Shared UI colours used by calculated status/LED properties (for live hardware status) - cause we love colours don't we Barry!
     private static readonly Brush GoodBrush = new SolidColorBrush(Color.FromRgb(40, 200, 120)); // green
     private static readonly Brush BadBrush = new SolidColorBrush(Color.FromRgb(220, 80, 80));  // red
     private static readonly Brush WarningBrush = new SolidColorBrush(Color.FromRgb(255, 165, 0)); // orange
@@ -118,51 +143,60 @@ public partial class DoorsViewModel : ObservableObject
 
     /*
       #############################################################################
-                           Visibility properties for devices
+                                  Device Visibility
       #############################################################################
     */
 
+    // Readers
     public Visibility InReaderVisibility =>
         SelectedDoor?.HasReaderSideIn == true ? Visibility.Visible : Visibility.Collapsed;
     public Visibility OutReaderVisibility =>
         SelectedDoor?.HasReaderSideOut == true ? Visibility.Visible : Visibility.Collapsed;
     
+    // REX
     public Visibility InRexVisibility =>
         SelectedDoor?.HasRexSideIn == true ? Visibility.Visible : Visibility.Collapsed;
     public Visibility OutRexVisibility =>
         SelectedDoor?.HasRexSideOut == true ? Visibility.Visible : Visibility.Collapsed;
     public Visibility NoSideRexVisibility =>
         SelectedDoor?.HasRexNoSide == true ? Visibility.Visible : Visibility.Collapsed;
-   
+
+    // Breakglass / Manual station
     public Visibility BreakGlassVisibility =>
-    SelectedDoor?.HasBreakGlass == true ? Visibility.Visible : Visibility.Collapsed;
+        SelectedDoor?.HasBreakGlass == true ? Visibility.Visible : Visibility.Collapsed;
 
 
     /*
       #############################################################################
-                           Layout slot properties for devices
+                                Device Layout Slots
       #############################################################################
     */
 
-    // Left side layout:
-    // Column 0 = outside position && Column 1 = closest to the door
-    // If an In Reader exists, In REX stays outside. If no In Reader exists, In REX moves closest to the door.
+    // Left side device layout:
+    //      - Column 0 = outside position.
+    //      - Column 1 = closest to the door.
+    //      - If an In Reader exists, the In REX stays outside.
+    //      - If no In Reader exists, the In REX moves into the near-door slot.
     public int InRexColumn =>
         SelectedDoor?.HasReaderSideIn == true ? 0 : 1;
 
-    // Right side layout:
-    // Column 0 = closest to the door && Column 1 = outside position
-    // If an Out Reader exists, Out REX stays outside. If no Out Reader exists, Out REX moves closest to the door.
+
+    // Right side device layout:
+    //      - Column 0 = closest to the door.
+    //      - Column 1 = outside position.
+    //      - If an Out Reader exists, the Out REX stays outside.
+    //      - If no Out Reader exists, the Out REX moves into the near-door slot.
     public int OutRexColumn =>
         SelectedDoor?.HasReaderSideOut == true ? 1 : 0;
 
 
     /*
       #############################################################################
-                          Image path properties for devices
+                                 Device Image Paths
       #############################################################################
     */
 
+    // Door
     public string DoorImagePath
     {
         get
@@ -176,8 +210,11 @@ public partial class DoorsViewModel : ObservableObject
         }
     }
 
-    public string ReaderImagePath => "/Images/Reader.png"; // Note: Reader image does not change based on state, only visibility based on existence
+    // Readers
+    // NOTE: Reader image is static. Reader state is shown by the LED overlay and text, not by changing the base reader image.
+    public string ReaderImagePath => "/Images/Reader.png";
 
+    // REX's
     public string InRexImagePath
     {
         get
@@ -217,6 +254,7 @@ public partial class DoorsViewModel : ObservableObject
         }
     }
 
+    // Breakglass / Manual station
     public string BreakGlassImagePath
     {
         get
@@ -233,10 +271,14 @@ public partial class DoorsViewModel : ObservableObject
 
     /*
       #############################################################################
-                          Status text properties for devices
+                                 Device Status Text
       #############################################################################
     */
 
+    // Status text properties are priority-based!
+    // Temporary feedback such as "Access granted", "Access denied", "PIN sent", or "Card present" appears before normal live states such as Online/Offline.
+
+    // Lock
     public string DoorLockStatusText
     {
         get
@@ -260,6 +302,7 @@ public partial class DoorsViewModel : ObservableObject
         }
     }
 
+    // Door Sensor
     public string DoorSensorStatusText
     {
         get
@@ -277,6 +320,7 @@ public partial class DoorsViewModel : ObservableObject
         }
     }
 
+    // Readers
     public string InReaderStatusText
     {
         get
@@ -294,7 +338,7 @@ public partial class DoorsViewModel : ObservableObject
                 return "PIN sent";
 
             if (IsCardholderOverInReader)
-                return "Card Present";
+                return "Card present";
 
             if (SelectedDoor.InReaderIsShunted)
                 return "Shunted";
@@ -329,6 +373,7 @@ public partial class DoorsViewModel : ObservableObject
         }
     }
 
+    // REX's
     public string InRexStatusText
     {
         get
@@ -389,6 +434,7 @@ public partial class DoorsViewModel : ObservableObject
         }
     }
 
+    // Breakglass / Manual station
     public string BreakGlassStatusText
     {
         get
@@ -405,14 +451,17 @@ public partial class DoorsViewModel : ObservableObject
             return SelectedDoor.BreakGlassIsActive ? "Active" : "Normal";
         }
     }
-    
+
 
     /*
       #############################################################################
-                       Status colour properties for devices
+                       Device Status Colours and LED Brushes
       #############################################################################
     */
 
+    // These properties mirror the status-text priority rules so the colour matches whichever state the learner currently sees.
+
+    // Lock
     public Brush DoorLockStatusColor
     {
         get
@@ -433,6 +482,7 @@ public partial class DoorsViewModel : ObservableObject
         }
     }
 
+    // Door Sensor
     public Brush DoorSensorStatusColor
     {
         get
@@ -450,6 +500,7 @@ public partial class DoorsViewModel : ObservableObject
         }
     }
 
+    // Readers
     public Brush InReaderStatusColor
     {
         get
@@ -546,6 +597,7 @@ public partial class DoorsViewModel : ObservableObject
         }
     }
 
+    // REX's
     public Brush InRexStatusColor
     {
         get
@@ -606,6 +658,7 @@ public partial class DoorsViewModel : ObservableObject
         }
     }
 
+    // Breakglass / Manual station
     public Brush BreakGlassStatusColor
     {
         get
@@ -623,10 +676,11 @@ public partial class DoorsViewModel : ObservableObject
 
     /*
       #############################################################################
-                         Tooltip properties for devices
+                                Device Tooltips
       #############################################################################
     */
 
+    // Door
     public string DoorActionTooltip
     {
         get
@@ -646,6 +700,7 @@ public partial class DoorsViewModel : ObservableObject
         }
     }
 
+    // Readers
     public string InReaderActionTooltip
     {
         get
@@ -686,6 +741,7 @@ public partial class DoorsViewModel : ObservableObject
         }
     }
 
+    // REX's
     public string InRexActionTooltip
     {
         get
@@ -743,6 +799,7 @@ public partial class DoorsViewModel : ObservableObject
         }
     }
 
+    // Breakglass / Manual station
     public string BreakGlassActionTooltip
     {
         get
@@ -765,11 +822,16 @@ public partial class DoorsViewModel : ObservableObject
 
     /*
       #############################################################################
-                         Load doors and preserve selection logic
+                         Door Loading and Selection Refresh
       #############################################################################
     */
 
-    // Loads doors into the ViewModel and preserves selection if possible
+    // Loads/refeshes the available doors for this panel while preserving the selected door by Id where possible.
+    //
+    // The slow connection refresh replaces the door list every few seconds.
+    // To avoid UI flicker, live state that is normally polled separately (reader online/shunted/LED, REX active/shunted, door sensor, breakglass) is copied from the previous selected door object into the refreshed object.
+    //
+    // Door lock state is intentionally NOT preserved because it comes from the refreshed Softwire door JSON and should reflect the latest 'controller' state.
     public void LoadDoors(IEnumerable<SoftwireDoor> loadedDoors)
     {
         var previousSelectedDoor = SelectedDoor;
@@ -837,6 +899,15 @@ public partial class DoorsViewModel : ObservableObject
         OnPropertyChanged(nameof(DoorSensorStatusColor));
     }
 
+
+    /*
+      #############################################################################
+                          Generated Property Change Hooks
+      #############################################################################
+    */
+
+    // Door:
+    // -----
     // Automatically called when SelectedDoor changes
     partial void OnSelectedDoorChanged(SoftwireDoor? value)
     {
@@ -898,6 +969,83 @@ public partial class DoorsViewModel : ObservableObject
 
     }
 
+    // Readers:
+    // --------
+    // Refreshes the In and Out Reader LED and status text when drag-over state changes
+    partial void OnIsCardholderOverInReaderChanged(bool value)
+    {
+        OnPropertyChanged(nameof(InReaderLedBrush));
+        OnPropertyChanged(nameof(InReaderStatusText));
+        OnPropertyChanged(nameof(InReaderStatusColor));
+    }
+    partial void OnIsCardholderOverOutReaderChanged(bool value)
+    {
+        OnPropertyChanged(nameof(OutReaderLedBrush));
+        OnPropertyChanged(nameof(OutReaderStatusText));
+        OnPropertyChanged(nameof(OutReaderStatusColor));
+    }
+
+    // Refreshes the In and Out Reader colour when temporary decision result changes.
+    partial void OnInReaderDecisionIsGrantedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(InReaderStatusColor));
+    }
+    partial void OnInReaderDecisionIsDeniedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(InReaderStatusColor));
+    }
+    partial void OnOutReaderDecisionIsGrantedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(OutReaderStatusColor));
+    }
+    partial void OnOutReaderDecisionIsDeniedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(OutReaderStatusColor));
+    }
+
+    // Refreshes the In and Out Reader status when temporary PIN-sent state changes
+    partial void OnInReaderPinSentChanged(bool value)
+    {
+        OnPropertyChanged(nameof(InReaderStatusText));
+        OnPropertyChanged(nameof(InReaderStatusColor));
+    }
+    partial void OnOutReaderPinSentChanged(bool value)
+    {
+        OnPropertyChanged(nameof(OutReaderStatusText));
+        OnPropertyChanged(nameof(OutReaderStatusColor));
+    }
+
+    // Refreshes the In and Out Reader status when temporary decision feedback changes.
+    partial void OnInReaderDecisionTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(InReaderStatusText));
+        OnPropertyChanged(nameof(InReaderStatusColor));
+    }
+    partial void OnOutReaderDecisionTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(OutReaderStatusText));
+        OnPropertyChanged(nameof(OutReaderStatusColor));
+    }
+
+    // REX's:
+    // ------
+    // Refreshes the In, Out, and No Side REX's status when temporary decision feedback changes.
+    partial void OnInRexDecisionTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(InRexStatusText));
+        OnPropertyChanged(nameof(InRexStatusColor));
+    }
+    partial void OnOutRexDecisionTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(OutRexStatusText));
+        OnPropertyChanged(nameof(OutRexStatusColor));
+    }
+    partial void OnNoSideRexDecisionTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(NoSideRexStatusText));
+        OnPropertyChanged(nameof(NoSideRexStatusColor));
+    }
+
 
     /*
       #############################################################################
@@ -905,6 +1053,11 @@ public partial class DoorsViewModel : ObservableObject
       #############################################################################
     */
 
+    // These methods are called by MainViewModel polling or DoorPanelView optimistic UI updates.
+    // Each method updates only the relevant SoftwireDoor fields, then raises property notifications for dependent calculated UI properties.
+
+    // Door:
+    // -----
     // Updates live state for the selected door and refreshes dependent UI properties
     public void UpdateSelectedDoorState(bool doorIsLocked, bool doorSensorIsOpen, bool doorSensorIsShunted)
     {
@@ -942,57 +1095,9 @@ public partial class DoorsViewModel : ObservableObject
         OnPropertyChanged(nameof(DoorSensorStatusColor));
     }
 
-    // Refreshes the In Reader LED when drag-over state changes
-    partial void OnIsCardholderOverInReaderChanged(bool value)
-    {
-        OnPropertyChanged(nameof(InReaderLedBrush));
-        OnPropertyChanged(nameof(InReaderStatusText));
-        OnPropertyChanged(nameof(InReaderStatusColor));
-    }
-
-    // Refreshes the Out Reader LED and status text when drag-over state changes
-    partial void OnIsCardholderOverOutReaderChanged(bool value)
-    {
-        OnPropertyChanged(nameof(OutReaderLedBrush));
-        OnPropertyChanged(nameof(OutReaderStatusText));
-        OnPropertyChanged(nameof(OutReaderStatusColor));
-    }
-
-    // Refreshes In Reader colour when temporary decision result changes.
-    partial void OnInReaderDecisionIsGrantedChanged(bool value)
-    {
-        OnPropertyChanged(nameof(InReaderStatusColor));
-    }
-    partial void OnInReaderDecisionIsDeniedChanged(bool value)
-    {
-        OnPropertyChanged(nameof(InReaderStatusColor));
-    }
-
-    // Refreshes Out Reader colour when temporary decision result changes.
-    partial void OnOutReaderDecisionIsGrantedChanged(bool value)
-    {
-        OnPropertyChanged(nameof(OutReaderStatusColor));
-    }
-    partial void OnOutReaderDecisionIsDeniedChanged(bool value)
-    {
-        OnPropertyChanged(nameof(OutReaderStatusColor));
-    }
-
-    // Refreshes the In Reader status when temporary PIN-sent state changes
-    partial void OnInReaderPinSentChanged(bool value)
-    {
-        OnPropertyChanged(nameof(InReaderStatusText));
-        OnPropertyChanged(nameof(InReaderStatusColor));
-    }
-
-    // Refreshes the Out Reader status when temporary PIN-sent state changes
-    partial void OnOutReaderPinSentChanged(bool value)
-    {
-        OnPropertyChanged(nameof(OutReaderStatusText));
-        OnPropertyChanged(nameof(OutReaderStatusColor));
-    }
-
-    // Updates live state for the In Reader and refreshes dependent UI properties
+    // Readers:
+    // --------
+    // Updates live state for the In and Out Readers and refreshes dependent UI properties
     public void UpdateInReaderState(bool isOnline, bool isShunted, string ledColor)
     {
         if (SelectedDoor == null)
@@ -1035,8 +1140,6 @@ public partial class DoorsViewModel : ObservableObject
         OnPropertyChanged(nameof(InReaderLedBrush));
         OnPropertyChanged(nameof(InReaderActionTooltip));
     }
-
-    // Updates live state for the Out Reader and refreshes dependent UI properties
     public void UpdateOutReaderState(bool isOnline, bool isShunted, string ledColor)
     {
         if (SelectedDoor == null)
@@ -1080,67 +1183,9 @@ public partial class DoorsViewModel : ObservableObject
         OnPropertyChanged(nameof(OutReaderActionTooltip));
     }
 
-    // Refreshes In Reader status when temporary decision feedback changes.
-    partial void OnInReaderDecisionTextChanged(string value)
-    {
-        OnPropertyChanged(nameof(InReaderStatusText));
-        OnPropertyChanged(nameof(InReaderStatusColor));
-    }
-
-    // Refreshes Out Reader status when temporary decision feedback changes.
-    partial void OnOutReaderDecisionTextChanged(string value)
-    {
-        OnPropertyChanged(nameof(OutReaderStatusText));
-        OnPropertyChanged(nameof(OutReaderStatusColor));
-    }
-
-    // Shows temporary access decision feedback under the In Reader.
-    public async Task ShowInReaderDecisionFeedbackAsync(string decisionText, bool isGranted)
-    {
-        InReaderDecisionText = decisionText;
-        InReaderDecisionIsGranted = isGranted;
-        InReaderDecisionIsDenied = !isGranted;
-
-        if (!isGranted)
-        {
-            ReaderAccessDenied?.Invoke();
-        }
-
-        await Task.Delay(2000);
-
-        // Only clear if nothing newer has replaced it.
-        if (InReaderDecisionText == decisionText)
-        {
-            InReaderDecisionText = string.Empty;
-            InReaderDecisionIsGranted = false;
-            InReaderDecisionIsDenied = false;
-        }
-    }
-
-    // Shows temporary access decision feedback under the Out Reader.
-    public async Task ShowOutReaderDecisionFeedbackAsync(string decisionText, bool isGranted)
-    {
-        OutReaderDecisionText = decisionText;
-        OutReaderDecisionIsGranted = isGranted;
-        OutReaderDecisionIsDenied = !isGranted;
-
-        if (!isGranted)
-        {
-            ReaderAccessDenied?.Invoke();
-        }
-
-        await Task.Delay(2000);
-
-        // Only clear if nothing newer has replaced it.
-        if (OutReaderDecisionText == decisionText)
-        {
-            OutReaderDecisionText = string.Empty;
-            OutReaderDecisionIsGranted = false;
-            OutReaderDecisionIsDenied = false;
-        }
-    }
-
-    // Updates live state for the In REX and refreshes dependent UI properties
+    // REX's:
+    // ------
+    // Updates live state for the In, Out, and No Side REX's and refreshes dependent UI properties
     public void UpdateInRexState(bool isActive, bool isShunted)
     {
         if (SelectedDoor == null)
@@ -1168,24 +1213,143 @@ public partial class DoorsViewModel : ObservableObject
         OnPropertyChanged(nameof(InRexStatusColor));
         OnPropertyChanged(nameof(InRexActionTooltip));
     }
+    public void UpdateOutRexState(bool isActive, bool isShunted)
+    {
+        if (SelectedDoor == null)
+            return;
 
-    // Refreshes REX's status when temporary decision feedback changes.
-    partial void OnInRexDecisionTextChanged(string value)
-    {
-        OnPropertyChanged(nameof(InRexStatusText));
-        OnPropertyChanged(nameof(InRexStatusColor));
-    }
-    partial void OnOutRexDecisionTextChanged(string value)
-    {
+        var changed = false;
+
+        if (SelectedDoor.RexSideOutIsActive != isActive)
+        {
+            SelectedDoor.RexSideOutIsActive = isActive;
+            changed = true;
+        }
+
+        if (SelectedDoor.RexSideOutIsShunted != isShunted)
+        {
+            SelectedDoor.RexSideOutIsShunted = isShunted;
+            changed = true;
+        }
+
+        if (!changed)
+            return;
+
+        OnPropertyChanged(nameof(OutRexImagePath));
         OnPropertyChanged(nameof(OutRexStatusText));
         OnPropertyChanged(nameof(OutRexStatusColor));
+        OnPropertyChanged(nameof(OutRexActionTooltip));
     }
-    partial void OnNoSideRexDecisionTextChanged(string value)
+    public void UpdateNoSideRexState(bool isActive, bool isShunted)
     {
+        if (SelectedDoor == null)
+            return;
+
+        var changed = false;
+
+        if (SelectedDoor.RexNoSideIsActive != isActive)
+        {
+            SelectedDoor.RexNoSideIsActive = isActive;
+            changed = true;
+        }
+
+        if (SelectedDoor.RexNoSideIsShunted != isShunted)
+        {
+            SelectedDoor.RexNoSideIsShunted = isShunted;
+            changed = true;
+        }
+
+        if (!changed)
+            return;
+
+        OnPropertyChanged(nameof(NoSideRexImagePath));
         OnPropertyChanged(nameof(NoSideRexStatusText));
         OnPropertyChanged(nameof(NoSideRexStatusColor));
+        OnPropertyChanged(nameof(NoSideRexActionTooltip));
     }
 
+    // Breakglass / Manual station:
+    // ----------------------------
+    // Updates live state for Breakglass and refreshes dependent UI properties
+    public void UpdateBreakGlassState(bool isActive, bool isShunted)
+    {
+        if (SelectedDoor == null)
+            return;
+
+        var changed = false;
+
+        if (SelectedDoor.BreakGlassIsActive != isActive)
+        {
+            SelectedDoor.BreakGlassIsActive = isActive;
+            changed = true;
+        }
+
+        if (SelectedDoor.BreakGlassIsShunted != isShunted)
+        {
+            SelectedDoor.BreakGlassIsShunted = isShunted;
+            changed = true;
+        }
+
+        if (!changed)
+            return;
+
+        OnPropertyChanged(nameof(BreakGlassImagePath));
+        OnPropertyChanged(nameof(BreakGlassStatusText));
+        OnPropertyChanged(nameof(BreakGlassStatusColor));
+        OnPropertyChanged(nameof(BreakGlassActionTooltip));
+
+        OnPropertyChanged(nameof(DoorLockStatusText));
+        OnPropertyChanged(nameof(DoorLockStatusColor));
+    }
+
+
+    /*
+      #############################################################################
+                          Temporary Feedback Methods
+      #############################################################################
+    */
+
+    // Shows short-lived feedback under devices after an access action.
+    // The "only clear if unchanged" check prevents an older delay from clearing newer feedback that arrived before the previous display period ended.
+
+    // Readers:
+    // --------
+    // Shows temporary access decision feedback under the In and Out Readers.
+    public async Task ShowInReaderDecisionFeedbackAsync(string decisionText, bool isGranted)
+    {
+        InReaderDecisionText = decisionText;
+        InReaderDecisionIsGranted = isGranted;
+        InReaderDecisionIsDenied = !isGranted;
+
+        await Task.Delay(2000);
+
+        // Only clear if nothing newer has replaced it.
+        if (InReaderDecisionText == decisionText)
+        {
+            InReaderDecisionText = string.Empty;
+            InReaderDecisionIsGranted = false;
+            InReaderDecisionIsDenied = false;
+        }
+    }
+    public async Task ShowOutReaderDecisionFeedbackAsync(string decisionText, bool isGranted)
+    {
+        OutReaderDecisionText = decisionText;
+        OutReaderDecisionIsGranted = isGranted;
+        OutReaderDecisionIsDenied = !isGranted;
+
+        await Task.Delay(2000);
+
+        // Only clear if nothing newer has replaced it.
+        if (OutReaderDecisionText == decisionText)
+        {
+            OutReaderDecisionText = string.Empty;
+            OutReaderDecisionIsGranted = false;
+            OutReaderDecisionIsDenied = false;
+        }
+    }
+
+    // REX's:
+    // ------
     // Shows temporary access decision feedback under the REX's.
     public async Task ShowInRexDecisionFeedbackAsync(string decisionText)
     {
@@ -1222,96 +1386,6 @@ public partial class DoorsViewModel : ObservableObject
         {
             NoSideRexDecisionText = string.Empty;
         }
-    }
-
-    // Updates live state for the Out REX and refreshes dependent UI properties
-    public void UpdateOutRexState(bool isActive, bool isShunted)
-    {
-        if (SelectedDoor == null)
-            return;
-
-        var changed = false;
-
-        if (SelectedDoor.RexSideOutIsActive != isActive)
-        {
-            SelectedDoor.RexSideOutIsActive = isActive;
-            changed = true;
-        }
-
-        if (SelectedDoor.RexSideOutIsShunted != isShunted)
-        {
-            SelectedDoor.RexSideOutIsShunted = isShunted;
-            changed = true;
-        }
-
-        if (!changed)
-            return;
-
-        OnPropertyChanged(nameof(OutRexImagePath));
-        OnPropertyChanged(nameof(OutRexStatusText));
-        OnPropertyChanged(nameof(OutRexStatusColor));
-        OnPropertyChanged(nameof(OutRexActionTooltip));
-    }
-
-    // Updates live state for the No Side REX and refreshes dependent UI properties
-    public void UpdateNoSideRexState(bool isActive, bool isShunted)
-    {
-        if (SelectedDoor == null)
-            return;
-
-        var changed = false;
-
-        if (SelectedDoor.RexNoSideIsActive != isActive)
-        {
-            SelectedDoor.RexNoSideIsActive = isActive;
-            changed = true;
-        }
-
-        if (SelectedDoor.RexNoSideIsShunted != isShunted)
-        {
-            SelectedDoor.RexNoSideIsShunted = isShunted;
-            changed = true;
-        }
-
-        if (!changed)
-            return;
-
-        OnPropertyChanged(nameof(NoSideRexImagePath));
-        OnPropertyChanged(nameof(NoSideRexStatusText));
-        OnPropertyChanged(nameof(NoSideRexStatusColor));
-        OnPropertyChanged(nameof(NoSideRexActionTooltip));
-    }
-
-    // Updates live state for Breakglass and refreshes dependent UI properties
-    public void UpdateBreakGlassState(bool isActive, bool isShunted)
-    {
-        if (SelectedDoor == null)
-            return;
-
-        var changed = false;
-
-        if (SelectedDoor.BreakGlassIsActive != isActive)
-        {
-            SelectedDoor.BreakGlassIsActive = isActive;
-            changed = true;
-        }
-
-        if (SelectedDoor.BreakGlassIsShunted != isShunted)
-        {
-            SelectedDoor.BreakGlassIsShunted = isShunted;
-            changed = true;
-        }
-
-        if (!changed)
-            return;
-
-        OnPropertyChanged(nameof(BreakGlassImagePath));
-        OnPropertyChanged(nameof(BreakGlassStatusText));
-        OnPropertyChanged(nameof(BreakGlassStatusColor));
-        OnPropertyChanged(nameof(BreakGlassActionTooltip));
-
-        OnPropertyChanged(nameof(DoorLockStatusText));
-        OnPropertyChanged(nameof(DoorLockStatusColor));
     }
 
 }

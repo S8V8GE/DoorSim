@@ -1,14 +1,18 @@
-﻿using System.Numerics;
-using DoorSim.Models;
+﻿using DoorSim.Models;
 
 namespace DoorSim.Services;
 
 // Converts user-entered credential format fields into raw credential data that Softwire can receive through SwipeRawAsync.
 //
-// The supported formats mirror Security Centers default formats:
-// - Standard 26-bit Wiegand / H10301
+// Responsibilities:
+//      - validate format-specific field ranges,
+//      - calculate Wiegand/FASC-N parity where required,
+//      - pack fields into the correct bit layout,
+//      - return raw hexadecimal credential data and bit count.
 //
-// More formats can be added here later if required, without cluttering the reader UI code.
+// This service contains credential encoding logic only. UI validation messages live in AutoEnrollCardWindow.
+//
+// This service is UI-agnostic. It does not know about ComboBox indexes or visible panels. Callers choose the appropriate method for the selected format.
 public static class CredentialFormatService
 {
 
@@ -21,14 +25,14 @@ public static class CredentialFormatService
     // Converts Standard 26-bit Wiegand / H10301 fields into raw hex.
     //
     // Format:
-    // - 1 leading even parity bit over the first 12 data bits
-    // - 8-bit facility code (1–255 allowed in this app; 0 is reserved for PIN usage)
-    // - 16-bit card number (1–65535 allowed in this app; 0 is reserved/avoided)
-    // - 1 trailing odd parity bit over the last 12 data bits
+    //      - 1 leading even parity bit over the first 12 data bits
+    //      - 8-bit facility code (1–255 allowed in this app; 0 is reserved for PIN usage)
+    //      - 16-bit card number (1–65535 allowed in this app; 0 is reserved/avoided)
+    //      - 1 trailing odd parity bit over the last 12 data bits
     //
     // Returns:
-    // - RawHex padded to 32 hex characters
-    // - BitCount = 26
+    //      - RawHex padded to 32 hex characters
+    //      - BitCount = 26
     public static CredentialFormatResult CreateStandard26BitWiegand(int facilityCode, int cardNumber)
     {
 
@@ -62,21 +66,7 @@ public static class CredentialFormatService
         };
     }
 
-    // Counts how many binary 1s are present in an integer. Used for Wiegand parity calculation.
-    private static int CountSetBits(int value)
-    {
-        var count = 0;
-
-        while (value != 0)
-        {
-            count += value & 1;
-            value >>= 1;
-        }
-
-        return count;
-    }
-
-
+    
     /*
       #############################################################################
                                    H10306 (34-bits)
@@ -86,14 +76,14 @@ public static class CredentialFormatService
     // Converts HID H10306 / Standard 34-bit Wiegand fields into raw hex.
     //
     // Format:
-    // - 1 leading even parity bit
-    // - 16-bit site code
-    // - 16-bit card number
-    // - 1 trailing odd parity bit
+    //      - 1 leading even parity bit
+    //      - 16-bit site code
+    //      - 16-bit card number
+    //      - 1 trailing odd parity bit
     //
     // Field ranges used by this app:
-    // - Site Code:   1–65535
-    // - Card Number: 1–65535
+    //      - Site Code:   1–65535
+    //      - Card Number: 1–65535
     //
     // Note:
     // Security Center documents the field range as 0–65535, but DoorSim blocks 0
@@ -145,16 +135,16 @@ public static class CredentialFormatService
     // Converts HID H10302 / 37-bit Wiegand fields into raw hex.
     //
     // Format:
-    // - 1 leading even parity bit
-    // - 35-bit card number
-    // - 1 trailing odd parity bit
+    //      - 1 leading even parity bit
+    //      - 35-bit card number
+    //      - 1 trailing odd parity bit
     //
     // H10302 has no facility/site code.
     // The card number range is 1–34,359,738,367 in this app.
     //
     // Parity:
-    // - Leading parity gives even parity over the first 18 data bits.
-    // - Trailing parity gives odd parity over the last 18 data bits.
+    //      - Leading parity gives even parity over the first 18 data bits.
+    //      - Trailing parity gives odd parity over the last 18 data bits.
     public static CredentialFormatResult CreateH10302_37Bit(long cardNumber)
     {
         const long maxCardNumber = 34359738367; // 35 bits, all data bits set.
@@ -200,18 +190,18 @@ public static class CredentialFormatService
     // Converts HID H10304 / 37-bit Wiegand fields into raw hex.
     //
     // Format:
-    // - 1 leading even parity bit
-    // - 16-bit facility code
-    // - 19-bit card number
-    // - 1 trailing odd parity bit
+    //      - 1 leading even parity bit
+    //      - 16-bit facility code
+    //      - 19-bit card number
+    //      - 1 trailing odd parity bit
     //
     // Field ranges used by this app:
-    // - Facility Code: 1–65535
-    // - Card Number:   1–524287
+    //      - Facility Code: 1–65535
+    //      - Card Number:   1–524287
     //
     // Parity:
-    // - Leading parity gives even parity over the 16 facility code bits.
-    // - Trailing parity gives odd parity over the 19 card number bits.
+    //      - Leading parity gives even parity over the 16 facility code bits.
+    //      - Trailing parity gives odd parity over the 19 card number bits.
     public static CredentialFormatResult CreateH10304_37Bit(int facilityCode, int cardNumber)
     {
         if (facilityCode < 1 || facilityCode > 65535)
@@ -257,15 +247,15 @@ public static class CredentialFormatService
     // Converts HID Corporate 1000 / 35-bit Wiegand fields into raw hex.
     //
     // Format:
-    // - 1 leading parity bit
-    // - 1 fixed Corporate 1000 format bit
-    // - 12-bit Facility Code
-    // - 20-bit Card Number
-    // - 1 trailing parity bit
+    //      - 1 leading parity bit
+    //      - 1 fixed Corporate 1000 format bit
+    //      - 12-bit Facility Code
+    //      - 20-bit Card Number
+    //      - 1 trailing parity bit
     //
     // Field ranges used by this app:
-    // - Facility Code: 1–4095
-    // - Card Number:   1–1048575
+    //      - Facility Code: 1–4095
+    //      - Card Number:   1–1048575
     public static CredentialFormatResult CreateCorporate1000_35Bit(int facilityCode, int cardNumber)
     {
         if (facilityCode < 1 || facilityCode > 4095)
@@ -317,19 +307,19 @@ public static class CredentialFormatService
     // Converts HID Corporate 1000 / 48-bit Wiegand fields into raw hex.
     //
     // Format fields used by Security Center:
-    // - 22-bit Facility Code
-    // - 23-bit Card Number
+    //      - 22-bit Facility Code
+    //      - 23-bit Card Number
     //
     // Field ranges used by this app:
-    // - Facility Code: 1–4,194,303
-    // - Card Number:   1–8,388,607
+    //      - Facility Code: 1–4,194,303
+    //      - Card Number:   1–8,388,607
     //
     // Bit layout verified against Security Center examples:
-    // - Bit 47     = odd parity over the 23-bit card number
-    // - Bit 46     = even parity over the 22-bit facility code
-    // - Bits 45–24 = 22-bit facility code
-    // - Bits 23–1  = 23-bit card number
-    // - Bit 0      = fixed 0
+    //      - Bit 47     = odd parity over the 23-bit card number
+    //      - Bit 46     = even parity over the 22-bit facility code
+    //      - Bits 45–24 = 22-bit facility code
+    //      - Bits 23–1  = 23-bit card number
+    //      - Bit 0      = fixed 0
     public static CredentialFormatResult CreateCorporate1000_48Bit(int facilityCode, int cardNumber)
     {
         if (facilityCode < 1 || facilityCode > 4194303)
@@ -374,14 +364,14 @@ public static class CredentialFormatService
     // Converts a 32-bit CSN / UID into a Softwire-ready credential.
     //
     // CSN 32-bit format:
-    // - User enters exactly 4 bytes / 8 hex characters (Shorter values are left-padded with zeroes)
-    // - BitCount = 32
+    //      - User enters exactly 4 bytes / 8 hex characters (Shorter values are left-padded with zeroes)
+    //      - BitCount = 32
     //
     // Accepted input examples:
-    // - 12345678
-    // - 0x12345678
-    // - 12 34 56 78
-    // - 12-34-56-78
+    //      - 12345678
+    //      - 0x12345678
+    //      - 12 34 56 78
+    //      - 12-34-56-78
     public static CredentialFormatResult CreateCsn32Bit(string rawHex)
     {
         if (string.IsNullOrWhiteSpace(rawHex))
@@ -405,7 +395,7 @@ public static class CredentialFormatService
 
         return new CredentialFormatResult
         {
-            RawHex = cleanHex.ToUpperInvariant(),
+            RawHex = cleanHex.ToUpperInvariant().PadLeft(8, '0'),
             BitCount = 32
         };
     }
@@ -420,28 +410,28 @@ public static class CredentialFormatService
     // Converts FASC-N / 75-bit fields into raw hex.
     //
     // Format fields used by Security Center:
-    // - 14-bit Agency Code
-    // - 14-bit System Code
-    // - 20-bit Credential Number
-    // - 25-bit Exp Date
+    //      - 14-bit Agency Code
+    //      - 14-bit System Code
+    //      - 20-bit Credential Number
+    //      - 25-bit Exp Date
     //
     // Field ranges used by this app:
-    // - Agency Code:       1–16383
-    // - System Code:       1–16383
-    // - Credential Number: 1–1048575
-    // - Exp Date:          1–33554431
+    //      - Agency Code:       1–16383
+    //      - System Code:       1–16383
+    //      - Credential Number: 1–1048575
+    //      - Exp Date:          1–33554431
     //
     // Bit layout verified against Security Center examples:
-    // - Bit 74       = leading parity bit
-    // - Bits 73–60   = 14-bit Agency Code
-    // - Bits 59–46   = 14-bit System Code
-    // - Bits 45–26   = 20-bit Credential Number
-    // - Bits 25–1    = 25-bit Exp Date
-    // - Bit 0        = trailing parity bit
+    //      - Bit 74       = leading parity bit
+    //      - Bits 73–60   = 14-bit Agency Code
+    //      - Bits 59–46   = 14-bit System Code
+    //      - Bits 45–26   = 20-bit Credential Number
+    //      - Bits 25–1    = 25-bit Exp Date
+    //      - Bit 0        = trailing parity bit
     //
     // Parity:
-    // - Leading parity gives even parity over the first 37 data bits.
-    // - Trailing parity gives odd parity over the remaining 36 data bits.
+    //      - Leading parity gives even parity over the first 37 data bits.
+    //      - Trailing parity gives odd parity over the remaining 36 data bits.
     public static CredentialFormatResult CreateFascN_75Bit(int agencyCode, int systemCode, int credentialNumber, int expDate)
     {
         if (agencyCode < 1 || agencyCode > 16383)
@@ -514,22 +504,21 @@ public static class CredentialFormatService
     //
     // Unlike the simpler Wiegand formats, FASC-N 200 is represented as 40 x 5-bit encoded characters:
     //
-    // D + Agency(4) + B + System(4) + B + Credential(6) + B +
-    // CS + B + ICI + B + PI(10) + OC + OI(4) + POA + F + LRC
+    // D + Agency(4) + B + System(4) + B + Credential(6) + B + CS + B + ICI + B + PI(10) + OC + OI(4) + POA + F + LRC
     //
     // 40 characters x 5 bits = 200 bits.
     //
     // Field ranges used by this app:
-    // - Agency Code:       1–9999
-    // - System Code:       1–9999
-    // - Credential Number: 1–999999
-    // - CS:                1–9
-    // - ICI:               1–9
-    // - PI:                1–9999999999
-    // - OC:                1–9
-    // - OI:                1–9999
-    // - POA:               1–9
-    // - LRC:               1–9 or A–F
+    //      - Agency Code:       1–9999
+    //      - System Code:       1–9999
+    //      - Credential Number: 1–999999
+    //      - CS:                1–9
+    //      - ICI:               1–9
+    //      - PI:                1–9999999999
+    //      - OC:                1–9
+    //      - OI:                1–9999
+    //      - POA:               1–9
+    //      - LRC:               1–9 or A–F
     public static CredentialFormatResult CreateFascN_200Bit(int agencyCode, int systemCode, int credentialNumber, int cs, int ici, long pi, int oc, int oi, int poa, char lrc)
     {
         if (agencyCode < 1 || agencyCode > 9999)
@@ -627,8 +616,8 @@ public static class CredentialFormatService
     // Encodes one or more decimal digits for FASC-N 200.
     //
     // Decimal field digits are encoded as:
-    // - 4 data bits in least-significant-bit-first order
-    // - 1 parity bit so the 5-bit character has odd parity
+    //      - 4 data bits in least-significant-bit-first order
+    //      - 1 parity bit so the 5-bit character has odd parity
     private static string EncodeFascNDecimalString(string digits)
     {
         var result = string.Empty;
@@ -657,8 +646,8 @@ public static class CredentialFormatService
     // Encodes a hexadecimal FASC-N control/check character.
     //
     // Sentinels and LRC use:
-    // - 4 data bits in normal most-significant-bit-first order
-    // - 1 parity bit so the 5-bit character has odd parity
+    //      - 4 data bits in normal most-significant-bit-first order
+    //      - 1 parity bit so the 5-bit character has odd parity
     private static string EncodeFascNHexCharacter(char value)
     {
         value = char.ToUpperInvariant(value);
@@ -679,8 +668,7 @@ public static class CredentialFormatService
 
     // Converts a binary string to uppercase hexadecimal.
     //
-    // FASC-N 200 always produces 200 bits, which is exactly 25 bytes,
-    // so the bit string should already be byte-aligned.
+    // FASC-N 200 always produces 200 bits, which is exactly 25 bytes, so the bit string should already be byte-aligned.
     private static string BitStringToHex(string bitString)
     {
         if (bitString.Length % 8 != 0)
@@ -705,20 +693,19 @@ public static class CredentialFormatService
     //
     // Converts a custom raw hexadecimal credential into a Softwire-ready credential.
     //
-    // DoorSim does not interpret Security Center card format definitions for this option.
-    // The user provides:
-    // - Bit count
-    // - Raw hexadecimal credential value
+    // DoorSim does not interpret Security Center card format definitions for this option. The user provides:
+    //      - Bit count
+    //      - Raw hexadecimal credential value
     //
     // Rules:
-    // - Bit count must be 8–512 bits (matching Security Centers values for card formats)
-    // - Raw hex must contain only 0-9 / A-F
-    // - Raw hex may be shorter than required and will be left-padded with zeroes
-    // - Raw hex may not be longer than the number of hex characters required by the bit count
+    //      - Bit count must be 8–512 bits (matching Security Centers values for card formats)
+    //      - Raw hex must contain only 0-9 / A-F
+    //      - Raw hex may be shorter than required and will be left-padded with zeroes
+    //      - Raw hex may not be longer than the number of hex characters required by the bit count
     //
     // Examples:
-    // - 37 bits requires ceiling (37 / 8) = 5 bytes = 10 hex characters
-    // - 512 bits requires 64 bytes = 128 hex characters
+    //      - 37 bits requires ceiling (37 / 8) = 5 bytes = 10 hex characters
+    //      - 512 bits requires 64 bytes = 128 hex characters
     public static CredentialFormatResult CreateCustomRawCredential(string rawHex, int bitCount)
     {
         if (bitCount < 8 || bitCount > 512)
@@ -761,6 +748,28 @@ public static class CredentialFormatService
             RawHex = normalisedHex,
             BitCount = bitCount
         };
+    }
+
+
+    /*
+      #############################################################################
+                              Wiegand / Parity Helpers
+      #############################################################################
+    */
+    //
+    // Counts how many binary 1s are present in an integer.
+    // Used when calculating even/odd parity bits for Wiegand-style formats.
+    private static int CountSetBits(int value)
+    {
+        var count = 0;
+
+        while (value != 0)
+        {
+            count += value & 1;
+            value >>= 1;
+        }
+
+        return count;
     }
 
 }

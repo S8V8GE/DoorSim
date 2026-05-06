@@ -1,11 +1,20 @@
 ﻿using DoorSim.Models;
 using DoorSim.Services;
-using System.Reflection.PortableExecutable;
 using System.Windows;
 using System.Windows.Controls;
 
 namespace DoorSim.Views;
 
+// Dialog used to generate and preview a credential for auto-enrolment.
+//
+// Responsibilities:
+//      - show the input fields required by the selected credential format,
+//      - validate user input,
+//      - preview the generated raw hexadecimal credential,
+//      - return a CredentialFormatResult when the trainer clicks Enrol.
+//
+// Credential encoding itself is delegated to CredentialFormatService.
+// This window should remain focused on UI state, validation messages, and returning the generated result to the caller.
 public partial class AutoEnrollCardWindow : Window
 {
     /*
@@ -27,7 +36,9 @@ public partial class AutoEnrollCardWindow : Window
       #############################################################################
     */
 
-    // Creates the auto-enrol card dialog for a specific reader.
+    // Creates the auto-enrol card dialog for the selected reader.
+    //
+    // The dialog starts on Standard 26-bit Wiegand/HID H10301, then immediately validates the default empty fields so the preview and Enrol button start in the correct state.
     public AutoEnrollCardWindow(string readerName)
     {
         ReaderName = readerName;
@@ -45,7 +56,7 @@ public partial class AutoEnrollCardWindow : Window
 
     /*
       #############################################################################
-                         Credential validation and preview
+                            Format Panel Visibility
       #############################################################################
     */
 
@@ -70,6 +81,7 @@ public partial class AutoEnrollCardWindow : Window
 
         var selectedIndex = FormatComboBox.SelectedIndex;
 
+        // IMPORTANT: These indexes must match the order of ComboBoxItem entries in AutoEnrollCardWindow.xaml. If the XAML order changes, update this method and ValidateAndPreviewCredential().
         var isStandard26 = selectedIndex == 0;
         var isH10306 = selectedIndex == 1;
         var isH10302 = selectedIndex == 2;
@@ -81,28 +93,45 @@ public partial class AutoEnrollCardWindow : Window
         var isFascN200 = selectedIndex == 8;
         var isCustomFormat = selectedIndex == 9;
 
+        // Wiegand 26-bit / HID H10301.
         FacilityCodePanel.Visibility = isStandard26 ? Visibility.Visible : Visibility.Collapsed;
         CardNumberPanel.Visibility = isStandard26 ? Visibility.Visible : Visibility.Collapsed;
 
+        // HID H10306 34-bit.
         H10306Panel.Visibility = isH10306 ? Visibility.Visible : Visibility.Collapsed;
 
+        // HID H10302 37-bit.
         H10302Panel.Visibility = isH10302 ? Visibility.Visible : Visibility.Collapsed;
 
+        // HID H10304 37-bit.
         H10304Panel.Visibility = isH10304 ? Visibility.Visible : Visibility.Collapsed;
 
+        // HID Corporate 1000 35-bit.
         Corporate1000_35Panel.Visibility = isCorporate1000_35 ? Visibility.Visible : Visibility.Collapsed;
 
+        // HID Corporate 1000 48-bit.
         Corporate1000_48Panel.Visibility = isCorporate1000_48 ? Visibility.Visible : Visibility.Collapsed;
 
+        // CSN 32-bit UID.
         Csn32Panel.Visibility = isCsn32 ? Visibility.Visible : Visibility.Collapsed;
 
+        // FASC-N 75-bit.
         FascN75Panel.Visibility = isFascN75 ? Visibility.Visible : Visibility.Collapsed;
 
+        // FASC-N 200-bit.
         FascN200Panel.Visibility = isFascN200 ? Visibility.Visible : Visibility.Collapsed;
 
+        // Custom format.
         CustomFormatPanel.Visibility = isCustomFormat ? Visibility.Visible : Visibility.Collapsed;
+
     }
 
+
+    /*
+      #############################################################################
+                              UI Event Handlers
+      #############################################################################
+    */
 
     // Revalidates the form if the selected credential format changes.
     private void FormatComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -119,7 +148,21 @@ public partial class AutoEnrollCardWindow : Window
     }
 
 
-    // Validates the current input fields and previews the generated raw credential.
+    /*
+      #############################################################################
+                           Validation Entry Point
+      #############################################################################
+    */
+
+    // Validates the currently selected format and updates the preview.
+    //
+    // This method is intentionally format-dispatching logic:
+    //      - reset the previous preview,
+    //      - read the selected format,
+    //      - validate the fields for that format,
+    //      - call CredentialFormatService to generate the final raw credential.
+    //
+    // Note: If more formats are added, consider splitting each format block into a dedicated ValidateXxx() helper method.
     private void ValidateAndPreviewCredential()
     {
         // During InitializeComponent(), some events can fire before all controls exist.
@@ -713,12 +756,13 @@ public partial class AutoEnrollCardWindow : Window
 
             return;
         }
+
     }
 
 
     /*
       #############################################################################
-                                  Dialog buttons
+                              Dialog Button Handlers
       #############################################################################
     */
 
@@ -738,4 +782,5 @@ public partial class AutoEnrollCardWindow : Window
         DialogResult = true;
         Close();
     }
+
 }

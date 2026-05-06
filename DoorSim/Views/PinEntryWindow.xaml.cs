@@ -3,6 +3,15 @@ using System.Windows.Threading;
 
 namespace DoorSim.Views;
 
+// PIN entry dialog.
+//
+// Supports two modes:
+//      - Manual PIN entry: no countdown timer.
+//      - Card + PIN entry: countdown timer closes the dialog if PIN entry times out.
+//
+// The caller reads:
+//      - EnteredPin when DialogResult == true.
+//      - TimedOut when DialogResult   == false because the countdown expired.
 public partial class PinEntryWindow : Window
 {
 
@@ -24,7 +33,7 @@ public partial class PinEntryWindow : Window
 
     /*
     #############################################################################
-                               Internal state
+                           Internal Timer State
     #############################################################################
     */
 
@@ -33,6 +42,13 @@ public partial class PinEntryWindow : Window
 
     // Remaining seconds allowed for PIN entry when countdown mode is active.
     private int _secondsRemaining;
+
+
+    /*
+    #############################################################################
+                        Internal PIN Visibility State
+    #############################################################################
+    */
 
     // Tracks whether the PIN is currently shown in plain text.
     private bool _isPinVisible;
@@ -108,6 +124,14 @@ public partial class PinEntryWindow : Window
         Close();
     }
 
+    // Ensures the countdown timer is stopped regardless of how the window closes.
+    protected override void OnClosed(EventArgs e)
+    {
+        _countdownTimer.Stop();
+
+        base.OnClosed(e);
+    }
+
 
     /*
     #############################################################################
@@ -115,7 +139,8 @@ public partial class PinEntryWindow : Window
     #############################################################################
     */
 
-    // Keeps the hidden PasswordBox in sync when the PIN is visible, then validates the current PIN.
+    // Handles changes made in the hidden PasswordBox.
+    // When the visible TextBox is not active, mirror the PasswordBox value into it so both controls stay synchronised. Then validate the current PIN.
     private void PinPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
     {
         if (!_isPinVisible)
@@ -126,7 +151,8 @@ public partial class PinEntryWindow : Window
         ValidatePin(PinPasswordBox.Password);
     }
 
-    // Keeps the hidden PasswordBox in sync when the PIN is visible, then validates the current PIN.
+    // Handles changes made while the PIN is visible.
+    // Mirrors the visible TextBox value back into the PasswordBox so the final EnteredPin value is consistent whichever control is active.
     private void VisiblePinTextBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {
         if (_isPinVisible)
@@ -148,7 +174,7 @@ public partial class PinEntryWindow : Window
         ValidationText.Visibility = isValid ? Visibility.Collapsed : Visibility.Visible;
     }
 
-    // Toggles the PIN between hidden and visible.
+    // Toggles the PIN between hidden PasswordBox entry and visible TextBox entry.
     private void TogglePinVisibilityButton_Click(object sender, RoutedEventArgs e)
     {
         _isPinVisible = !_isPinVisible;
@@ -182,7 +208,6 @@ public partial class PinEntryWindow : Window
                                Dialog buttons
     #############################################################################
     */
-
 
     // Cancels PIN entry.
     private void CancelButton_Click(object sender, RoutedEventArgs e)

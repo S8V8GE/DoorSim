@@ -6,12 +6,31 @@ using System.Windows.Input;
 
 namespace DoorSim.Views;
 
+// Code-behind for the Cardholders panel.
+//
+// The cardholder data/search logic lives in CardholdersViewModel. This file only handles UI-specific drag/drop behaviour:
+//      - starting a WPF drag operation from the DataGrid,
+//      - showing a floating credential image during drag,
+//      - tracking the real mouse position while WPF drag/drop is active.
 public partial class CardholdersView : UserControl
 {
+    /*
+      #############################################################################
+                          Constructor & Initialization
+      #############################################################################
+    */
+
     public CardholdersView()
     {
         InitializeComponent();
     }
+
+
+    /*
+      #############################################################################
+                          Win32 Cursor Position Interop
+      #############################################################################
+    */
 
     // Used to read the real mouse position during a WPF drag operation.
     // WPF drag/drop is modal, so normal MouseMove events are not reliable once dragging starts.
@@ -24,7 +43,15 @@ public partial class CardholdersView : UserControl
         public int Y;
     }
 
-    // Moves the floating credential image so it follows the mouse cursor.
+
+    /*
+      #############################################################################
+                               Drag Popup Helpers
+      #############################################################################
+    */
+
+    // Moves the floating credential image so it follows the current screen cursor.
+    // Uses screen coordinates because Popup.Placement="Absolute".
     private void UpdateCredentialDragPopupPosition()
     {
         if (!GetCursorPos(out var point))
@@ -34,9 +61,15 @@ public partial class CardholdersView : UserControl
         CredentialDragPopup.VerticalOffset = point.Y + 1;
     }
 
-    // Starts a drag operation when the user drags a cardholder row.
-    // The dragged data is the Cardholder object itself, allowing a reader drop target
-    // to access TrimmedCredential and BitCount later.
+
+    /*
+      #############################################################################
+                             DataGrid Drag Handlers
+      #############################################################################
+    */
+
+    // Starts a drag operation when the user drags the selected cardholder row.
+    // The drag payload is the Cardholder object itself. Reader drop targets can then access TrimmedCredential, BitCount, HasPin, and CardholderName.
     private void CardholdersGrid_PreviewMouseMove(object sender, MouseEventArgs e)
     {
         if (e.LeftButton != MouseButtonState.Pressed)
@@ -73,4 +106,5 @@ public partial class CardholdersView : UserControl
         e.UseDefaultCursors = true;
         e.Handled = true;
     }
+
 }

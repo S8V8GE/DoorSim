@@ -10,15 +10,29 @@
         Foreground="White"
         Icon="/Images/AppIcon.ico">
 
+<!--
+    Styled application message dialog.
+
+    Used instead of MessageBox so DoorSim messages:
+        - match the application's dark theme,
+        - centre reliably on the owner window,
+        - use the application icon.
+
+    The title and message text are supplied by AppMessageWindow.xaml.cs.
+-->
+
     <Border BorderBrush="#3F3F46"
             BorderThickness="1"
             Padding="20"
             Background="#1E1E1E">
 
         <Grid>
+            
             <Grid.RowDefinitions>
+                
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
+                
             </Grid.RowDefinitions>
 
             <TextBlock x:Name="MessageText"
@@ -38,5 +52,7 @@
                     IsCancel="True"
                     Click="OkButton_Click"/>
         </Grid>
+        
     </Border>
+    
 </Window>

@@ -5,13 +5,17 @@
              Foreground="White">
 
     <!--
-    Door selector bar.
+        Single Door selector bar.
 
-    Responsible for:
-    - Showing available doors loaded from Softwire
-    - Allowing the user to select the active door
+        Expected DataContext:
+            - DoorsViewModel
 
-    This view binds to DoorsViewModel.
+        Responsibilities:
+            - Show the number of doors loaded from Softwire.
+            - Let the user select the active door for Single Door View.
+            - Show placeholder text when no door is selected.
+
+        Note: Two Door View uses DoorPanelSelectorView instead, because each side binds to a DoorPanelViewModel rather than directly to DoorsViewModel.
     -->
     <Border Background="#1F3A5F"
             BorderBrush="#3F3F46"
@@ -28,6 +32,11 @@
                        VerticalAlignment="Center"
                        Margin="0,0,10,0"/>
 
+            <!--
+                ComboBox wrapper.
+
+                The Grid allows placeholder text to be layered over the ComboBox when SelectedDoor is null.
+            -->
             <Grid Width="300"
                   Height="28">
 
@@ -60,7 +69,9 @@
                                 
                                 <DataTrigger Binding="{Binding SelectedDoor}"
                                              Value="{x:Null}">
+                                    
                                     <Setter Property="Visibility" Value="Visible"/>
+                                    
                                 </DataTrigger>
                                 
                             </Style.Triggers>

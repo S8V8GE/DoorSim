@@ -12,20 +12,20 @@ namespace DoorSim.ViewModels;
 // ViewModel for the main application window.
 //
 // Responsible for:
-// - Managing connection state to Softwire
-// - Providing UI text and status (connected / not connected)
-// - Handling top-level user actions (e.g., Connect)
+//      - Managing connection state to Softwire
+//      - Providing UI text and status (connected / not connected)
+//      - Handling top-level user actions (e.g., Connect)
 //
 // This class acts as the bridge between:
-// - The View (MainWindow.xaml)
-// - The Service layer (SoftwireService)
+//      - The View (MainWindow.xaml)
+//      - The Service layer (SoftwireService)
 
 public partial class MainViewModel : ObservableObject
 {
 
     /*
       #############################################################################
-               Dependencies (services and child ViewModels - UI references)
+                               Dependencies / Services
       #############################################################################
     */
 
@@ -42,7 +42,11 @@ public partial class MainViewModel : ObservableObject
     private readonly SoundService _soundService = new SoundService();
 
 
-    // Child ViewModels bound to UI panels:
+    /*
+      #############################################################################
+                                Child View Models
+      #############################################################################
+    */
 
     // ViewModel for the cardholders panel
     public CardholdersViewModel Cardholders { get; } = new CardholdersViewModel();
@@ -50,10 +54,7 @@ public partial class MainViewModel : ObservableObject
     // ViewModel for the door selector and door display area
     public DoorsViewModel Doors { get; } = new DoorsViewModel();
 
-    // ViewModel for the Two Door View.
-    //
-    // This wraps the shared door/cardholder ViewModels for now.
-    // Later it will own independent left/right selected-door state.
+    // ViewModel for Two Door View. Owns the independent left/right door panel states while sharing the cardholder list with the rest of the application.
     public TwoDoorViewModel TwoDoor { get; }
 
     // Used by the View menu to show a checkmark next to Single Door.
@@ -65,53 +66,9 @@ public partial class MainViewModel : ObservableObject
 
     /*
       #############################################################################
-                                       Timers
+                                  Main UI State
       #############################################################################
     */
-
-    // Timer for connection + slow refresh every 3 seconds (doors + cardholders)
-    private DispatcherTimer? _connectionTimer;
-
-    // Timer for selected door + hardware state (Runs every 1 second to keep door sensor, REX, and breakglass state responsive)... will this melt my VM??
-    private DispatcherTimer? _selectedDoorTimer;
-
-    // Timer for polling reader state more quickly (Reader LEDs can flash briefly, so readers are polled faster than the rest of the door hardware).
-    private DispatcherTimer? _readerTimer;
-
-    // Prevents selected-door polling from overlapping itself if a refresh takes longer than the timer interval.
-    private bool _selectedDoorRefreshInProgress;
-
-    // Prevents reader polling from overlapping itself if Softwire responds slowly.
-    // Without this, old reader-state responses can race newer ones and cause
-    // online/offline flicker.
-    private bool _readerRefreshInProgress;
-
-    // Tracks the most recent reader action so we can match it against Softwire's LastDecision in the refreshed door JSON.
-    private string _pendingDecisionReaderPath = string.Empty;
-    private DateTime? _pendingDecisionSentUtc;
-    private bool _pendingDecisionIsInReader;
-
-    // The cardholder involved in the pending reader action. Used for future easter egg sounds, such as Simpson granted/denied audio.
-    private Cardholder? _pendingDecisionCardholder;
-
-    // The specific door panel state that sent the pending reader action.
-    // This is required for Two Door View so feedback appears under the correct reader.
-    private DoorsViewModel? _pendingDecisionTargetDoors;
-
-    // Suppresses reader LED alert sounds briefly after an access decision.
-    //
-    // Reader LEDs often change as part of normal granted/denied behaviour.
-    // We do not want those LED changes to also play reader-alert sounds.
-    // Reader-alert sounds are intended for non-access-decision events, such as door forced / door held open behaviour.
-    private DoorsViewModel? _readerAlertSuppressedTargetDoors;
-    private DateTime? _readerAlertSuppressedUntilUtc;
-
-
-    /*
-     #############################################################################
-                             UI State (bound to the View)
-     #############################################################################
-   */
 
     // Indicates whether the application is currently connected to Softwire
     [ObservableProperty]
@@ -139,6 +96,67 @@ public partial class MainViewModel : ObservableObject
 
 
     /*
+      #############################################################################
+                                       Timers
+      #############################################################################
+    */
+
+    // Timer for connection + slow refresh every 3 seconds (doors + cardholders)
+    private DispatcherTimer? _connectionTimer;
+
+    // Timer for selected door + hardware state (Runs every 1 second to keep door sensor, REX, and breakglass state responsive)
+    private DispatcherTimer? _selectedDoorTimer;
+
+    // Timer for polling reader state more quickly (Reader LEDs can flash briefly, so readers are polled faster than the rest of the door hardware).
+    private DispatcherTimer? _readerTimer;
+
+    // Prevents selected-door polling from overlapping itself if a refresh takes longer than the timer interval.
+    private bool _selectedDoorRefreshInProgress;
+
+    // Prevents reader polling from overlapping itself if Softwire responds slowly. Without this, old reader-state responses can race newer ones and cause online/offline flicker.
+    private bool _readerRefreshInProgress;
+
+
+    /*
+      #############################################################################
+                            Pending Reader Decision State
+      #############################################################################
+    */
+
+    // DoorSim sends card/PIN actions to Softwire immediately, but the final access decision is reported later through the refreshed Softwire door JSON.
+    //
+    // These fields remember which panel/reader/cardholder initiated the most recent action so the next granted/denied decision can:
+    //      - show feedback under the correct reader,
+    //      - play the correct granted/denied audio,
+    //      - support future cardholder-specific easter eggs.
+
+    // Tracks the most recent reader action so we can match it against Softwire's LastDecision in the refreshed door JSON.
+    private DateTime? _pendingDecisionSentUtc;
+    private bool _pendingDecisionIsInReader;
+
+    // The cardholder involved in the pending reader action. Used for future easter egg sounds, such as Simpson granted/denied audio.
+    private Cardholder? _pendingDecisionCardholder;
+
+    // The specific door panel state that sent the pending reader action. This is required for Two Door View so feedback appears under the correct reader.
+    private DoorsViewModel? _pendingDecisionTargetDoors;
+
+
+    /*
+      #############################################################################
+                            Reader Alert Suppression State
+      #############################################################################
+    */
+
+    // Reader LED changes can mean either:
+    //      - normal access decision LED activity, or
+    //      - non-access alerts such as door forced / held open.
+    //
+    // Access decision sounds are handled separately, so LED alert sounds are suppressed briefly around pending/recent access decisions.
+    private DoorsViewModel? _readerAlertSuppressedTargetDoors;
+    private DateTime? _readerAlertSuppressedUntilUtc;
+
+
+    /*
      #############################################################################
                                   Constructor
      #############################################################################
@@ -150,15 +168,28 @@ public partial class MainViewModel : ObservableObject
         _softwireService = softwireService;
         _owner = owner;
 
-        // Two Door View uses the existing shared door and cardholder ViewModels for now.
-        // Later, this will be expanded so each side has its own selected door state.
+        // Two Door View receives the shared door/cardholder sources, then manages independent left/right door panel state internally.
         TwoDoor = new TwoDoorViewModel(Doors, Cardholders);
     }
 
 
     /*
      #############################################################################
-                       Refresh helpers/methods and View updates
+                         Public Methods Called by Views
+     #############################################################################
+   */
+
+    // Refreshes View menu checkmarks when the selected view mode changes.
+    partial void OnCurrentViewModeChanged(string value)
+    {
+        OnPropertyChanged(nameof(IsSingleDoorViewSelected));
+        OnPropertyChanged(nameof(IsTwoDoorViewSelected));
+    }
+
+
+    /*
+     #############################################################################
+                                Refresh Helpers
      #############################################################################
    */
 
@@ -170,19 +201,26 @@ public partial class MainViewModel : ObservableObject
         Cardholders.LoadCardholders(cards);
     }
 
-    // Refreshes doors from Softwire and returns count
+    // Refreshes the shared door list from Softwire.
+    // Single Door View uses Doors directly. Two Door View receives the same refreshed source list, but maintains its own independent left/right selections inside TwoDoorViewModel.
     private async Task<int> RefreshDoorsAsync()
     {
         var doors = await _softwireService.GetDoorsAsync();
 
         Doors.LoadDoors(doors);
 
-        // Keep the Two Door View's independent left/right door lists in sync
-        // with the latest doors returned by Softwire.
+        // Keep the Two Door View's independent left/right door lists in sync with the latest doors returned by Softwire.
         TwoDoor.LoadDoors(doors);
 
         return doors.Count;
     }
+
+
+    /*
+     #############################################################################
+                             Access Decision Helpers
+     #############################################################################
+   */
 
     // Records that a card or PIN was sent to a reader. The selected-door polling loop uses this to match the next Softwire LastDecision back to the reader that triggered it.
     public void RegisterPendingReaderDecision(string readerPath, bool isInReader, DoorsViewModel targetDoors, Cardholder? cardholder)
@@ -190,19 +228,15 @@ public partial class MainViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(readerPath))
             return;
 
-        _pendingDecisionReaderPath = readerPath;
         _pendingDecisionSentUtc = DateTime.UtcNow;
         _pendingDecisionIsInReader = isInReader;
         _pendingDecisionTargetDoors = targetDoors;
         _pendingDecisionCardholder = cardholder;
     }
 
-    // Returns true when reader LED change sounds should be suppressed for the supplied door panel.
-    //
-    // We suppress if:
-    // - that panel has a pending access decision, or
-    // - that panel has just completed an access decision and LEDs may still be
-    //   returning to normal.
+    // Returns true when reader LED change sounds should be suppressed for the supplied door panel. We suppress if:
+    //      - that panel has a pending access decision, or
+    //      - that panel has just completed an access decision and LEDs may still be returning to normal.
     public bool ShouldSuppressReaderLedSound(DoorsViewModel targetDoors)
     {
         if (_pendingDecisionSentUtc != null &&
@@ -221,12 +255,9 @@ public partial class MainViewModel : ObservableObject
         return false;
     }
 
-    // Checks whether Softwire has reported a LastDecision after a reader action.
-    //
-    // In Two Door View, feedback must appear under the reader that sent the action.
-    // Therefore we store the specific DoorsViewModel target when the swipe/PIN is sent,
-    // and only apply the feedback when that same target is being refreshed.
-    private async Task CheckPendingReaderDecisionAsync(DoorsViewModel targetDoors, SoftwireDoor updatedDoor)
+    // Checks whether Softwire has reported a LastDecision after a reader action. In Two Door View, feedback must appear under the reader that sent the action.
+    // Therefore we store the specific DoorsViewModel target when the swipe/PIN is sent, and only apply the feedback when that same target is being refreshed.
+    private void CheckPendingReaderDecisionAsync(DoorsViewModel targetDoors, SoftwireDoor updatedDoor)
     {
         if (_pendingDecisionSentUtc == null)
             return;
@@ -246,7 +277,7 @@ public partial class MainViewModel : ObservableObject
                 _ = targetDoors.ShowOutReaderDecisionFeedbackAsync("Access granted", true);
 
             // Access decision audio happens here, not from reader LED changes.
-            _soundService.PlayAccessGranted(_pendingDecisionCardholder);
+            _ = _soundService.PlayAccessGrantedAsync(_pendingDecisionCardholder);
         }
         else if (updatedDoor.LastDecisionDenied)
         {
@@ -259,23 +290,14 @@ public partial class MainViewModel : ObservableObject
             _ = _soundService.PlayAccessDeniedAsync(_pendingDecisionCardholder);
         }
 
-        // Suppress reader LED alert sounds briefly after the decision.
-        // This prevents normal access LED changes from causing extra alert beeps.
+        // Suppress reader LED alert sounds briefly after the decision. This prevents normal access LED changes from causing extra alert beeps.
         _readerAlertSuppressedTargetDoors = targetDoors;
         _readerAlertSuppressedUntilUtc = DateTime.UtcNow.AddSeconds(2);
 
         // Clear pending action so this decision is only handled once.
-        _pendingDecisionReaderPath = string.Empty;
         _pendingDecisionSentUtc = null;
         _pendingDecisionTargetDoors = null;
         _pendingDecisionCardholder = null;
-    }
-
-    // Refreshes View menu checkmarks when the selected view mode changes.
-    partial void OnCurrentViewModeChanged(string value)
-    {
-        OnPropertyChanged(nameof(IsSingleDoorViewSelected));
-        OnPropertyChanged(nameof(IsTwoDoorViewSelected));
     }
 
 
@@ -288,6 +310,8 @@ public partial class MainViewModel : ObservableObject
     // Starts a timer that checks connection status and refreshes doors/cardholders every 3 seconds
     private void StartConnectionMonitoring()
     {
+        _connectionTimer?.Stop();
+
         _connectionTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromSeconds(3)
@@ -300,8 +324,10 @@ public partial class MainViewModel : ObservableObject
 
             if (!stillConnected)
             {
-                // Stop timer to avoid repeated checks
+                // Stop timer to avoid repeated checks and background polling.
                 _connectionTimer?.Stop();
+                _selectedDoorTimer?.Stop();
+                _readerTimer?.Stop();
 
                 // Reset UI to disconnected state
                 IsConnected = false;
@@ -336,27 +362,22 @@ public partial class MainViewModel : ObservableObject
 
     /*
      #############################################################################
-                      Selected Door Monitoring (fast loop)
+                   Selected Door Hardware Monitoring (fast loop)
      #############################################################################
    */
 
-    // Refreshes one selected door state target.
+    // Refreshes one selected door state target. This method is the reusable version of the old single-door polling logic. It can update:
+    //      - the normal Single Door View state
+    //      - the left door state in Two Door View
+    //      - the right door state in Two Door View
     //
-    // This method is the reusable version of the old single-door polling logic.
-    // It can update:
-    // - the normal Single Door View state
-    // - the left door state in Two Door View
-    // - the right door state in Two Door View
-    //
-    // It intentionally accepts a DoorsViewModel target so each door panel can
-    // maintain its own selected door and live device state.
+    // It intentionally accepts a DoorsViewModel target so each door panel can maintain its own selected door and live device state.
     private async Task RefreshSelectedDoorStateAsync(DoorsViewModel targetDoors)
     {
         if (!IsConnected || targetDoors.SelectedDoor == null)
             return;
 
-        // For now, refresh all doors and find the selected one.
-        // Later this could be replaced with a dedicated GetDoorByIdAsync call.
+        // For now, refresh all doors and find the selected one... Later this could be replaced with a dedicated GetDoorByIdAsync call?
         var updatedDoors = await _softwireService.GetDoorsAsync();
 
         var updated = updatedDoors
@@ -375,8 +396,7 @@ public partial class MainViewModel : ObservableObject
 
                 if (sensorState != null)
                 {
-                    // Preserve stable behaviour:
-                    // if shunted, ignore Active so the UI does not flicker.
+                    // Preserve stable behaviour: if shunted, ignore Active so the UI does not flicker.
                     isShunted = sensorState.IsShunted;
 
                     if (!isShunted)
@@ -387,7 +407,7 @@ public partial class MainViewModel : ObservableObject
             }
 
             // Readers are polled separately in StartReaderMonitoring() using a faster timer.
-            // DO NOT update reader state here, otherwise the reader LED/status can flicker.
+            // DO NOT update reader state here, otherwise the reader LED/status can flicker (it's really annoying!).
 
             // Read In REX live state from Softwire.
             if (!string.IsNullOrWhiteSpace(targetDoors.SelectedDoor.RexSideInDevicePath))
@@ -449,7 +469,7 @@ public partial class MainViewModel : ObservableObject
                 }
             }
 
-            await CheckPendingReaderDecisionAsync(targetDoors, updated);
+            CheckPendingReaderDecisionAsync(targetDoors, updated);
 
             targetDoors.UpdateSelectedDoorState(updated.DoorIsLocked, isOpen, isShunted);
         }
@@ -462,6 +482,8 @@ public partial class MainViewModel : ObservableObject
     // Starts a fast timer to refresh the selected door state every second
     private void StartSelectedDoorMonitoring()
     {
+        _connectionTimer?.Stop();
+
         _selectedDoorTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromSeconds(1)
@@ -505,16 +527,12 @@ public partial class MainViewModel : ObservableObject
      #############################################################################
    */
 
-    // Refreshes reader state for one selected door target.
+    // Refreshes reader state for one selected door target. This is the reusable version of the original single-door reader polling. It can update:
+    //      - Single Door View reader state
+    //      - Left door reader state in Two Door View
+    //      - Right door reader state in Two Door View
     //
-    // This is the reusable version of the original single-door reader polling.
-    // It can update:
-    // - Single Door View reader state
-    // - Left door reader state in Two Door View
-    // - Right door reader state in Two Door View
-    //
-    // Reader state is kept separate from the slower selected-door polling because
-    // reader LEDs can change very briefly during access granted / denied events.
+    // Reader state is kept separate from the slower selected-door polling because reader LEDs can change very briefly during access granted / denied events.
     private async Task RefreshReaderStateAsync(DoorsViewModel targetDoors)
     {
         if (!IsConnected || targetDoors.SelectedDoor == null)
@@ -557,6 +575,8 @@ public partial class MainViewModel : ObservableObject
     // In Two Door View, both door panels need their own reader polling.
     private void StartReaderMonitoring()
     {
+        _connectionTimer?.Stop();
+
         _readerTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromMilliseconds(250)
@@ -622,10 +642,7 @@ public partial class MainViewModel : ObservableObject
         StatusText = "Connecting to Softwire...";
         MainMessage = "Connecting...";
 
-        var success = await _softwireService.LoginAsync(
-            connectWindow.Hostname,
-            "admin",
-            connectWindow.Password);
+        var success = await _softwireService.LoginAsync(connectWindow.Hostname, "admin", connectWindow.Password);
 
         // Login failed → reset UI to disconnected state
         if (!success)
@@ -684,6 +701,8 @@ public partial class MainViewModel : ObservableObject
     }
 
     // Switches the main content area to Two Door View.
+    // The current Single Door selection is carried into the left panel so the trainer can expand from one-door testing into two-door testing naturally.
+    // The right panel starts empty by design, forcing the trainer to choose a second, different door.
     [RelayCommand]
     private void ShowTwoDoorView()
     {

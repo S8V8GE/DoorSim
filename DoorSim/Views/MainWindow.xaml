@@ -1,13 +1,13 @@
 ﻿<!--
-        Main application window (View).
+    Main application window.
 
-        Responsible for:
-        - Overall layout of the application
-        - Top navigation (Connect, View, Help, About)
-        - Status display (connected / not connected)
-        - Hosting the main content area (which will later show doors)
+    Responsible for:
+        - Overall application shell layout
+        - Top navigation menu
+        - Status bar
+        - Hosting either Single Door View or Two Door View
 
-        This View binds to MainViewModel.cs, which controls all behaviour and state.
+    Behaviour and state are provided by MainViewModel.
 -->
 
 <Window x:Class="DoorSim.MainWindow"
@@ -28,26 +28,27 @@
 
 
     <!--
-        Local UI styling for this window.
+        Window-level styling / Local UI styling for this window.
 
         Defines:
-        - Highlight colours (attempt to override default menu selection colours)
-        - Basic MenuItem styling (background, text, borders)
-
-        Note: WPF MenuItem styling is partially controlled by its template,
-        so not all colour changes take effect here...
+            - Selection highlight brushes used by WPF menu controls
+            - Basic dark MenuItem styling
     -->
 
     <Window.Resources>
+        
         <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#005A9E"/>
         <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#005A9E"/>
         <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="White"/>
 
         <Style TargetType="MenuItem">
+            
             <Setter Property="Background" Value="#252526"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="BorderBrush" Value="#3F3F46"/>
+            
         </Style>
+        
     </Window.Resources>
 
 
@@ -60,9 +61,9 @@
         - Central content area filling remaining space
     -->
     <Border BorderBrush="#3F3F46"
-        BorderThickness="1"
-        Margin="6"
-        Background="#1E1E1E">
+            BorderThickness="1"
+            Margin="6"
+            Background="#1E1E1E">
         
         <DockPanel>
 
@@ -70,9 +71,9 @@
                 Top navigation menu.
 
                 Contains:
-                - Connect → triggers connection to Softwire
-                - View → switches between single/two door views (enabled only when connected)
-                - Help/About → informational views
+                    - Connect → triggers connection to Softwire
+                    - View → switches between single/two door views (enabled only when connected)
+                    - Help/About → informational views
 
                 Visibility and behaviour controlled via MainViewModel bindings.
             -->
@@ -85,9 +86,9 @@
 
                     <!--
                         Connect command:
-                        - Opens connection dialog
-                        - Attempts login to Softwire
-                        - Disabled once connected (CanConnect = false)
+                            - Opens connection dialog
+                            - Attempts login to Softwire
+                            - Disabled once connected (CanConnect = false)
                     -->
                     <MenuItem Header="_Connect"
                               Command="{Binding ConnectCommand}"
@@ -95,8 +96,9 @@
 
                     <!--
                         View selection:
-                        - Will control layout of door simulation (single vs two door view)
-                        - Only enabled when a valid Softwire connection exists
+                            - Switches between Single Door and Two Door layouts
+                            - Shows a check mark beside the active view
+                            - Enabled only when connected to Softwire
                     -->
                     <MenuItem Header="_View"
                               IsEnabled="{Binding IsConnected}">
@@ -113,10 +115,12 @@
 
                     </MenuItem>
 
+                    <!-- Placeholder menu items for future dialogs/documentation. -->
                     <MenuItem Header="_Help"/>
                     <MenuItem Header="_About"/>
 
                 </Menu>
+                
             </Border>
 
         
@@ -124,8 +128,8 @@
                 Status bar (bottom of application).
 
                 Displays:
-                - Current connection state (text)
-                - Colour-coded status (green = connected, red = not connected)
+                    - Current connection state (text)
+                    - Colour-coded status (green = connected, red = not connected)
 
                 Driven entirely by MainViewModel bindings.
             -->
@@ -138,17 +142,20 @@
 
                     <!--
                         Status display:
-                        - Text comes from StatusText
-                        - Colour comes from StatusColor (dynamic)
+                            - Text comes from StatusText
+                            - Colour comes from StatusColor (dynamic)
                     -->
                     <StatusBarItem>
+                        
                         <TextBlock Text="{Binding StatusText}"
                                    Foreground="{Binding StatusColor}"
                                    FontWeight="SemiBold"
                                    Margin="5,0,0,0"/>
+                        
                     </StatusBarItem>
 
                 </StatusBar>
+                
             </Border>
 
 
@@ -156,8 +163,8 @@
                 Main content area.
 
                 Hosts either:
-                - Single Door layout
-                - Two Door layout
+                    - Single Door layout
+                    - Two Door layout
 
                 The View menu controls which layout is visible.
             -->
@@ -167,48 +174,69 @@
                     Single Door layout.
 
                     Contains:
-                    - One door selector
-                    - One fully interactive SingleDoorView
-                    - Shared cardholders panel
+                        - One door selector
+                        - One fully interactive SingleDoorView
+                        - Shared cardholders panel
                 -->
                 <Grid>
+                    
                     <Grid.Style>
+                        
                         <Style TargetType="Grid">
+                            
                             <Setter Property="Visibility" Value="Collapsed"/>
 
                             <Style.Triggers>
+                                
                                 <DataTrigger Binding="{Binding IsSingleDoorViewSelected}"
                                              Value="True">
+                                    
                                     <Setter Property="Visibility" Value="Visible"/>
+                                    
                                 </DataTrigger>
+                                
                             </Style.Triggers>
+                            
                         </Style>
+                        
                     </Grid.Style>
 
                     <Grid.RowDefinitions>
+                        
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="220"/>
+                        
                     </Grid.RowDefinitions>
 
                     <!-- Door selector bar -->
                     <views:DoorSelectorView Grid.Row="0"
                                             DataContext="{Binding Doors}">
+                        
                         <views:DoorSelectorView.Style>
+                            
                             <Style TargetType="views:DoorSelectorView">
+                                
                                 <Setter Property="Visibility" Value="Collapsed"/>
 
                                 <Style.Triggers>
+                                    
                                     <DataTrigger Binding="{Binding DataContext.IsConnected, RelativeSource={RelativeSource AncestorType=Window}}"
                                                  Value="True">
+                                        
                                         <Setter Property="Visibility" Value="Visible"/>
+                                        
                                     </DataTrigger>
+                                    
                                 </Style.Triggers>
+                                
                             </Style>
+                            
                         </views:DoorSelectorView.Style>
+                        
                     </views:DoorSelectorView>
 
-                    <!-- Door display area -->
+                    <!-- Door display area - Shows MainMessage until a door is selected, then overlays the interactive SingleDoorView -->
                     <Grid Grid.Row="1">
 
                         <TextBlock Text="{Binding MainMessage}"
@@ -221,18 +249,28 @@
                                    MaxWidth="850"/>
 
                         <views:SingleDoorView DataContext="{Binding Doors}">
+                            
                             <views:SingleDoorView.Style>
+                                
                                 <Style TargetType="views:SingleDoorView">
+                                    
                                     <Setter Property="Visibility" Value="Collapsed"/>
 
                                     <Style.Triggers>
+                                        
                                         <DataTrigger Binding="{Binding HasSelectedDoor}"
                                                      Value="True">
+                                            
                                             <Setter Property="Visibility" Value="Visible"/>
+                                            
                                         </DataTrigger>
+                                        
                                     </Style.Triggers>
+                                    
                                 </Style>
+                                
                             </views:SingleDoorView.Style>
+                            
                         </views:SingleDoorView>
 
                     </Grid>
@@ -240,43 +278,64 @@
                     <!-- Cardholders panel -->
                     <views:CardholdersView Grid.Row="2"
                                            DataContext="{Binding Cardholders}">
+                        
                         <views:CardholdersView.Style>
+                            
                             <Style TargetType="views:CardholdersView">
+                                
                                 <Setter Property="Visibility" Value="Collapsed"/>
 
                                 <Style.Triggers>
+                                    
                                     <DataTrigger Binding="{Binding DataContext.IsConnected, RelativeSource={RelativeSource AncestorType=Window}}"
                                                  Value="True">
+                                        
                                         <Setter Property="Visibility" Value="Visible"/>
+                                        
                                     </DataTrigger>
+                                    
                                 </Style.Triggers>
+                                
                             </Style>
+                            
                         </views:CardholdersView.Style>
+                        
                     </views:CardholdersView>
+                    
                 </Grid>
 
 
                 <!--
                     Two Door layout.
 
-                    Placeholder for now. Later this will contain:
-                    - Door selector and simulator panel for Door 1
-                    - Door selector and simulator panel for Door 2
-                    - Shared cardholder panel / interlocking controls
+                    Contains:
+                        - Independent left/right door selector and simulator panels
+                        - Shared cardholders panel
+                        - Door interlocking controls area
                 -->
                 <views:TwoDoorView DataContext="{Binding TwoDoor}">
+                    
                     <views:TwoDoorView.Style>
+                        
                         <Style TargetType="views:TwoDoorView">
+                            
                             <Setter Property="Visibility" Value="Collapsed"/>
 
                             <Style.Triggers>
+                                
                                 <DataTrigger Binding="{Binding DataContext.IsTwoDoorViewSelected, RelativeSource={RelativeSource AncestorType=Window}}"
                                              Value="True">
+                                    
                                     <Setter Property="Visibility" Value="Visible"/>
+                                    
                                 </DataTrigger>
+                                
                             </Style.Triggers>
+                            
                         </Style>
+                        
                     </views:TwoDoorView.Style>
+                    
                 </views:TwoDoorView>
 
             </Grid>

@@ -2,46 +2,60 @@
 
 namespace DoorSim.ViewModels;
 
-// ViewModel for the Two Door View.
+// ViewModel for Two Door View.
 //
-// This is intentionally a shell for now.
-// It gives TwoDoorView its own clean place to manage:
-// - Left door selection
-// - Right door selection
-// - Shared cardholders
-// - Future interlocking controls
+// Responsibilities:
+//      - Own independent left and right door panel selectors.
+//      - Share the cardholder list across both door panels.
+//      - Keep both selector lists refreshed from the latest Softwire door list.
+//      - Prevent the same door being selected on both sides at once.
+//      - Prepare Two Door View when switching from Single Door View.
 //
-// For the first step, it simply holds references to the existing
-// DoorsViewModel and CardholdersViewModel so the current UI keeps working.
+// This ViewModel does not poll live hardware state directly. MainViewModel handles polling and updates each panel's DoorState.
 public partial class TwoDoorViewModel : ObservableObject
 {
     /*
       #############################################################################
-                              Shared child view models
+                              Shared Source ViewModels
       #############################################################################
     */
 
-    // Existing shared door state.
-    // Temporary: both sides of TwoDoorView still use this until we introduce
-    // independent left/right door panel state.
+    // Shared source door list.
+    // MainViewModel refreshes this from Softwire. TwoDoorViewModel uses it as the master list when rebuilding the left/right selector lists.
     public DoorsViewModel Doors { get; }
 
-    // Existing shared cardholder list.
-    // Cardholders are shared across both doors so credentials can be dragged
-    // to any reader in the two-door layout.
+    // Shared cardholder list.
+    // The same cardholders can be dragged onto any reader in either door panel (left or right).
     public CardholdersViewModel Cardholders { get; }
 
-    // Independent left-side door panel state.
+
+    /*
+      #############################################################################
+                              Door Panel ViewModels
+      #############################################################################
+    */
+
+    // Independent state for the left door panel.
+    // Owns the left selector and the DoorsViewModel used by the left DoorPanelView.
     public DoorPanelViewModel LeftDoorPanel { get; }
 
-    // Independent right-side door panel state.
+    // Independent state for the right door panel.
+    // Owns the right selector and the DoorsViewModel used by the right DoorPanelView.
     public DoorPanelViewModel RightDoorPanel { get; }
 
+
+    /*
+      #############################################################################
+                              Refresh Guard State
+      #############################################################################
+    */
+
     // Prevents RefreshAvailableDoorSelections from recursively triggering itself.
-    //
-    // Loading the filtered door lists can reassign SelectedDoor to a refreshed object with the same Id. That raises PropertyChanged, which would normally
-    // call RefreshAvailableDoorSelections again. Without this guard, the RHS panel can flicker as its selector/panel state is repeatedly refreshed.
+    // Loading filtered door lists can reassign SelectedDoor to a refreshed object with the same Id.
+    // That raises PropertyChanged, which would normally call RefreshAvailableDoorSelections again.
+    // Without this guard, the right-hand panel can flicker as its selector and live panel state are repeatedly refreshed.
     private bool _isRefreshingAvailableDoorSelections;
+
 
     /*
       #############################################################################
@@ -49,6 +63,8 @@ public partial class TwoDoorViewModel : ObservableObject
       #############################################################################
     */
 
+    // When either selector changes, rebuild both available-door lists so the opposite selector no longer offers the selected door.
+    // The refresh guard prevents list-refresh assignments from recursively triggering another refresh.
     public TwoDoorViewModel(DoorsViewModel doors, CardholdersViewModel cardholders)
     {
         Doors = doors;
@@ -83,15 +99,16 @@ public partial class TwoDoorViewModel : ObservableObject
 
     }
 
+
     /*
       #############################################################################
-                                  Door loading
+                        Public Door Loading / View Preparation
       #############################################################################
     */
 
-    // Refreshes the available door lists for both door panels.
-    //
-    // Each side receives the same base list, but the final available selections are filtered so the same door cannot be selected on both sides.
+    // Refreshes Two Door View from the latest Softwire door list.
+    // The shared Doors ViewModel stores the master list.
+    // The left and right panel selector lists are then rebuilt from that master list, with filtering applied so the same door cannot be selected on both sides.
     public void LoadDoors(IEnumerable<DoorSim.Models.SoftwireDoor> doors)
     {
         Doors.LoadDoors(doors);
@@ -102,8 +119,10 @@ public partial class TwoDoorViewModel : ObservableObject
     // Prepares Two Door View when the user switches from Single Door View.
     //
     // Behaviour:
-    // - Left panel inherits the currently selected Single Door View door.
-    // - Right panel starts empty so the trainer deliberately chooses the second door.
+    //      - Left panel inherits the currently selected Single Door View door.
+    //      - Right panel starts empty so the trainer deliberately chooses the second door.
+    //
+    // Note: This expects LoadDoors(...) to have populated the panel selector lists before the view is switched. If no matching left door exists, the left panel remains unselected.
     public void PrepareFromSingleDoorSelection(DoorSim.Models.SoftwireDoor? singleDoorSelection)
     {
         if (singleDoorSelection == null)
@@ -122,9 +141,19 @@ public partial class TwoDoorViewModel : ObservableObject
         RightDoorPanel.SelectedDoor = null;
     }
 
-    // Removes already-selected doors from the opposite selector.
+
+    /*
+      #############################################################################
+                            Door Selection Filtering
+      #############################################################################
+    */
+
+    // Rebuilds the left and right selector lists while preventing duplicates.
     //
-    // This prevents the trainer selecting the same door on both sides of Two Door View, which would make interlocking tests meaningless.
+    // If the left panel has a selected door, that door is removed from the right selector list.
+    // If the right panel has a selected door, that door is removed from the left selector list.
+    //
+    // This matters for interlocking tests because selecting the same door on both sides would not represent a valid two-door scenario.
     private void RefreshAvailableDoorSelections()
     {
         if (_isRefreshingAvailableDoorSelections)
@@ -147,6 +176,7 @@ public partial class TwoDoorViewModel : ObservableObject
                 .Where(d => string.IsNullOrWhiteSpace(leftSelectedId) || d.Id != leftSelectedId)
                 .ToList();
 
+            // DoorPanelViewModel.LoadDoors(...) preserves the current selection by Id if possible, or clears it if the selected door is no longer available.
             LeftDoorPanel.LoadDoors(leftAvailableDoors);
             RightDoorPanel.LoadDoors(rightAvailableDoors);
         }

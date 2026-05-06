@@ -10,6 +10,17 @@
         Foreground="White"
         Icon="/Images/AppIcon.ico">
 
+<!--
+    PIN entry dialog.
+
+    Used for:
+        - manual PIN entry from a reader context menu
+        - Card + PIN flows after a cardholder has been presented
+        - auto-enrol PIN actions
+
+    If a timeout is supplied, the dialog shows a countdown and closes as timed out when the countdown expires.
+-->
+
     <Border BorderBrush="#3F3F46"
             BorderThickness="1"
             Padding="20"
@@ -29,17 +40,22 @@
                        Foreground="#CCCCCC"
                        Margin="0,0,0,10"/>
 
-            <!-- PIN input with show/hide button -->
+            <!--
+                PIN input.
+
+                Uses a PasswordBox for normal hidden entry and a TextBox mirror when the trainer chooses to reveal the PIN.
+            -->
             <Grid>
+                
                 <PasswordBox x:Name="PinPasswordBox"
-                 Height="32"
-                 FontSize="16"
-                 MaxLength="5"
-                 Background="#2D2D30"
-                 Foreground="White"
-                 BorderBrush="#555555"
-                 Padding="6,6,34,6"
-                 PasswordChanged="PinPasswordBox_PasswordChanged"/>
+                             Height="32"
+                             FontSize="16"
+                             MaxLength="5"
+                             Background="#2D2D30"
+                             Foreground="White"
+                             BorderBrush="#555555"
+                             Padding="6,6,34,6"
+                             PasswordChanged="PinPasswordBox_PasswordChanged"/>
 
                 <TextBox x:Name="VisiblePinTextBox"
                          Height="32"
@@ -61,6 +77,7 @@
                         Margin="0,0,4,0"
                         Padding="0"
                         Click="TogglePinVisibilityButton_Click"/>
+                
             </Grid>
 
             <!-- Validation message -->
@@ -71,7 +88,11 @@
                        Margin="0,6,0,0"
                        Visibility="Collapsed"/>
 
-            <!-- Countdown / timing message. Later this will be driven by the reader Card + PIN timeout from Softwire. -->
+            <!--
+                Countdown message.
+
+                Visible only when the dialog is opened with a Card + PIN timeout. Hidden for manual PIN and auto-enrol PIN actions.
+            -->
             <TextBlock x:Name="TimerText"
                        Text="Time remaining: -- seconds"
                        Foreground="#CCCCCC"
@@ -96,7 +117,11 @@
                         IsDefault="True"
                         IsEnabled="False"
                         Click="OkButton_Click"/>
+                
             </StackPanel>
+            
         </StackPanel>
+        
     </Border>
+    
 </Window>

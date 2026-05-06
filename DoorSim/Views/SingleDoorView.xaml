@@ -8,11 +8,13 @@
     <Grid Margin="20">
 
         <!--
-            Temporary hidden DoorPanelView.
+            Reusable single-door hardware panel.
 
-            This proves the new reusable door panel control can be referenced by
-            SingleDoorView before we begin moving the real door hardware UI into it.
-            It stays hidden for now, so the existing working UI is not affected.
+            SingleDoorView is now a lightweight host around DoorPanelView.
+        
+            The DataContext is forwarded unchanged, so the panel uses the same DoorsViewModel selected by MainWindow / DoorSelectorView.
+
+            This wrapper keeps Single Door mode separate from Two Door mode while allowing both layouts to share the same interactive door UI.
         -->
         <views:DoorPanelView DataContext="{Binding}"/>
 

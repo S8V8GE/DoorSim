@@ -6,15 +6,31 @@
              Foreground="White">
 
     <!--
-    Two Door View.
+        Two Door View.
 
-    This will eventually contain two independent door simulators:
-    - Left door selector + door panel
-    - Right door selector + door panel
-    - Shared interlocking controls
+        Hosts two independent reusable door panels side by side:
+            - Left selector + left interactive door panel
+            - Right selector + right interactive door panel
 
-    For this first layout step, both panels still use the existing DoorsViewModel,
-    so they will show the same selected door. That is expected for now.
+        The bottom row contains:
+            - Shared cardholder list
+            - Door interlocking controls
+
+        DataContext:
+            - TwoDoorViewModel
+-->
+
+    <!--
+        Root layout.
+
+        Row 0:
+            - Left and right door simulators
+
+        Row 1:
+            - Cardholders panel
+            - Door interlocking controls
+
+        Column 1 is a fixed spacer between the two sides.
     -->
 
     <Grid Background="#1E1E1E">
@@ -29,14 +45,17 @@
         <Grid.ColumnDefinitions>
             
             <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="20"/>
+            <ColumnDefinition Width="20"/>  <!-- Centre gap between door panels -->
             <ColumnDefinition Width="*"/>
             
         </Grid.ColumnDefinitions>
 
 
         <!--
-            LEFT DOOR AREA
+            ##################### LEFT DOOR AREA #####################
+        
+                - The selector binds to LeftDoorPanel.
+                - The interactive panel binds to LeftDoorPanel.DoorState.
         -->
         <Grid Grid.Row="0"
               Grid.Column="0">
@@ -61,7 +80,10 @@
 
 
         <!--
-            RIGHT DOOR AREA
+            ##################### RIGHT DOOR AREA #####################
+        
+                - The selector binds to RightDoorPanel.
+                - The interactive panel binds to RightDoorPanel.DoorState.
         -->
         <Grid Grid.Row="0"
               Grid.Column="2">
@@ -86,24 +108,23 @@
 
 
         <!--
-            Bottom left area:
-            Shared cardholder list.
-
-            Cardholders are shared across both door panels so the trainer can drag
-            the same credential onto any of the four readers.
+            ##################### BOTTOM LEFT AREA #####################
+            
+                - Shared cardholder list.
+                - Cardholders are shared across both door panels so the trainer can drag the same credential onto any of the four readers.
         -->
         <views:CardholdersView Grid.Row="1"
                                Grid.Column="0"
                                DataContext="{Binding Cardholders}"/>
 
         <!--
-            Bottom right area:
-            Two Door-specific controls.
-
-            This will later contain:
-            - Door interlocking ON/OFF
-            - Override input selector
-            - Lockdown input selector
+            ##################### BOTTOM RIGHT AREA #####################
+            
+                - Two Door-specific controls (Door interlocking controls area).
+                - This view will contain:
+                    - Door interlocking ON/OFF
+                    - Override input selector
+                    - Lockdown input selector
         -->
         <views:DoorInterlockingControlsView Grid.Row="1"
                                             Grid.Column="2"/>

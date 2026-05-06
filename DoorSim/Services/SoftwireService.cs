@@ -7,39 +7,52 @@ using System.Text.Json;
 
 namespace DoorSim.Services;
 
-// Service responsible for communicating with the Softwire HTTP API.
+// Concrete HTTP implementation of ISoftwireService.
 //
-// Handles:
-// - Authentication (login)
-// - Maintaining session (cookies)
-// - Sending HTTP requests to Softwire endpoints
+// Responsibilities:
+//      - authenticate with Softwire,
+//      - maintain the cookie-based session,
+//      - call Softwire HTTP endpoints,
+//      - parse Softwire JSON into DoorSim models,
+//      - simulate input changes and reader swipes.
 //
-// This is the concrete implementation of ISoftwireService,
-// used by the ViewModel to interact with Softwire without
-// knowing how the HTTP communication works.
+// This implementation is intended for DoorSim training/demo environments.
+// It currently accepts self-signed certificates during login; do not reuse that behaviour in production software!
 
 
 public class SoftwireService : ISoftwireService 
 {
-    // --- Internal HTTP state ---
-    // These maintain the connection/session with Softwire.
 
-    // HTTP client used to send requests to Softwire
+    /*
+      #############################################################################
+                               HTTP Session State
+      #############################################################################
+    */
+
+    // Authenticated HTTP client used for all Softwire API calls.
+    // Created after a successful login attempt.
     private HttpClient? _client;
-    // Stores session cookies (used for authentication persistence)
+
+    // Cookie container used to preserve the Softwire login session.
     private CookieContainer? _cookies;
 
+
+    /*
+      #############################################################################
+                         Authentication and Connection
+      #############################################################################
+    */
 
     // Attempts to authenticate with Softwire using provided credentials.
     //
     // Steps:
-    // 1. Create HTTP client with cookie support
-    // 2. Send login request to /Login endpoint
-    // 3. Store session cookies if successful
+    //      1. Create HTTP client with cookie support
+    //      2. Send login request to /Login endpoint
+    //      3. Store session cookies if successful
     //
     // Returns:
-    // - true  → login successful
-    // - false → login failed
+    //      - true  → login successful
+    //      - false → login failed
     public async Task<bool> LoginAsync(string hostname, string username, string password)
     {
         // Create a new cookie container to store session cookies
@@ -92,6 +105,7 @@ public class SoftwireService : ISoftwireService
     // Returns true if Softwire responds successfully.
     public async Task<bool> CheckConnectionAsync()
     {
+        // Checks whether the current HTTP session still works by calling a lightweight endpoint used elsewhere by DoorSim.
         if (_client == null)
             return false;
 
@@ -107,12 +121,18 @@ public class SoftwireService : ISoftwireService
     }
 
 
+    /*
+      #############################################################################
+                               Door Discovery
+      #############################################################################
+    */
+
     // Retrieves doors from Softwire and maps the raw JSON into clean SoftwireDoor objects.
     //
     // Softwire door data is split across:
-    // - The door list endpoint (/Doors/)
-    // - Each door detail endpoint (Href)
-    // - The Roles array inside each door detail response
+    //      - The door list endpoint (/Doors/)
+    //      - Each door detail endpoint (Href)
+    //      - The Roles array inside each door detail response
     //
     // This method extracts high-level door information plus hardware role information
     // such as lock, door sensor, readers, and reader modes.
@@ -169,7 +189,13 @@ public class SoftwireService : ISoftwireService
             using var doorDocument = JsonDocument.Parse(doorJson);
             var door = doorDocument.RootElement;
 
+            // Temporary role-mapping variables for the current door.
+            //
+            // Softwire stores hardware assignments in the Roles array rather than as simple top-level door properties.
+            // We collect the relevant role flags and device paths here, then use them to build one SoftwireDoor model at the end.
+            //
             // Hardware role flags and device paths extracted from the Roles array. These are reset for each door being parsed.
+
             // Door Sensor
             bool hasDoorSensor = false;
             string doorSensorPath = "";
@@ -362,8 +388,8 @@ public class SoftwireService : ISoftwireService
             }
 
             // Parse the latest access decision reported by Softwire.
-            // LastDecision belongs to the door, but it may include the reader path,
-            // which lets the UI associate the result with the In or Out reader.
+            // The reader path is stored so MainViewModel can later tighten decision matching if needed.
+            // Current UI routing primarily uses the pending reader action registered when the swipe/PIN was sent.
             if (door.TryGetProperty("LastDecision", out var lastDecision))
             {
                 if (lastDecision.TryGetProperty("TimeStampUtc", out var timestamp))
@@ -424,17 +450,23 @@ public class SoftwireService : ISoftwireService
     }
 
 
+    /*
+      #############################################################################
+                               Device State Queries
+      #############################################################################
+    */
+
     // Retrieves the current state of a Softwire input device.
     //
     // Used for:
-    // - Door sensors
-    // - REX buttons
-    // - Breakglass inputs
+    //      - Door sensors
+    //      - REX buttons
+    //      - Breakglass inputs
     //
     // Softwire returns these states directly on the input object:
-    // - Online
-    // - Active
-    // - IsShunted
+    //      - Online
+    //      - Active
+    //      - IsShunted
     public async Task<InputState?> GetInputStateAsync(string devicePath)
     {
         if (_client == null || string.IsNullOrWhiteSpace(devicePath))
@@ -465,12 +497,11 @@ public class SoftwireService : ISoftwireService
     // Retrieves the current state of a Softwire reader device.
     //
     // Softwire reader endpoints return state information such as:
-    // - Online
-    // - IsShunted
-    // - LedColor
+    //      - Online
+    //      - IsShunted
+    //      - LedColor
     //
-    // Example reader path:
-    // /Devices/Bus/Sim/Port_A/Iface/1/Reader/READER_01
+    // Example reader path: /Devices/Bus/Sim/Port_A/Iface/1/Reader/READER_01
     public async Task<ReaderState?> GetReaderStateAsync(string readerPath)
     {
         if (_client == null || string.IsNullOrWhiteSpace(readerPath))
@@ -489,6 +520,7 @@ public class SoftwireService : ISoftwireService
         if (!root.TryGetProperty("Reader", out var reader))
             return null;
 
+        // Softwire represents LED colour as a discriminated object, for example: "LedColor": { "Green": [] }
         var ledColor = "Red";
 
         if (reader.TryGetProperty("LedColor", out var ledColorElement))
@@ -507,6 +539,12 @@ public class SoftwireService : ISoftwireService
         };
     }
 
+
+    /*
+      #############################################################################
+                               Simulated Input Actions
+      #############################################################################
+    */
 
     // Softwire expects simulated input state changes to be sent to: /{bus}/{iface}/Input
     //
@@ -555,10 +593,15 @@ public class SoftwireService : ISoftwireService
     }
 
 
+    /*
+      #############################################################################
+                               Reader Swipe Actions
+      #############################################################################
+    */
+
     // Simulates a raw credential swipe on a Softwire reader.
     //
-    // Softwire expects raw credential swipes to be sent to:
-    // /{bus}/{iface}/SwipeRaw
+    // Softwire expects raw credential swipes to be sent to: /{bus}/{iface}/SwipeRaw
     //
     // Example:
     // Reader pointer: /Devices/Bus/Sim/Port_A/Iface/1/Reader/READER_01
@@ -613,8 +656,7 @@ public class SoftwireService : ISoftwireService
     // Simulates a 26-bit Wiegand swipe on a Softwire reader.
     //
     // Used for PIN entry in this app.
-    // Softwire expects this to be sent to:
-    // /{bus}/{iface}/SwipeWiegand26
+    // Softwire expects this to be sent to: /{bus}/{iface}/SwipeWiegand26
     //
     // Example:
     // Reader pointer: /Devices/Bus/Sim/Port_A/Iface/1/Reader/READER_01

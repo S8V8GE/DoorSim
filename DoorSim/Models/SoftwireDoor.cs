@@ -1,16 +1,31 @@
-﻿using System;
-
-namespace DoorSim.Models;
+﻿namespace DoorSim.Models;
 
 // Represents a door retrieved from Softwire.
-// This is the high-level door object used by the UI.
-// It will expand as I start to map more Softwire role/device information... WIP - JS 30th May 2026
+//
+// This model combines:
+//      - static door identity,
+//      - detected hardware roles,
+//      - Softwire device paths,
+//      - live hardware state used by the simulator UI,
+//      - the most recent access decision reported by Softwire.
 public class SoftwireDoor
 {
+    /*
+      #############################################################################
+                                  Door Identity
+      #############################################################################
+    */
     // Basic door identity returned by Softwire (Href used for API calls)
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Href { get; set; } = string.Empty;
+
+
+    /*
+      #############################################################################
+                             Detected Hardware Roles
+      #############################################################################
+    */
 
     // Hardware roles detected from the Softwire door Roles array
     public bool HasDoorSensor { get; set; }
@@ -22,37 +37,72 @@ public class SoftwireDoor
     public bool HasRexNoSide { get; set; } 
     public bool HasBreakGlass { get; set; }
 
-    // Reader configuration (True when the reader mode is Card + PIN, False otherwise) and live state
-    // Note: for LED colour, Softwire reports the colour (known values: Green and Red) but the UI may temporarily override this later for drag-hover, access granted/denied, etc.
+
+    /*
+      #############################################################################
+                       In Reader Configuration and Live State
+      #############################################################################
+    */
+
+    // In reader configuration and live state.
+    // RequiresCardAndPin / PinTimeoutSeconds come from reader configuration.
+    // Online / IsShunted / LedColor come from the reader device endpoint.
     public bool InReaderRequiresCardAndPin { get; set; }
     public int InReaderPinTimeoutSeconds { get; set; }
     public bool InReaderIsOnline { get; set; }
     public bool InReaderIsShunted { get; set; }
     public string InReaderLedColor { get; set; } = "Red";
 
+
+    /*
+      #############################################################################
+                       Out Reader Configuration and Live State
+      #############################################################################
+    */
+
+    // Out reader configuration and live state.
+    // RequiresCardAndPin / PinTimeoutSeconds come from reader configuration.
+    // Online / IsShunted / LedColor come from the reader device endpoint.
     public bool OutReaderRequiresCardAndPin { get; set; }
     public int OutReaderPinTimeoutSeconds { get; set; }
     public bool OutReaderIsOnline { get; set; }
     public bool OutReaderIsShunted { get; set; }
     public string OutReaderLedColor { get; set; } = "Red";
 
-    // Last access decision reported by Softwire for this door.
-    //
-    // Used to show short reader feedback such as:
-    // - Access granted
-    // - Access denied
-    //
-    // LastDecision belongs to the door, but it can include the reader path, allowing the UI to show the result under the correct reader.
+
+    /*
+      #############################################################################
+                           Last Access Decision
+      #############################################################################
+    */
+
+    // Most recent access decision reported by Softwire for this door.
+    // MainViewModel uses this after a pending card/PIN action to show temporary "Access granted" or "Access denied" feedback under the correct reader.
     public DateTime? LastDecisionTimeUtc { get; set; }
+    // Reader path associated with the last decision, when Softwire provides it. Stored so decision matching can be tightened later if needed.
     public string LastDecisionReaderPath { get; set; } = string.Empty;
     public bool LastDecisionGranted { get; set; }
     public bool LastDecisionDenied { get; set; }
+
+
+    /*
+      #############################################################################
+                           Door Lock and Sensor State
+      #############################################################################
+    */
 
     // Live door state (Sensor and Lock)
     public bool DoorSensorIsOpen { get; set; }
     public bool DoorSensorIsShunted { get; set; }
     public bool DoorIsLocked { get; set; }
     public bool UnlockedForMaintenance { get; set; }
+
+
+    /*
+      #############################################################################
+                               REX Input State
+      #############################################################################
+    */
 
     // Live REX state
     public bool RexSideInIsActive { get; set; }
@@ -62,11 +112,26 @@ public class SoftwireDoor
     public bool RexNoSideIsActive { get; set; }
     public bool RexNoSideIsShunted { get; set; }
 
+
+    /*
+      #############################################################################
+                               Breakglass Input State
+      #############################################################################
+    */
+
     // Live Breakglass state
     public bool BreakGlassIsActive { get; set; }
     public bool BreakGlassIsShunted { get; set; }
 
-    // Softwire device paths used to query or change hardware state (Example: /Devices/Bus/Sim/Port_A/Iface/1/Input/IN_01)
+
+    /*
+      #############################################################################
+                               Softwire Device Paths
+      #############################################################################
+    */
+
+    // Softwire device paths used for live state queries and simulated input actions.
+    // Example: /Devices/Bus/Sim/Port_A/Iface/1/Input/IN_01
 
     // Door Sensor
     public string DoorSensorDevicePath { get; set; } = string.Empty;
@@ -83,9 +148,17 @@ public class SoftwireDoor
     // Breakglass
     public string BreakGlassDevicePath { get; set; } = string.Empty;
 
+
+    /*
+      #############################################################################
+                               Display Helpers
+      #############################################################################
+    */
+
     // Controls how the door appears in ComboBoxes
     public override string ToString() 
     {
         return Name;
     }
+
 }

@@ -5,20 +5,36 @@
              Background="#1E1E1E"
              Foreground="White">
 
+<!--
+    Reusable interactive door hardware panel.
+
+    Expected DataContext:
+        - DoorsViewModel
+
+    Used by:
+        - SingleDoorView for the normal one-door simulator.
+        - TwoDoorView for each independent left/right door panel.
+
+    This view contains only the visual layout and event bindings.
+    Live state, calculated text/colours, visibility, image paths, and tooltip text are provided by DoorsViewModel.
+-->
+
+
+    <!--
+        Root layout.
+
+        Contains:
+            - selected-door hardware panel
+            - empty-state panel
+            - floating tooltip popup
+    -->
     <Grid>
 
         <!--
-            Reusable door simulator panel.
+            Selected-door hardware panel.
 
-            This control contains the interactive door hardware area:
-                - Door title
-                - Door lock / sensor status
-                - Door image
-                - Readers
-                - REX devices
-                - Breakglass
+            Hidden when no door is selected. When visible, this panel shows the full interactive hardware layout for the selected door.
         -->
-
         <Border BorderBrush="#3F3F46"
                 BorderThickness="1"
                 CornerRadius="6"
@@ -36,7 +52,9 @@
                         
                         <DataTrigger Binding="{Binding HasSelectedDoor}"
                          Value="True">
+                            
                             <Setter Property="Visibility" Value="Visible"/>
+                            
                         </DataTrigger>
                         
                     </Style.Triggers>
@@ -106,13 +124,14 @@
 
                 </Grid>
 
-                <!-- ############################### START OF HARDWARE LAYOUT ###############################
+                <!-- 
+                    ############################### START OF HARDWARE LAYOUT ###############################
 
-                    Hardware layout uses fixed slots so devices do not jump around when optional hardware is missing.
-                    Left side:  REX outside, reader closest to door.
-                    Right side: reader closest to door, REX outside.
-                    No-side REX and Breakglass are positioned independently above the main device row.
-        
+                    Uses fixed slots so optional devices do not cause the layout to jump:
+                        - Left side: REX outside, reader closest to the door.
+                        - Centre: door image / door sensor interaction.
+                        - Right side: reader closest to the door, REX outside.
+                        - No-side REX and breakglass sit above the main device row.
                 -->
 
                 <Grid Margin="0,50,0,0"
@@ -126,6 +145,12 @@
                         <ColumnDefinition Width="200"/>
                         
                     </Grid.ColumnDefinitions>
+
+                    <!--
+                        Top accessory devices.
+
+                        These are positioned above the main device row so they do not push the door/readers/REX layout around when present or absent.
+                    -->
 
                     <!-- No-side REX:
                          Appears above the normal left-side devices.
@@ -195,15 +220,21 @@
                         
                     </StackPanel>
 
-                    <!-- Left side devices -->
+                    <!--
+                        Left side devices.
+
+                        Fixed slots:
+                            - Column 0 = outside position.
+                            - Column 1 = closest to the door.
+
+                        If the In Reader exists, In REX stays outside.
+                        If no In Reader exists, In REX moves into the near-door slot.
+                    -->
                     <Grid Grid.Column="0"
                           VerticalAlignment="Top"
                           Margin="0,85,6,0"
                           HorizontalAlignment="Right">
 
-                        <!-- Fixed slots prevent devices moving unpredictably when one is missing.
-                             Column 0 = outside position
-                             Column 1 = closest to the door -->
                         <Grid.ColumnDefinitions>
                             
                             <ColumnDefinition Width="90"/>
@@ -261,7 +292,7 @@
                                   DragLeave="InReader_DragLeave"
                                   Drop="InReader_Drop">
 
-                                <!-- Right-click menu for reader actions. -->
+                                <!-- Right-click menu for manual reader actions. -->
                                 <Grid.ContextMenu>
                                     
                                     <ContextMenu>
@@ -310,9 +341,11 @@
                         
                     </Grid>
 
-                    <!-- Door image:
-                         Main interactive door sensor control.
-                         Click toggles the simulated door sensor input. -->
+                    <!-- 
+                        Door image:
+                        
+                        Main interactive door sensor control. Clicking the image toggles the simulated door sensor input.
+                    -->
                     <Image Grid.Column="1"
                            x:Name="DoorImage"
                            Source="{Binding DoorImagePath}"
@@ -328,15 +361,21 @@
                            RenderOptions.BitmapScalingMode="HighQuality"
                            SnapsToDevicePixels="True"/>
 
-                    <!-- Right side devices -->
+                    <!--
+                        Right side devices.
+
+                        Fixed slots:
+                            - Column 0 = closest to the door.
+                            - Column 1 = outside position.
+
+                        Out Reader always uses the near-door slot when present.
+                        Out REX moves depending on whether an Out Reader exists.
+                    -->
                     <Grid Grid.Column="2"
                           VerticalAlignment="Top"
                           Margin="8,85,0,0"
                           HorizontalAlignment="Left">
 
-                        <!-- Fixed slots prevent devices moving unpredictably when one is missing.
-                             Column 0 = closest to the door
-                             Column 1 = outside position -->
                         <Grid.ColumnDefinitions>
                             
                             <ColumnDefinition Width="90"/>
@@ -361,19 +400,19 @@
                                   DragLeave="OutReader_DragLeave"
                                   Drop="OutReader_Drop">
 
-                                <!-- Right-click menu for reader actions.-->
+                                <!-- Right-click menu for manual reader actions. -->
                                 <Grid.ContextMenu>
                                     
                                     <ContextMenu>
                                         
                                         <MenuItem Header="Enter PIN"
-                                          Click="OutReaderEnterPin_Click"/>
+                                                  Click="OutReaderEnterPin_Click"/>
 
                                         <MenuItem Header="Auto-enrol card"
-                                          Click="OutReaderAutoEnrollCard_Click"/>
+                                                  Click="OutReaderAutoEnrollCard_Click"/>
 
                                         <MenuItem Header="Auto-enrol PIN"
-                                          Click="OutReaderAutoEnrollPin_Click"/>
+                                                  Click="OutReaderAutoEnrollPin_Click"/>
                                         
                                     </ContextMenu>
                                     
@@ -451,10 +490,10 @@
         </Border>
 
         <!--
-            Empty state shown when no door is selected.
+            Empty state.
 
-            This is mainly used by Two Door View, where the right-hand door panel
-            intentionally starts empty until the trainer selects a second door.
+            Shown when this panel has no selected door. This is most visible in Two Door View, 
+            where the right-hand panel intentionally starts empty until the trainer selects a second door.
         -->
         <Border BorderBrush="#3F3F46"
                 BorderThickness="1"
@@ -490,6 +529,11 @@
             
         </Border>
 
+        <!--
+            Floating tooltip.
+
+            Updated and positioned by DoorPanelView.xaml.cs so tooltips can follow the mouse over interactive hardware images.
+        -->
         <Popup x:Name="FloatingToolTip"
                Placement="Relative"
                AllowsTransparency="True"

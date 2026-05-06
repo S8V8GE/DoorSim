@@ -1,28 +1,20 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
+﻿using System.Windows.Controls;
 
-namespace DoorSim.Views
+namespace DoorSim.Views;
+
+// Lightweight code-behind for Two Door View.
+//
+// All behaviour is currently handled by:
+//      - TwoDoorViewModel
+//      - DoorPanelView / DoorPanelViewModel
+//      - MainViewModel polling
+//
+// This file only initialises the XAML.
+public partial class TwoDoorView : UserControl
 {
-    /// <summary>
-    /// Interaction logic for TwoDoorView.xaml
-    /// </summary>
-    public partial class TwoDoorView : UserControl
+    public TwoDoorView()
     {
-        public TwoDoorView()
-        {
-            InitializeComponent();
-        }
+        InitializeComponent();
     }
 }
+
