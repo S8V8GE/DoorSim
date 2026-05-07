@@ -1076,6 +1076,109 @@ public partial class DoorsViewModel : ObservableObject
     // These methods are called by MainViewModel polling or DoorPanelView optimistic UI updates.
     // Each method updates only the relevant SoftwireDoor fields, then raises property notifications for dependent calculated UI properties.
 
+    // Misc:
+    // -----
+    // Copies live/polled state from another SoftwireDoor into the currently selected door, then refreshes all calculated UI properties.
+    // Used when switching from Two Door View back to Single Door View.
+    // Without this, Single Door View can briefly show stale calculated UI state until the next polling tick refreshes the bindings.
+    public void ApplyLiveStateFromDoor(SoftwireDoor source)
+    {
+        if (SelectedDoor == null)
+            return;
+
+        if (SelectedDoor.Id != source.Id)
+            return;
+
+        // Door lock / sensor live state
+        SelectedDoor.DoorIsLocked = source.DoorIsLocked;
+        SelectedDoor.UnlockedForMaintenance = source.UnlockedForMaintenance;
+        SelectedDoor.DoorSensorIsOpen = source.DoorSensorIsOpen;
+        SelectedDoor.DoorSensorIsShunted = source.DoorSensorIsShunted;
+
+        // In reader live state
+        SelectedDoor.InReaderIsOnline = source.InReaderIsOnline;
+        SelectedDoor.InReaderIsShunted = source.InReaderIsShunted;
+        SelectedDoor.InReaderLedColor = source.InReaderLedColor;
+
+        // Out reader live state
+        SelectedDoor.OutReaderIsOnline = source.OutReaderIsOnline;
+        SelectedDoor.OutReaderIsShunted = source.OutReaderIsShunted;
+        SelectedDoor.OutReaderLedColor = source.OutReaderLedColor;
+
+        // In REX live state
+        SelectedDoor.RexSideInIsActive = source.RexSideInIsActive;
+        SelectedDoor.RexSideInIsShunted = source.RexSideInIsShunted;
+
+        // Out REX live state
+        SelectedDoor.RexSideOutIsActive = source.RexSideOutIsActive;
+        SelectedDoor.RexSideOutIsShunted = source.RexSideOutIsShunted;
+
+        // No-side REX live state
+        SelectedDoor.RexNoSideIsActive = source.RexNoSideIsActive;
+        SelectedDoor.RexNoSideIsShunted = source.RexNoSideIsShunted;
+
+        // Breakglass live state
+        SelectedDoor.BreakGlassIsActive = source.BreakGlassIsActive;
+        SelectedDoor.BreakGlassIsShunted = source.BreakGlassIsShunted;
+
+        RefreshSelectedDoorDisplayProperties();
+    }
+
+    // Refreshes calculated UI properties that depend on SelectedDoor.
+    // These properties are not stored values; they are calculated from the selected SoftwireDoor.
+    // Therefore, when we copy live state into the selected door object, we must notify the UI that these calculated bindings changed.
+    private void RefreshSelectedDoorDisplayProperties()
+    {
+        // Door
+        OnPropertyChanged(nameof(DoorImagePath));
+        OnPropertyChanged(nameof(DoorLockStatusText));
+        OnPropertyChanged(nameof(DoorLockStatusColor));
+        OnPropertyChanged(nameof(DoorSensorStatusText));
+        OnPropertyChanged(nameof(DoorSensorStatusColor));
+        OnPropertyChanged(nameof(DoorActionTooltip));
+
+        // Readers
+        OnPropertyChanged(nameof(InReaderVisibility));
+        OnPropertyChanged(nameof(InReaderStatusText));
+        OnPropertyChanged(nameof(InReaderStatusColor));
+        OnPropertyChanged(nameof(InReaderLedBrush));
+        OnPropertyChanged(nameof(InReaderActionTooltip));
+
+        OnPropertyChanged(nameof(OutReaderVisibility));
+        OnPropertyChanged(nameof(OutReaderStatusText));
+        OnPropertyChanged(nameof(OutReaderStatusColor));
+        OnPropertyChanged(nameof(OutReaderLedBrush));
+        OnPropertyChanged(nameof(OutReaderActionTooltip));
+
+        // REX
+        OnPropertyChanged(nameof(InRexColumn));
+        OnPropertyChanged(nameof(InRexImagePath));
+        OnPropertyChanged(nameof(InRexVisibility));
+        OnPropertyChanged(nameof(InRexStatusText));
+        OnPropertyChanged(nameof(InRexStatusColor));
+        OnPropertyChanged(nameof(InRexActionTooltip));
+
+        OnPropertyChanged(nameof(OutRexColumn));
+        OnPropertyChanged(nameof(OutRexImagePath));
+        OnPropertyChanged(nameof(OutRexVisibility));
+        OnPropertyChanged(nameof(OutRexStatusText));
+        OnPropertyChanged(nameof(OutRexStatusColor));
+        OnPropertyChanged(nameof(OutRexActionTooltip));
+
+        OnPropertyChanged(nameof(NoSideRexImagePath));
+        OnPropertyChanged(nameof(NoSideRexVisibility));
+        OnPropertyChanged(nameof(NoSideRexStatusText));
+        OnPropertyChanged(nameof(NoSideRexStatusColor));
+        OnPropertyChanged(nameof(NoSideRexActionTooltip));
+
+        // Breakglass / Manual station
+        OnPropertyChanged(nameof(BreakGlassImagePath));
+        OnPropertyChanged(nameof(BreakGlassVisibility));
+        OnPropertyChanged(nameof(BreakGlassStatusText));
+        OnPropertyChanged(nameof(BreakGlassStatusColor));
+        OnPropertyChanged(nameof(BreakGlassActionTooltip));
+    }
+
     // Door:
     // -----
     // Updates live state for the selected door and refreshes dependent UI properties

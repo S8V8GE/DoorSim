@@ -245,6 +245,32 @@ public partial class MainViewModel : ObservableObject
         return await _softwireService.SetInputStateAsync(input.DevicePath, softwireState);
     }
 
+    // Carries the live left-panel state from Two Door View back into Single Door View.
+    //
+    // Single Door View is the source used to seed the left panel when entering Two Door View.
+    // When returning to Single Door View, we do the reverse handover so live state changes made in the left panel are visible immediately.
+    //
+    // This prevents a brief stale-state flash where Single Door View shows an old door/breakglass/REX state until the next polling tick catches up.
+    private void CarryTwoDoorLeftStateBackToSingleDoor()
+    {
+        var twoDoorLiveDoor = TwoDoor.LeftDoorPanel.DoorState.SelectedDoor;
+
+        if (twoDoorLiveDoor == null)
+            return;
+
+        var matchingSingleDoor = Doors.Doors
+            .FirstOrDefault(d => d.Id == twoDoorLiveDoor.Id);
+
+        if (matchingSingleDoor == null)
+            return;
+
+        // Make sure Single Door View is pointing at the matching door object.
+        Doors.SelectedDoor = matchingSingleDoor;
+
+        // Copy the live state from the left Two Door panel and immediately refresh calculated Single Door UI properties.
+        Doors.ApplyLiveStateFromDoor(twoDoorLiveDoor);
+    }
+
 
     /*
      #############################################################################
@@ -756,6 +782,16 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void ShowSingleDoorView()
     {
+        // If we are returning from Two Door View, carry the left panel's live state
+        // back into Single Door View before switching the visible view.
+        //
+        // Without this, Single Door View can briefly show stale/default state
+        // until the next polling tick corrects it.
+        if (CurrentViewMode == "TwoDoor")
+        {
+            CarryTwoDoorLeftStateBackToSingleDoor();
+        }
+
         CurrentViewMode = "SingleDoor";
     }
 

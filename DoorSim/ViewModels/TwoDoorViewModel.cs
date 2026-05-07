@@ -128,20 +128,36 @@ public partial class TwoDoorViewModel : ObservableObject
     // Note: This expects LoadDoors(...) to have populated the panel selector lists before the view is switched. If no matching left door exists, the left panel remains unselected.
     public void PrepareFromSingleDoorSelection(DoorSim.Models.SoftwireDoor? singleDoorSelection)
     {
-        if (singleDoorSelection == null)
+        try
         {
-            LeftDoorPanel.SelectedDoor = null;
-            RightDoorPanel.SelectedDoor = null;
-            return;
+            _isRefreshingAvailableDoorSelections = true;
+
+            if (singleDoorSelection == null)
+            {
+                LeftDoorPanel.SelectDoorPreservingLiveState(null, null);
+                RightDoorPanel.SelectDoorPreservingLiveState(null, null);
+                return;
+            }
+
+            var matchingLeftDoor = LeftDoorPanel.Doors
+                .FirstOrDefault(d => d.Id == singleDoorSelection.Id);
+
+            // Left panel uses the refreshed selector object, but inherits the live
+            // state from Single Door View so it does not briefly show stale/default
+            // hardware state when switching views.
+            LeftDoorPanel.SelectDoorPreservingLiveState(
+                selectorDoor: matchingLeftDoor,
+                liveStateSourceDoor: singleDoorSelection);
+
+            // Always start the right panel empty when switching into Two Door View.
+            RightDoorPanel.SelectDoorPreservingLiveState(null, null);
+        }
+        finally
+        {
+            _isRefreshingAvailableDoorSelections = false;
         }
 
-        var matchingLeftDoor = LeftDoorPanel.Doors
-            .FirstOrDefault(d => d.Id == singleDoorSelection.Id);
-
-        LeftDoorPanel.SelectedDoor = matchingLeftDoor;
-
-        // Always start the right panel empty when switching into Two Door View.
-        RightDoorPanel.SelectedDoor = null;
+        RefreshAvailableDoorSelections();
     }
 
 
