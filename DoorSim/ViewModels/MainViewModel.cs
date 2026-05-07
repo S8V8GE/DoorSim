@@ -396,11 +396,18 @@ public partial class MainViewModel : ObservableObject
 
                 if (sensorState != null)
                 {
-                    // Preserve stable behaviour: if shunted, ignore Active so the UI does not flicker.
                     isShunted = sensorState.IsShunted;
 
-                    if (!isShunted)
+                    if (isShunted)
                     {
+                        // Softwire may suppress/report Active as false while an input is shunted.
+                        // DoorSim still needs to show the simulated input state the trainer set,
+                        // so preserve the current UI state while shunted instead of forcing it back to inactive/closed during polling.
+                        isOpen = targetDoors.SelectedDoor.DoorSensorIsOpen;
+                    }
+                    else
+                    {
+                        // When the input is not shunted, Softwire is the source of truth.
                         isOpen = sensorState.Active;
                     }
                 }
@@ -418,7 +425,10 @@ public partial class MainViewModel : ObservableObject
                 if (inRexState != null)
                 {
                     var inRexIsShunted = inRexState.IsShunted;
-                    var inRexIsActive = inRexIsShunted ? false : inRexState.Active;
+
+                    var inRexIsActive = inRexIsShunted
+                        ? targetDoors.SelectedDoor.RexSideInIsActive
+                        : inRexState.Active;
 
                     targetDoors.UpdateInRexState(inRexIsActive, inRexIsShunted);
                 }
@@ -433,7 +443,10 @@ public partial class MainViewModel : ObservableObject
                 if (outRexState != null)
                 {
                     var outRexIsShunted = outRexState.IsShunted;
-                    var outRexIsActive = outRexIsShunted ? false : outRexState.Active;
+
+                    var outRexIsActive = outRexIsShunted
+                        ? targetDoors.SelectedDoor.RexSideOutIsActive
+                        : outRexState.Active;
 
                     targetDoors.UpdateOutRexState(outRexIsActive, outRexIsShunted);
                 }
@@ -448,7 +461,10 @@ public partial class MainViewModel : ObservableObject
                 if (noSideRexState != null)
                 {
                     var noSideRexIsShunted = noSideRexState.IsShunted;
-                    var noSideRexIsActive = noSideRexIsShunted ? false : noSideRexState.Active;
+
+                    var noSideRexIsActive = noSideRexIsShunted
+                        ? targetDoors.SelectedDoor.RexNoSideIsActive
+                        : noSideRexState.Active;
 
                     targetDoors.UpdateNoSideRexState(noSideRexIsActive, noSideRexIsShunted);
                 }
@@ -463,7 +479,10 @@ public partial class MainViewModel : ObservableObject
                 if (breakGlassState != null)
                 {
                     var breakGlassIsShunted = breakGlassState.IsShunted;
-                    var breakGlassIsActive = breakGlassIsShunted ? false : breakGlassState.Active;
+
+                    var breakGlassIsActive = breakGlassIsShunted
+                        ? targetDoors.SelectedDoor.BreakGlassIsActive
+                        : breakGlassState.Active;
 
                     targetDoors.UpdateBreakGlassState(breakGlassIsActive, breakGlassIsShunted);
                 }

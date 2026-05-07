@@ -692,7 +692,11 @@ public partial class DoorsViewModel : ObservableObject
                 return "No door sensor configured";
 
             if (SelectedDoor.DoorSensorIsShunted)
-                return "Door sensor is shunted";
+            {
+                return SelectedDoor.DoorSensorIsOpen
+                    ? "Door sensor is shunted - close door"
+                    : "Door sensor is shunted - open door";
+            }
 
             return SelectedDoor.DoorSensorIsOpen
                 ? "Close door"
@@ -753,7 +757,11 @@ public partial class DoorsViewModel : ObservableObject
                 return "";
 
             if (SelectedDoor.RexSideInIsShunted)
-                return "In REX is shunted";
+            {
+                return SelectedDoor.RexSideInIsActive
+                    ? "In REX is shunted - Release In REX"
+                    : "In REX is shunted - Press In REX";
+            }
 
             return SelectedDoor.RexSideInIsActive
                 ? "Release In REX"
@@ -771,8 +779,12 @@ public partial class DoorsViewModel : ObservableObject
             if (!SelectedDoor.HasRexSideOut)
                 return "";
 
-            if (SelectedDoor.RexSideOutIsShunted)
-                return "Out REX is shunted";
+            if (SelectedDoor.RexSideInIsShunted)
+            {
+                return SelectedDoor.RexSideInIsActive
+                    ? "Out REX is shunted - Release Out REX"
+                    : "Out REX is shunted - Press Out REX";
+            }
 
             return SelectedDoor.RexSideOutIsActive
                 ? "Release Out REX"
@@ -790,8 +802,12 @@ public partial class DoorsViewModel : ObservableObject
             if (!SelectedDoor.HasRexNoSide)
                 return "";
 
-            if (SelectedDoor.RexNoSideIsShunted)
-                return "REX is shunted";
+            if (SelectedDoor.RexSideInIsShunted)
+            {
+                return SelectedDoor.RexSideInIsActive
+                    ? "REX is shunted - Release REX"
+                    : "REX is shunted - Press REX";
+            }
 
             return SelectedDoor.RexNoSideIsActive
                 ? "Release REX"
@@ -811,7 +827,11 @@ public partial class DoorsViewModel : ObservableObject
                 return "";
 
             if (SelectedDoor.BreakGlassIsShunted)
-                return "Breakglass is shunted";
+            {
+                return SelectedDoor.BreakGlassIsActive
+                    ? "Breakglass is shunted - Reset breakglass"
+                    : "Breakglass is shunted - Activate breakglass";
+            }
 
             return SelectedDoor.BreakGlassIsActive
                 ? "Reset breakglass"

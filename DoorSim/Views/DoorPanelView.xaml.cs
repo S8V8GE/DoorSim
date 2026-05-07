@@ -402,10 +402,6 @@ public partial class DoorPanelView : UserControl
         if (vm.SelectedDoor == null)
             return;
 
-        // Prevent interaction if door sensor is shunted
-        if (vm.SelectedDoor.DoorSensorIsShunted)
-            return;
-
         if (string.IsNullOrWhiteSpace(vm.SelectedDoor.DoorSensorDevicePath))
             return;
 
@@ -952,10 +948,6 @@ public partial class DoorPanelView : UserControl
         if (vm.SelectedDoor == null)
             return;
 
-        // If the REX is shunted, do nothing.
-        if (vm.SelectedDoor.RexSideInIsShunted)
-            return;
-
         vm.UpdateInRexState(true, vm.SelectedDoor.RexSideInIsShunted);
 
         await SetInputStateAsync(
@@ -996,10 +988,6 @@ public partial class DoorPanelView : UserControl
             return;
 
         if (vm.SelectedDoor == null)
-            return;
-
-        // If the REX is shunted, do nothing.
-        if (vm.SelectedDoor.RexSideInIsShunted)
             return;
 
         await Task.Delay(1000);
@@ -1064,9 +1052,6 @@ public partial class DoorPanelView : UserControl
         if (vm.SelectedDoor == null)
             return;
 
-        if (vm.SelectedDoor.RexSideOutIsShunted)
-            return;
-
         vm.UpdateOutRexState(true, vm.SelectedDoor.RexSideOutIsShunted);
 
         await SetInputStateAsync(
@@ -1107,9 +1092,6 @@ public partial class DoorPanelView : UserControl
             return;
 
         if (vm.SelectedDoor == null)
-            return;
-
-        if (vm.SelectedDoor.RexSideOutIsShunted)
             return;
 
         await Task.Delay(1000);
@@ -1173,9 +1155,6 @@ public partial class DoorPanelView : UserControl
         if (vm.SelectedDoor == null)
             return;
 
-        if (vm.SelectedDoor.RexNoSideIsShunted)
-            return;
-
         vm.UpdateNoSideRexState(true, vm.SelectedDoor.RexNoSideIsShunted);
 
         await SetInputStateAsync(
@@ -1216,9 +1195,6 @@ public partial class DoorPanelView : UserControl
             return;
 
         if (vm.SelectedDoor == null)
-            return;
-
-        if (vm.SelectedDoor.RexNoSideIsShunted)
             return;
 
         await Task.Delay(1000);
@@ -1262,16 +1238,13 @@ public partial class DoorPanelView : UserControl
         HideFloatingToolTip();
     }
 
-    // Toggles Breakglass between Normal and Active (If Breakglass is shunted, interaction is ignored).
+    // Toggles Breakglass between Normal and Active.
     private async void BreakGlassImage_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
         if (DataContext is not DoorSim.ViewModels.DoorsViewModel vm)
             return;
 
         if (vm.SelectedDoor == null)
-            return;
-
-        if (vm.SelectedDoor.BreakGlassIsShunted)
             return;
 
         if (string.IsNullOrWhiteSpace(vm.SelectedDoor.BreakGlassDevicePath))
