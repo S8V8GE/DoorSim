@@ -1,0 +1,143 @@
+﻿<UserControl x:Class="DoorSim.Views.SearchableSelectorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             MinHeight="28">
+
+    <!--
+        Reusable searchable selector.
+
+        This intentionally does NOT use an editable ComboBox.
+
+        Why:
+            - Editable ComboBox changes text/selection during background refreshes.
+            - DoorSim refreshes doors every few seconds.
+            - Search text should never change the selected item.
+            - Only clicking a result should update SelectedItem.
+
+        Used first for door selection (in 1 and 2 door views), and for interlocking input selection.
+    -->
+
+    <Grid>
+
+        <!-- Main selector button -->
+        <Button x:Name="SelectorButton"
+                Height="28"
+                Background="White"
+                Foreground="#1E1E1E"
+                BorderBrush="#555555"
+                Padding="6,0"
+                HorizontalContentAlignment="Stretch"
+                VerticalContentAlignment="Center"
+                Click="SelectorButton_Click">
+
+            <Grid>
+                
+                <Grid.ColumnDefinitions>
+                    
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="24"/>
+                    
+                </Grid.ColumnDefinitions>
+
+                <!-- Placeholder shown when nothing is selected -->
+                <TextBlock x:Name="PlaceholderTextBlock"
+                           Grid.Column="0"
+                           Text="{Binding PlaceholderText, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                           Foreground="#666666"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center"
+                           Margin="0,0,6,0"/>
+
+                <!-- Selected item text -->
+                <TextBlock x:Name="SelectedTextBlock"
+                           Grid.Column="0"
+                           Foreground="#1E1E1E"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           Margin="0,0,6,0"/>
+
+                <!-- Drop-down arrow -->
+                <TextBlock Grid.Column="1"
+                           Text="▼"
+                           FontSize="10"
+                           Foreground="#444444"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"/>
+                
+            </Grid>
+
+        </Button>
+
+        <!-- Search popup -->
+        <Popup x:Name="SelectorPopup"
+               PlacementTarget="{Binding ElementName=SelectorButton}"
+               Placement="Bottom"
+               StaysOpen="False"
+               AllowsTransparency="True"
+               Opened="SelectorPopup_Opened"
+               Closed="SelectorPopup_Closed">
+
+            <Border Width="{Binding ActualWidth, ElementName=SelectorButton}"
+                    Background="White"
+                    BorderBrush="#555555"
+                    BorderThickness="1"
+                    Padding="6"
+                    MaxHeight="320">
+
+                <DockPanel>
+
+                    <!-- Search box -->
+                    <TextBox x:Name="SearchTextBox"
+                             DockPanel.Dock="Top"
+                             Height="28"
+                             Margin="0,0,0,6"
+                             Padding="6"
+                             Background="#F5F5F5"
+                             Foreground="#1E1E1E"
+                             BorderBrush="#CCCCCC"
+                             TextChanged="SearchTextBox_TextChanged"
+                             KeyDown="SearchTextBox_KeyDown"/>
+
+                    <!-- No results message -->
+                    <TextBlock x:Name="NoResultsTextBlock"
+                               Text="No matching items"
+                               Foreground="#666666"
+                               HorizontalAlignment="Center"
+                               Margin="0,10"
+                               Visibility="Collapsed"/>
+
+                    <!-- Filtered results -->
+                    <ListBox x:Name="ResultsListBox"
+                             MaxHeight="260"
+                             Background="White"
+                             Foreground="#1E1E1E"
+                             BorderThickness="0"
+                             DisplayMemberPath="{Binding DisplayMemberPath, RelativeSource={RelativeSource AncestorType=UserControl}}">
+
+                        <ListBox.ItemContainerStyle>
+                            
+                            <Style TargetType="ListBoxItem">
+                                
+                                <Setter Property="Padding" Value="6"/>
+                                
+                                <Setter Property="Cursor" Value="Hand"/>
+                                
+                                <EventSetter Event="PreviewMouseLeftButtonUp"
+                                             Handler="ResultItem_Click"/>
+                                
+                            </Style>
+                            
+                        </ListBox.ItemContainerStyle>
+
+                    </ListBox>
+
+                </DockPanel>
+
+            </Border>
+
+        </Popup>
+
+    </Grid>
+
+</UserControl>
