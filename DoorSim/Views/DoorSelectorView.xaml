@@ -41,8 +41,9 @@
                   Height="28">
 
                 <ComboBox ItemsSource="{Binding Doors}"
-                          SelectedItem="{Binding SelectedDoor}"
+                          SelectedItem="{Binding SelectedDoor, Mode=TwoWay}"
                           DisplayMemberPath="Name"
+                          MaxDropDownHeight="260"
                           Background="White"
                           Foreground="#1E1E1E"
                           BorderBrush="#555555"
@@ -79,7 +80,7 @@
                         </Style>
                         
                     </TextBlock.Style>
-                    
+
                 </TextBlock>
                 
             </Grid>

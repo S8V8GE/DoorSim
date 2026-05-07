@@ -47,7 +47,7 @@
                                     DockPanel.Dock="Left"
                                     VerticalAlignment="Center">
 
-                            <TextBlock Text="🔒 Door Interlocking Controls"
+                            <TextBlock Text="🔒 Door Interlocking Controls ('Barry's feature')"
                                        FontSize="16"
                                        FontWeight="Bold"
                                        Foreground="White"

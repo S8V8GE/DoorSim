@@ -838,7 +838,7 @@ public partial class DoorsViewModel : ObservableObject
         var previousSelectedDoorId = previousSelectedDoor?.Id;
 
         Doors = new ObservableCollection<SoftwireDoor>(
-            loadedDoors.OrderBy(d => d.Name));
+           loadedDoors.OrderBy(d => d.Name));
 
         HasDoors = Doors.Any();
         DoorCount = Doors.Count;

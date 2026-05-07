@@ -482,7 +482,7 @@ public partial class MainViewModel : ObservableObject
     // Starts a fast timer to refresh the selected door state every second
     private void StartSelectedDoorMonitoring()
     {
-        _connectionTimer?.Stop();
+        _selectedDoorTimer?.Stop();
 
         _selectedDoorTimer = new DispatcherTimer
         {
@@ -575,7 +575,7 @@ public partial class MainViewModel : ObservableObject
     // In Two Door View, both door panels need their own reader polling.
     private void StartReaderMonitoring()
     {
-        _connectionTimer?.Stop();
+        _readerTimer?.Stop();
 
         _readerTimer = new DispatcherTimer
         {
