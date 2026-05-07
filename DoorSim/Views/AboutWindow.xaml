@@ -133,7 +133,7 @@
                                     Background="Transparent"
                                     BorderThickness="0"
                                     Cursor="Hand"
-                                    ToolTip="www.linkedin.com/in/jamesdavidsavage"
+                                    ToolTip="Connect with James on LinkedIn: www.linkedin.com/in/jamesdavidsavage"
                                     Click="LinkedInButton_Click">
 
                                 <Image Source="/Images/LinkedIn.png"
