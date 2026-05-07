@@ -227,14 +227,6 @@ public partial class MainViewModel : ObservableObject
         var inputs = await _softwireService.GetSimulatedInputsAsync();
 
         TwoDoor.Interlocking.LoadInputs(inputs);
-
-        // TEMP DEBUG:
-        // Shows whether SoftwireService is actually returning simulated inputs.
-        // Remove this once interlocking input loading is confirmed.
-        if (CurrentViewMode == "TwoDoor")
-        {
-            StatusText = $"Connected to Softwire - DEBUG: Loaded {inputs.Count} simulated inputs";
-        }
     }
 
     // Sends an interlocking input state change to Softwire.
