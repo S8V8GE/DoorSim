@@ -1,28 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
+﻿using System.Windows.Controls;
 
-namespace DoorSim.Views
+namespace DoorSim.Views;
+
+// Lightweight code-behind for the Door Interlocking Controls panel.
+//
+// Behaviour is handled by DoorInterlockingControlsViewModel.
+// This file currently only initialises the XAML.
+public partial class DoorInterlockingControlsView : UserControl
 {
-    /// <summary>
-    /// Interaction logic for DoorInterlockingControlsView.xaml
-    /// </summary>
-    public partial class DoorInterlockingControlsView : UserControl
+    public DoorInterlockingControlsView()
     {
-        public DoorInterlockingControlsView()
-        {
-            InitializeComponent();
-        }
+        InitializeComponent();
     }
 }

@@ -456,6 +456,117 @@ public class SoftwireService : ISoftwireService
       #############################################################################
     */
 
+    // Retrieves all simulated input devices from Softwire.
+    //
+    // Softwire exposes configured devices at:  /Devices/?details=true
+    //
+    // The response shape can vary, so this method scans the returned JSON tree and
+    // accepts any object that contains a simulated input Href.
+    //
+    // Expected input Href:  /Devices/Bus/Sim/Port_A/Iface/1/Input/IN_01
+    public async Task<List<SimulatedInput>> GetSimulatedInputsAsync()
+    {
+        var inputs = new List<SimulatedInput>();
+
+        if (_client == null)
+            return inputs;
+
+        var response = await _client.GetAsync("/Devices/?details=true");
+
+        if (!response.IsSuccessStatusCode)
+            return inputs;
+
+        var json = await response.Content.ReadAsStringAsync();
+
+        using var document = JsonDocument.Parse(json);
+
+        ScanForSimulatedInputs(document.RootElement, inputs);
+
+        return inputs
+            .OrderBy(i => i.Name)
+            .ThenBy(i => i.DevicePath)
+            .ToList();
+    }
+
+    // Recursively scans any JSON shape returned by /Devices/?details=true.
+    //
+    // This avoids depending on whether Softwire returns:
+    // - an object with Input/Output/Reader arrays,
+    // - a flat array,
+    // - nested wrapper objects.
+    //
+    // Any nested object with a simulated input Href is accepted.
+    private static void ScanForSimulatedInputs(JsonElement element, List<SimulatedInput> inputs)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            AddSimulatedInputIfValid(element, inputs);
+
+            foreach (var property in element.EnumerateObject())
+            {
+                ScanForSimulatedInputs(property.Value, inputs);
+            }
+
+            return;
+        }
+
+        if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in element.EnumerateArray())
+            {
+                ScanForSimulatedInputs(item, inputs);
+            }
+        }
+    }
+
+    // Adds a device to the simulated input list if it looks like a SIM input device.
+    //
+    // We identify inputs from the Href because it is the most reliable identifier
+    // for a Softwire simulated input endpoint.
+    private static void AddSimulatedInputIfValid(JsonElement device, List<SimulatedInput> inputs)
+    {
+        if (device.ValueKind != JsonValueKind.Object)
+            return;
+
+        var href = device.TryGetProperty("Href", out var hrefElement)
+            ? hrefElement.GetString() ?? string.Empty
+            : string.Empty;
+
+        if (string.IsNullOrWhiteSpace(href))
+            return;
+
+        // Keep simulated input devices only.
+        if (!href.Contains("/Input/", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        if (!href.Contains("/Bus/Sim/", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        // Avoid duplicates if the same device appears in more than one nested part
+        // of the response.
+        if (inputs.Any(i => string.Equals(i.DevicePath, href, StringComparison.OrdinalIgnoreCase)))
+            return;
+
+        var displayName = device.TryGetProperty("DisplayName", out var displayNameElement)
+            ? displayNameElement.GetString() ?? string.Empty
+            : string.Empty;
+
+        var isActive = device.TryGetProperty("Active", out var activeElement) &&
+                       activeElement.ValueKind == JsonValueKind.True;
+
+        var isShunted = device.TryGetProperty("IsShunted", out var shuntedElement) &&
+                        shuntedElement.ValueKind == JsonValueKind.True;
+
+        inputs.Add(new SimulatedInput
+        {
+            Id = href,
+            Name = displayName,
+            DevicePath = href,
+            IsActive = isActive,
+            IsShunted = isShunted
+        });
+    }
+
     // Retrieves the current state of a Softwire input device.
     //
     // Used for:

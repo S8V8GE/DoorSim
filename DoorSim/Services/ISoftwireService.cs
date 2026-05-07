@@ -55,6 +55,11 @@ public interface ISoftwireService
       #############################################################################
     */
 
+    // Retrieves all simulated Softwire inputs.
+    //
+    // Used by Door Interlocking Controls so the trainer can select override and lockdown inputs from the full simulated input list.
+    Task<List<SimulatedInput>> GetSimulatedInputsAsync();
+
     // Retrieves the current state of a Softwire input.
     //
     // devicePath example:

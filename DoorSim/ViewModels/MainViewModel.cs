@@ -170,6 +170,10 @@ public partial class MainViewModel : ObservableObject
 
         // Two Door View receives the shared door/cardholder sources, then manages independent left/right door panel state internally.
         TwoDoor = new TwoDoorViewModel(Doors, Cardholders);
+
+        // Give the interlocking controls a safe callback for changing Softwire
+        // simulated input state. The child ViewModel does not need direct access to the full Softwire service.
+        TwoDoor.Interlocking.ConfigureInputStateSender(SetInterlockingInputStateAsync);
     }
 
 
@@ -213,6 +217,40 @@ public partial class MainViewModel : ObservableObject
         TwoDoor.LoadDoors(doors);
 
         return doors.Count;
+    }
+
+    // Refreshes the simulated input list used by Door Interlocking Controls.
+    //
+    // These are loaded from Softwire's device list rather than from door roles because interlocking can use any simulated input, not only inputs assigned to the currently selected doors.
+    private async Task RefreshInterlockingInputsAsync()
+    {
+        var inputs = await _softwireService.GetSimulatedInputsAsync();
+
+        TwoDoor.Interlocking.LoadInputs(inputs);
+
+        // TEMP DEBUG:
+        // Shows whether SoftwireService is actually returning simulated inputs.
+        // Remove this once interlocking input loading is confirmed.
+        if (CurrentViewMode == "TwoDoor")
+        {
+            StatusText = $"Connected to Softwire - DEBUG: Loaded {inputs.Count} simulated inputs";
+        }
+    }
+
+    // Sends an interlocking input state change to Softwire.
+    //
+    // softwireState should be one of the same state names used elsewhere by DoorSim input controls, for example:
+    //      - "Normal"
+    //      - "Active"
+    private async Task<bool> SetInterlockingInputStateAsync(SimulatedInput input, string softwireState)
+    {
+        if (!IsConnected)
+            return false;
+
+        if (string.IsNullOrWhiteSpace(input.DevicePath))
+            return false;
+
+        return await _softwireService.SetInputStateAsync(input.DevicePath, softwireState);
     }
 
 
@@ -344,6 +382,8 @@ public partial class MainViewModel : ObservableObject
                 await RefreshCardholdersAsync();
 
                 var doorCount = await RefreshDoorsAsync();
+
+                await RefreshInterlockingInputsAsync();
 
                 if (doorCount == 0)
                 {
@@ -689,6 +729,9 @@ public partial class MainViewModel : ObservableObject
             // Load doors from Softwire and pass them to the DoorsViewModel.
             var doorCount = await RefreshDoorsAsync();
 
+            // Load all simulated inputs for the Door Interlocking Controls panel.
+            await RefreshInterlockingInputsAsync();
+
             if (doorCount == 0)
             {
                 MainMessage = "Connected to Softwire, but no doors are configured. Please create a door in Config Tool, using Softwire simulated hardware.";
@@ -700,8 +743,13 @@ public partial class MainViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            // If SQL fails, show the error in the main window so we can diagnose it.
-            MainMessage = $"SQL error: {ex.Message}";
+            // If initial loading fails, show the error in the main window so we can diagnose it.
+            //
+            // This can be caused by:
+            //      - SQL cardholder loading
+            //      - Softwire door loading
+            //      - Softwire interlocking input loading
+            MainMessage = $"Load error: {ex.Message}";
         }
 
         // Start slow refresh loop: connection, doors, and cardholders.

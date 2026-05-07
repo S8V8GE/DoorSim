@@ -43,6 +43,9 @@ public partial class TwoDoorViewModel : ObservableObject
     // Owns the right selector and the DoorsViewModel used by the right DoorPanelView.
     public DoorPanelViewModel RightDoorPanel { get; }
 
+    // ViewModel for the interlocking controls area below the two door panels.
+    public DoorInterlockingControlsViewModel Interlocking { get; } = new();
+
 
     /*
       #############################################################################
