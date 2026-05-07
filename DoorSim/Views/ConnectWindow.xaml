@@ -1,16 +1,4 @@
-﻿<!--
-    Connection dialog (View).
-
-    Responsible for:
-    - Collecting Softwire connection details (hostname + password)
-    - Allowing the user to initiate a connection
-    - Returning entered values to the MainViewModel
-
-    This window does NOT perform the connection itself.
-    It simply gathers input and signals OK/Cancel.
--->
-    
-<Window x:Class="DoorSim.Views.ConnectWindow"
+﻿<Window x:Class="DoorSim.Views.ConnectWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Connect to Softwire"
@@ -22,14 +10,24 @@
         Foreground="White"
         Icon="/Images/AppIcon.ico">
 
+<!--
+    Connection dialog (View).
+
+    Responsible for:
+        - Collecting Softwire connection details (hostname + password)
+        - Allowing the user to initiate a connection
+        - Returning entered values to the MainViewModel using DialogResult
+
+    This window does NOT perform the connection itself. It simply gathers input and signals OK/Cancel.
+-->
 
     <!--
         Styled container for the dialog.
 
         Provides:
-        - Subtle border outline
-        - Rounded corners
-        - Padding for consistent spacing
+            - Subtle border outline
+            - Rounded corners
+            - Padding for consistent spacing
 
         Used to create a modern, non-default WPF dialog appearance.
     -->
@@ -43,11 +41,13 @@
             Grid layout for form structure.
 
             Uses rows to:
-            - Align labels and inputs vertically
-            - Provide consistent spacing between elements
+                - Align labels and inputs vertically
+                - Provide consistent spacing between elements
         -->
         <Grid>
+            
             <Grid.RowDefinitions>
+                
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="12"/>
                 <RowDefinition Height="Auto"/>
@@ -57,12 +57,13 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="20"/>
                 <RowDefinition Height="Auto"/>
+                
             </Grid.RowDefinitions>
 
             <!--
                 Hostname input:
-                - User enters Softwire server address
-                - Defaults to localhost for training/lab environments
+                    - User enters Softwire server address
+                    - Defaults to localhost for training/lab environments
             -->
             <TextBlock Text="Softwire Hostname:"
                        FontWeight="Bold"
@@ -78,8 +79,8 @@
 
             <!--
                 Password input:
-                - Secure entry using PasswordBox
-                - Used for Softwire authentication
+                    - Secure entry using PasswordBox
+                    - Used for Softwire authentication
             -->
             <TextBlock Grid.Row="4"
                        Text="Softwire Password:"
@@ -90,19 +91,22 @@
                 Password visibility toggle.
 
                 Contains:
-                - PasswordBox (hidden text)
-                - TextBox (visible text)
-                - Button to temporarily reveal password
+                    - PasswordBox (hidden text)
+                    - TextBox (visible text)
+                    - Button to temporarily reveal password
 
                 Behaviour:
-                - Press and hold → password visible
-                - Release → password hidden again
+                    - Press and hold (MouseDown) → password visible
+                    - Release (MouseUp or MouseLeave) → password hidden again
             -->
             <Grid Grid.Row="6">
+                
                 <Grid.ColumnDefinitions>
+                    
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="8"/>
                     <ColumnDefinition Width="Auto"/>
+                    
                 </Grid.ColumnDefinitions>
 
                 <PasswordBox x:Name="PasswordBox"
@@ -123,8 +127,8 @@
                     "Hold to view password" button.
 
                     Uses mouse events:
-                    - MouseDown → show password
-                    - MouseUp / MouseLeave → hide password
+                        - MouseDown → show password
+                        - MouseUp / MouseLeave → hide password
                 -->
                 <Button Grid.Column="2"
                         Content="👁"
@@ -136,16 +140,17 @@
                         PreviewMouseDown="ViewPassword_MouseDown"
                         PreviewMouseUp="ViewPassword_MouseUp"
                         MouseLeave="ViewPassword_MouseUp"/>
+                
             </Grid>
 
             <!--
                 Action buttons:
 
                 Cancel:
-                - Closes dialog without connecting
+                    - Closes dialog without connecting
 
                 Connect:
-                - Confirms input and returns control to MainViewModel
+                    - Confirms input and returns control to MainViewModel
             -->
             <StackPanel Grid.Row="8"
                         Orientation="Horizontal"
@@ -158,12 +163,13 @@
                         Foreground="White"
                         BorderBrush="#555555"
                         Padding="6"
+                        IsCancel="True"
                         Click="Cancel_Click"/>
 
                 <!--
                     Primary action:
-                    - Triggers connection attempt via MainViewModel
-                    - Marked as default (Enter key activates it)
+                        - Triggers connection attempt via MainViewModel
+                        - Marked as default (Enter key activates it)
                 -->
                 <Button Content="Connect"
                         Width="80"
@@ -173,7 +179,11 @@
                         Padding="6"
                         IsDefault="True"
                         Click="Connect_Click"/>
+                
             </StackPanel>
+            
         </Grid>
+        
     </Border>
+    
 </Window>

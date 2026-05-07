@@ -1,23 +1,23 @@
-﻿<UserControl x:Class="DoorSim.Views.DoorSelectorView"
+﻿<UserControl x:Class="DoorSim.Views.DoorPanelSelectorView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:views="clr-namespace:DoorSim.Views"
              Background="#1E1E1E"
              Foreground="White">
 
-    <!--
-        Single Door selector bar.
+<!--
+    Door selector for one reusable door panel in Two Door View.
 
-        Expected DataContext:
-            - DoorsViewModel
+    Expected DataContext:
+        - DoorPanelViewModel
 
-        Responsibilities:
-            - Show the number of doors loaded from Softwire.
-            - Let the user select the active door for Single Door View.
-            - Show placeholder text when no door is selected.
+    Responsibilities:
+        - Show the number of doors available to this panel.
+        - Let the trainer select the door for this side of Two Door View.
+        - Show placeholder text when no door is selected.
 
-        Note: Two Door View uses DoorPanelSelectorView instead, because each side binds to a DoorPanelViewModel rather than directly to DoorsViewModel.
-    -->
+    Note: This intentionally looks like DoorSelectorView, but binds to DoorPanelViewModel instead of DoorsViewModel so the left and right panels can maintain independent selections.
+-->
     <Border Background="#1F3A5F"
             BorderBrush="#3F3F46"
             BorderThickness="0,0,0,1"
@@ -27,7 +27,7 @@
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center">
 
-            <TextBlock Text="{Binding DoorCount, StringFormat='Select a door ({0}):'}"
+            <TextBlock Text="{Binding DoorSelectorTitle}"
                        FontWeight="SemiBold"
                        Foreground="White"
                        VerticalAlignment="Center"
@@ -39,6 +39,9 @@
                 Uses SearchableSelectorView instead of an editable ComboBox so search text
                 never changes SelectedDoor. SelectedDoor only changes when the trainer
                 selects a result.
+
+                In Two Door View, the ItemsSource is already filtered by TwoDoorViewModel
+                so the same door cannot be selected on both sides.
             -->
             <views:SearchableSelectorView Width="300"
                                           Height="28"

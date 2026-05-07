@@ -11,6 +11,14 @@
         Foreground="White"
         Icon="/Images/AppIcon.ico">
 
+<!--
+    Auto-enrol card dialog.
+
+    Allows the trainer to generate a credential value and send it to a selected Softwire reader for enrolment.
+
+    The dialog does not send the credential itself. It returns a CredentialFormatResult to the caller, which performs the reader swipe.
+-->
+
     <Border BorderBrush="#3F3F46"
             BorderThickness="1"
             Padding="20"
@@ -41,7 +49,13 @@
                        FontWeight="Bold"
                        Foreground="#CCCCCC"/>
 
-            <!-- Credential format selector -->
+            <!--
+                Credential format selector.
+
+                The selected index controls which format-specific input panel is visible.
+            
+                If this list is reordered, update AutoEnrollCardWindow.xaml.cs to keep the selected-index mapping aligned!!!
+            -->
             <StackPanel Grid.Row="2">
                 
                 <TextBlock Text="Credential format"
@@ -53,6 +67,7 @@
                           SelectedIndex="0"
                           SelectionChanged="FormatComboBox_SelectionChanged">
                     
+                    <!-- The below order matches Security Center (true of 5.14 when I last checked) -->
                     <ComboBoxItem Content="Standard 26-bit Wiegand (HID H10301)"/>
                     <ComboBoxItem Content="HID H10306 34-bit"/>
                     <ComboBoxItem Content="HID H10302 37-bit"/>
@@ -68,10 +83,20 @@
 
             </StackPanel>
 
-            <!-- Facility code input -->
+            <!-- ################## FORMATS BELOW ################## -->
+
+            <!--
+                Format-specific input panels.
+
+                These panels all (mostly) occupy the same Grid row. AutoEnrollCardWindow.xaml.cs shows exactly one panel at a time based on the selected credential format.
+            -->
+
+            <!-- Standard Wiegand / HID H10301 inputs -->
+
+            <!-- Standard Wiegand / HID H10301 Facility code input -->
             <StackPanel x:Name="FacilityCodePanel"
                         Grid.Row="4">
-                
+
                 <TextBlock Text="Facility Code (1–255)"
                            Foreground="#CCCCCC"
                            Margin="0,0,0,4"/>
@@ -83,14 +108,14 @@
                          BorderBrush="#555555"
                          Padding="6"
                          TextChanged="CredentialField_TextChanged"/>
-                
+
             </StackPanel>
 
-            <!-- Card number input -->
+            <!-- Standard Wiegand / HID H10301 Card number input -->
             <StackPanel x:Name="CardNumberPanel"
                         Grid.Row="6">
                 
-                <TextBlock Text="Card Number (1–65535)"
+                <TextBlock Text="Card Number (1–65,535)"
                            Foreground="#CCCCCC"
                            Margin="0,0,0,4"/>
 
@@ -109,7 +134,7 @@
                         Grid.Row="6"
                         Visibility="Collapsed">
 
-                <TextBlock Text="Facility Code (1–65535)" 
+                <TextBlock Text="Facility Code (1–65,535)" 
                            Foreground="#CCCCCC"
                            Margin="0,0,0,4"/>
 
@@ -121,7 +146,7 @@
                          Padding="6"
                          TextChanged="CredentialField_TextChanged"/>
 
-                <TextBlock Text="Card Number (1–65535)"
+                <TextBlock Text="Card Number (1–65,535)"
                            Foreground="#CCCCCC"
                            Margin="0,10,0,4"/>
 
@@ -146,7 +171,7 @@
                         Grid.Row="6"
                         Visibility="Collapsed">
 
-                <TextBlock Text="Card Number (1–34359738367)"
+                <TextBlock Text="Card Number (1–34,359,738,367)"
                            Foreground="#CCCCCC"
                            Margin="0,0,0,4"/>
 
@@ -171,7 +196,7 @@
                         Grid.Row="6"
                         Visibility="Collapsed">
 
-                <TextBlock Text="Facility Code (1–65535)"
+                <TextBlock Text="Facility Code (1–65,535)"
                            Foreground="#CCCCCC"
                            Margin="0,0,0,4"/>
 
@@ -183,7 +208,7 @@
                          Padding="6"
                          TextChanged="CredentialField_TextChanged"/>
 
-                <TextBlock Text="Card Number (1–524287)"
+                <TextBlock Text="Card Number (1–524,287)"
                            Foreground="#CCCCCC"
                            Margin="0,10,0,4"/>
 
@@ -208,7 +233,7 @@
                         Grid.Row="6"
                         Visibility="Collapsed">
 
-                <TextBlock Text="Facility Code (1–4095)"
+                <TextBlock Text="Facility Code (1–4,095)"
                            Foreground="#CCCCCC"
                            Margin="0,0,0,4"/>
 
@@ -220,7 +245,7 @@
                          Padding="6"
                          TextChanged="CredentialField_TextChanged"/>
 
-                <TextBlock Text="Card Number (1–1048575)"
+                <TextBlock Text="Card Number (1–1,048,575)"
                            Foreground="#CCCCCC"
                            Margin="0,10,0,4"/>
 
@@ -245,7 +270,7 @@
                         Grid.Row="6"
                         Visibility="Collapsed">
 
-                <TextBlock Text="Facility Code (1–4194303)"
+                <TextBlock Text="Facility Code (1–4,194,303)"
                            Foreground="#CCCCCC"
                            Margin="0,0,0,4"/>
 
@@ -257,7 +282,7 @@
                          Padding="6"
                          TextChanged="CredentialField_TextChanged"/>
 
-                <TextBlock Text="Card Number (1–8388607)"
+                <TextBlock Text="Card Number (1–8,388,607)"
                            Foreground="#CCCCCC"
                            Margin="0,10,0,4"/>
 
@@ -307,7 +332,7 @@
                         Grid.Row="6"
                         Visibility="Collapsed">
 
-                <TextBlock Text="Agency Code (1–16383)"
+                <TextBlock Text="Agency Code (1–16,383)"
                            Foreground="#CCCCCC"
                            Margin="0,0,0,4"/>
 
@@ -319,7 +344,7 @@
                          Padding="6"
                          TextChanged="CredentialField_TextChanged"/>
 
-                <TextBlock Text="System Code (1–16383)"
+                <TextBlock Text="System Code (1–16,383)"
                            Foreground="#CCCCCC"
                            Margin="0,10,0,4"/>
 
@@ -331,7 +356,7 @@
                          Padding="6"
                          TextChanged="CredentialField_TextChanged"/>
 
-                <TextBlock Text="Credential Number (1–1048575)"
+                <TextBlock Text="Credential Number (1–1,048,575)"
                            Foreground="#CCCCCC"
                            Margin="0,10,0,4"/>
 
@@ -343,7 +368,7 @@
                          Padding="6"
                          TextChanged="CredentialField_TextChanged"/>
 
-                <TextBlock Text="Exp Date (1–33554431)"
+                <TextBlock Text="Exp Date (1–33,554,431)"
                            Foreground="#CCCCCC"
                            Margin="0,10,0,4"/>
 
@@ -372,7 +397,7 @@
                 
                 <StackPanel>
 
-                    <TextBlock Text="Agency Code (1–9999)"
+                    <TextBlock Text="Agency Code (1–9,999)"
                                Foreground="#CCCCCC"
                                Margin="0,0,0,4"/>
 
@@ -384,7 +409,7 @@
                              Padding="6"
                              TextChanged="CredentialField_TextChanged"/>
 
-                    <TextBlock Text="System Code (1–9999)"
+                    <TextBlock Text="System Code (1–9,999)"
                            Foreground="#CCCCCC"
                            Margin="0,10,0,4"/>
 
@@ -396,7 +421,7 @@
                              Padding="6"
                              TextChanged="CredentialField_TextChanged"/>
 
-                    <TextBlock Text="Credential Number (1–999999)"
+                    <TextBlock Text="Credential Number (1–999,999)"
                                Foreground="#CCCCCC"
                                Margin="0,10,0,4"/>
 
@@ -432,7 +457,7 @@
                              Padding="6"
                              TextChanged="CredentialField_TextChanged"/>
 
-                    <TextBlock Text="PI (1–9999999999)"
+                    <TextBlock Text="PI (1–9,999,999,999)"
                                Foreground="#CCCCCC"
                                Margin="0,10,0,4"/>
 
@@ -456,7 +481,7 @@
                              Padding="6"
                              TextChanged="CredentialField_TextChanged"/>
 
-                    <TextBlock Text="OI (1–9999)"
+                    <TextBlock Text="OI (1–9,999)"
                                Foreground="#CCCCCC"
                                Margin="0,10,0,4"/>
 

@@ -4,51 +4,71 @@
              Background="#1E1E1E"
              Foreground="White">
 
+<!--
+    Cardholders panel.
+
+    Expected DataContext:
+        - CardholdersViewModel
+
+    Responsibilities:
+        - Show cardholders loaded from the Directory SQL database.
+        - Provide live search/filtering.
+        - Display credential value, bit count, and PIN availability.
+        - Start drag/drop operations so cardholders can be presented to door readers.
+
+    Note: Drag/drop behaviour and the floating credential image are handled in CardholdersView.xaml.cs because WPF drag/drop needs direct UI event handling.
+-->
+
     <UserControl.Resources>
 
-        <!-- Header style -->
+        <!-- DataGrid column header styling -->
         <Style TargetType="DataGridColumnHeader">
+            
             <Setter Property="Background" Value="#2D2D30"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="BorderBrush" Value="#3F3F46"/>
             <Setter Property="BorderThickness" Value="0,0,1,1"/>
             <Setter Property="Padding" Value="6,4"/>
+            
         </Style>
 
-        <!-- Row style -->
+        <!-- DataGrid row styling, including hover and selected states -->
         <Style TargetType="DataGridRow">
+            
             <Setter Property="Background" Value="#1E1E1E"/>
             <Setter Property="Foreground" Value="White"/>
 
             <Style.Triggers>
+                
                 <!-- Hover highlight -->
                 <Trigger Property="IsMouseOver" Value="True">
+                    
                     <Setter Property="Background" Value="#2A4A73"/>
+                    
                 </Trigger>
 
                 <!-- Selected row highlight -->
                 <Trigger Property="IsSelected" Value="True">
+                    
                     <Setter Property="Background" Value="#007ACC"/>
                     <Setter Property="Foreground" Value="White"/>
+                    
                 </Trigger>
+                
             </Style.Triggers>
+            
         </Style>
 
     </UserControl.Resources>
 
     <!--
-    Cardholders panel.
+        Root layout.
 
-    Responsible for:
-    - Showing cardholders loaded from SQL
-    - Providing a search box
-    - Showing an empty message if no cardholders exist
-
-    Later:
-    - Cardholders will be draggable onto door readers.
+        Contains:
+            - the bordered cardholder list panel
+            - an overlay popup used as the drag image
     -->
-    
     <Grid>
         
         <Border BorderBrush="#3F3F46"
@@ -58,13 +78,25 @@
                 Padding="10">
 
             <Grid>
+                
                 <Grid.RowDefinitions>
+                    
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="10"/>
                     <RowDefinition Height="*"/>
+                    
                 </Grid.RowDefinitions>
 
-                <!-- Title bar with search -->
+                <!--
+                    Title and search bar.
+
+                    Left:
+                        - panel title
+                        - number of configured credentials
+
+                    Right:
+                        - search box bound to CardholdersViewModel.SearchText
+                -->
                 <Border Grid.Row="0"
                         Background="#1F3A5F"
                         Padding="10,6"> 
@@ -102,52 +134,104 @@
                                      BorderBrush="#555555"
                                      Padding="6"
                                      ToolTip="Search cardholders"/>
+                            
                         </StackPanel>
 
                     </DockPanel>
                 
                 </Border>
 
-                <!-- Cardholder list -->
-                <DataGrid x:Name="CardholdersGrid"
-                          Grid.Row="2"
-                          ItemsSource="{Binding VisibleCardholders}"
-                          PreviewMouseMove="CardholdersGrid_PreviewMouseMove"
-                          GiveFeedback="CardholdersGrid_GiveFeedback"
-                          AutoGenerateColumns="False"
-                          IsReadOnly="True"
-                          CanUserAddRows="False"
-                          HeadersVisibility="Column"
-                          Background="#1E1E1E"
-                          Foreground="White"
-                          RowBackground="#1E1E1E"
-                          AlternatingRowBackground="#252526"
-                          GridLinesVisibility="All"
-                          VerticalGridLinesBrush="#3F3F46"
-                          HorizontalGridLinesBrush="#3F3F46">
+                <!--
+                    Cardholder list.
 
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="Cardholder Name"
-                                            Binding="{Binding CardholderName}"
-                                            Width="*"/>
+                    Rows are read-only. Dragging a row starts a drag/drop operation using the selected Cardholder object as the drag data.
+                -->
+                <Grid Grid.Row="2">
+                    
+                    <DataGrid x:Name="CardholdersGrid"
+                              Grid.Row="2"
+                              ItemsSource="{Binding VisibleCardholders}"
+                              PreviewMouseMove="CardholdersGrid_PreviewMouseMove"
+                              GiveFeedback="CardholdersGrid_GiveFeedback"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              CanUserAddRows="False"
+                              HeadersVisibility="Column"
+                              Background="#1E1E1E"
+                              Foreground="White"
+                              RowBackground="#1E1E1E"
+                              AlternatingRowBackground="#252526"
+                              GridLinesVisibility="All"
+                              VerticalGridLinesBrush="#3F3F46"
+                              HorizontalGridLinesBrush="#3F3F46">
 
-                        <DataGridTextColumn Header="Credential (Raw Hexadecimal)"
-                                            Binding="{Binding TrimmedCredential}"
-                                            Width="*"/>
+                        <DataGrid.Columns>
+                        
+                            <DataGridTextColumn Header="Cardholder Name"
+                                                Binding="{Binding CardholderName}"
+                                                Width="*"/>
 
-                        <DataGridTextColumn Header="Bit Count"
-                                            Binding="{Binding BitCount}"
-                                            Width="100"/>
+                            <DataGridTextColumn Header="Credential (Raw Hexadecimal)"
+                                                Binding="{Binding TrimmedCredential}"
+                                                Width="*"/>
 
-                        <DataGridCheckBoxColumn Header="Has PIN"
-                                                Binding="{Binding HasPin}"
+                            <DataGridTextColumn Header="Bit Count"
+                                                Binding="{Binding BitCount}"
                                                 Width="100"/>
-                    </DataGrid.Columns>
-                </DataGrid>
+
+                            <DataGridCheckBoxColumn Header="Has PIN"
+                                                    Binding="{Binding HasPin}"
+                                                    Width="100"/>
+                        </DataGrid.Columns>
+                    
+                    </DataGrid>
+                    
+                    <!-- Empty-state message shown when no cardholders match the current data/search. -->
+                    <TextBlock Text="{Binding EmptyMessage}"
+                               Foreground="#CCCCCC"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               TextAlignment="Center"
+                               TextWrapping="Wrap"
+                               MaxWidth="420"
+                               IsHitTestVisible="False">
+
+                        <TextBlock.Style>
+
+                            <Style TargetType="TextBlock">
+
+                                <Setter Property="Visibility" Value="Collapsed"/>
+
+                                <Style.Triggers>
+
+                                    <DataTrigger Binding="{Binding HasCardholders}"
+                                                 Value="False">
+
+                                        <Setter Property="Visibility" Value="Visible"/>
+
+                                    </DataTrigger>
+
+                                </Style.Triggers>
+
+                            </Style>
+
+                        </TextBlock.Style>
+
+                    </TextBlock>
+
+                </Grid>
+
             </Grid>
+            
         </Border>
 
-        <!-- Floating credential image shown while dragging a cardholder -->
+        <!--
+            Floating credential image.
+
+            Displayed during drag/drop to give the trainer visual feedback that a credential is being moved toward a reader.
+        -->
         <Popup x:Name="CredentialDragPopup"
                Placement="Absolute"
                AllowsTransparency="True"
@@ -160,6 +244,7 @@
                    Stretch="Uniform"
                    RenderOptions.BitmapScalingMode="HighQuality"
                    SnapsToDevicePixels="True"/>
+            
         </Popup>
 
     </Grid>
