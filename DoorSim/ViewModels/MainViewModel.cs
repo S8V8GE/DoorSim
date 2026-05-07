@@ -48,7 +48,7 @@ public partial class MainViewModel : ObservableObject
       #############################################################################
     */
 
-    // ViewModel for the cardholders panel
+    // ViewModel for the cardholders panel.
     public CardholdersViewModel Cardholders { get; } = new CardholdersViewModel();
 
     // ViewModel for the door selector and door display area
