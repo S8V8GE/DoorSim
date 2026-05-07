@@ -115,9 +115,11 @@
 
                     </MenuItem>
 
-                    <!-- Placeholder menu items for future dialogs/documentation. -->
+                    <!-- Placeholder menu item for help/documentation. -->
                     <MenuItem Header="_Help"/>
-                    <MenuItem Header="_About"/>
+                    
+                    <MenuItem Header="_About"
+                              Click="AboutMenuItem_Click"/>
 
                 </Menu>
                 

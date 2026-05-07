@@ -1,6 +1,7 @@
-﻿using System.Windows;
-using DoorSim.Services;
+﻿using DoorSim.Services;
 using DoorSim.ViewModels;
+using DoorSim.Views;
+using System.Windows;
 
 namespace DoorSim;
 
@@ -69,6 +70,17 @@ public partial class MainWindow : Window
             MinHeight = 800;
             MaxHeight = 800;
         }
+    }
+
+    // Used for opening the about window from the menu. The about window is modal and owned by the main window.
+    private void AboutMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        var aboutWindow = new AboutWindow
+        {
+            Owner = this
+        };
+
+        aboutWindow.ShowDialog();
     }
 
 }

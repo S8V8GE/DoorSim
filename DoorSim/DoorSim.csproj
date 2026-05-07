@@ -13,8 +13,10 @@
     <None Remove="Images\Breakglass_Active.png" />
     <None Remove="Images\Breakglass_Normal.png" />
     <None Remove="Images\Credential.png" />
+    <None Remove="Images\DoorSim_About.png" />
     <None Remove="Images\Door_Closed.png" />
     <None Remove="Images\Door_Open.png" />
+    <None Remove="Images\LinkedIn.png" />
     <None Remove="Images\Reader.png" />
     <None Remove="Images\REX_Active.png" />
     <None Remove="Images\REX_Normal.png" />
@@ -33,8 +35,14 @@
     <Resource Include="Images\Breakglass_Active.png" />
     <Resource Include="Images\Breakglass_Normal.png" />
     <Resource Include="Images\Credential.png" />
+    <Resource Include="Images\DoorSim_About.png">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Resource>
     <Resource Include="Images\Door_Closed.png" />
     <Resource Include="Images\Door_Open.png" />
+    <Resource Include="Images\LinkedIn.png">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Resource>
     <Resource Include="Images\Reader.png" />
     <Resource Include="Images\REX_Active.png" />
     <Resource Include="Images\REX_Normal.png" />
