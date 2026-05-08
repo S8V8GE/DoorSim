@@ -55,4 +55,8 @@
     </Resource>
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Help\" />
+  </ItemGroup>
+
 </Project>

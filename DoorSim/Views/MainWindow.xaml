@@ -56,9 +56,9 @@
         Root layout container.
 
         DockPanel allows:
-        - Top menu bar
-        - Bottom status bar
-        - Central content area filling remaining space
+            - Top menu bar
+            - Bottom status bar
+            - Central content area filling remaining space
     -->
     <Border BorderBrush="#3F3F46"
             BorderThickness="1"
@@ -115,8 +115,9 @@
 
                     </MenuItem>
 
-                    <!-- Placeholder menu item for help/documentation. -->
-                    <MenuItem Header="_Help"/>
+                    <!-- menu items for help/documentation. -->
+                    <MenuItem Header="_Help"
+                              Click="HelpMenuItem_Click"/>
                     
                     <MenuItem Header="_About"
                               Click="AboutMenuItem_Click"/>

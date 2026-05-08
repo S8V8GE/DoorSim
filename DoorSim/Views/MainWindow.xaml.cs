@@ -1,7 +1,9 @@
 ﻿using DoorSim.Services;
 using DoorSim.ViewModels;
 using DoorSim.Views;
+using System.Diagnostics;
 using System.Windows;
+using System.IO;
 
 namespace DoorSim;
 
@@ -70,6 +72,39 @@ public partial class MainWindow : Window
             MinHeight = 800;
             MaxHeight = 800;
         }
+    }
+
+    // Opens the DoorSim help guide.
+    // The help guide is stored as a PDF in the application's output folder.
+    // Windows opens it using the user's default PDF viewer or browser.
+    //
+    // NOTE:
+    // -----
+    // The guide must be called "DoorSim_User_Guide.pdf" and be located in a "Help" folder in the application's output directory for this to work.
+    // The PDF must be set to:
+    //      - Build Action: Content
+    //      - Copy to Output Directory: Copy if newer (or Copy always)
+    private void HelpMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        var helpFilePath = Path.Combine(AppContext.BaseDirectory, "Help", "DoorSim_User_Guide.pdf");
+
+        if (!File.Exists(helpFilePath))
+        {
+            MessageBox.Show(
+                "The DoorSim help guide could not be found.\n\n" +
+                $"Expected location:\n{helpFilePath}",
+                "Help guide not found",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+
+            return;
+        }
+
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = helpFilePath,
+            UseShellExecute = true
+        });
     }
 
     // Used for opening the about window from the menu. The about window is modal and owned by the main window.
