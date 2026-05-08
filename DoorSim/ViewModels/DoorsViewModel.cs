@@ -48,6 +48,10 @@ public partial class DoorsViewModel : ObservableObject
     [ObservableProperty]
     private int doorCount;
 
+    // Message shown inside DoorPanelView when no door is currently selected.
+    [ObservableProperty]
+    private string emptyDoorPanelMessage = "Please select a door";
+
 
     /*
       #############################################################################
@@ -862,6 +866,10 @@ public partial class DoorsViewModel : ObservableObject
 
         HasDoors = Doors.Any();
         DoorCount = Doors.Count;
+
+        EmptyDoorPanelMessage = DoorCount == 0
+            ? "Connected to Softwire, but no doors are configured. Please create a door in Config Tool using Softwire simulated hardware."
+            : "Please select a door";
 
         if (!string.IsNullOrWhiteSpace(previousSelectedDoorId))
         {

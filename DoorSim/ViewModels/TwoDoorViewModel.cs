@@ -198,6 +198,27 @@ public partial class TwoDoorViewModel : ObservableObject
             // DoorPanelViewModel.LoadDoors(...) preserves the current selection by Id if possible, or clears it if the selected door is no longer available.
             LeftDoorPanel.LoadDoors(leftAvailableDoors);
             RightDoorPanel.LoadDoors(rightAvailableDoors);
+
+            if (allDoors.Count == 0)
+            {
+                LeftDoorPanel.SetEmptyPanelMessage(
+                    "No doors are configured. Please create a door in Config Tool using Softwire simulated hardware.");
+
+                RightDoorPanel.SetEmptyPanelMessage(
+                    "No doors are configured. Please create a door in Config Tool using Softwire simulated hardware.");
+            }
+            else if (allDoors.Count == 1)
+            {
+                LeftDoorPanel.SetEmptyPanelMessage("Please select a door.");
+
+                RightDoorPanel.SetEmptyPanelMessage(
+                    "Only one door is available. Two Door View requires a second door because the same door cannot be selected twice.");
+            }
+            else
+            {
+                LeftDoorPanel.SetEmptyPanelMessage("Please select a door.");
+                RightDoorPanel.SetEmptyPanelMessage("Please select a door.");
+            }
         }
         finally
         {

@@ -519,13 +519,15 @@
                 </Style>
                 
             </Border.Style>
-
-            <TextBlock Text="Select a door to begin"
+            
+            <TextBlock Text="{Binding EmptyDoorPanelMessage}"
                        FontSize="22"
                        Foreground="#CCCCCC"
+                       TextWrapping="Wrap"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
-                       TextAlignment="Center"/>
+                       TextAlignment="Center"
+                       MaxWidth="850"/>
             
         </Border>
 

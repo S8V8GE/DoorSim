@@ -64,6 +64,11 @@ public partial class DoorPanelViewModel : ObservableObject
     // That should keep the ComboBox aligned with the refreshed list, but should not be treated as a user selection change.
     private bool _isLoadingDoors;
 
+    public void SetEmptyPanelMessage(string message)
+    {
+        DoorState.EmptyDoorPanelMessage = message;
+    }
+
 
     /*
       #############################################################################
