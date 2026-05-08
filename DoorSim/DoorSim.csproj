@@ -9,6 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="Help\DoorSim_User_Guide.pdf" />
     <None Remove="Images\AppIcon.ico" />
     <None Remove="Images\Breakglass_Active.png" />
     <None Remove="Images\Breakglass_Normal.png" />
@@ -23,6 +24,12 @@
     <None Remove="Sounds\Credential_Beep.wav" />
     <None Remove="Sounds\Simpsons_Denied.wav" />
     <None Remove="Sounds\Simpsons_Granted.wav" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Help\DoorSim_User_Guide.pdf">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>
@@ -53,10 +60,6 @@
     <Resource Include="Sounds\Simpsons_Granted.wav">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </Resource>
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Help\" />
   </ItemGroup>
 
 </Project>
