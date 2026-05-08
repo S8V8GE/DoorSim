@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="About"
-        Width="740"
-        Height="540"
+        Width="760"
+        Height="720"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
         Background="#1E1E1E"
@@ -25,23 +25,14 @@
             Padding="22">
 
         <Grid>
-            
+
             <Grid.RowDefinitions>
-                
+
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
-                
-            </Grid.RowDefinitions>
 
-            <!-- Title -->
-            <TextBlock Grid.Row="0"
-                       Text="About"
-                       FontSize="18"
-                       FontWeight="Bold"
-                       Foreground="White"
-                       HorizontalAlignment="Center"
-                       Margin="0,0,0,18"/>
+            </Grid.RowDefinitions>
 
             <!-- Main content -->
             <Grid Grid.Row="1">
@@ -81,6 +72,10 @@
                                Foreground="#CCCCCC"
                                Margin="0,2,0,14"/>
 
+                    <Border Height="1"
+                            Background="#3F3F46"
+                            Margin="0,0,0,14"/>
+
                     <Grid Margin="0,0,0,12">
                         
                         <Grid.ColumnDefinitions>
@@ -103,6 +98,7 @@
                                    FontWeight="Bold"
                                    Foreground="White"/>
 
+                        <!-- ############################ VERSION & AUTHOR ############################ -->
                         <TextBlock Grid.Row="0"
                                    Grid.Column="1"
                                    Text="v0.9 pre-release"
@@ -149,23 +145,56 @@
 
                     </Grid>
 
+                    <Border Height="1"
+                            Background="#3F3F46"
+                            Margin="0,0,0,10"/>
+
                     <TextBlock Text="Disclaimer:"
                                FontWeight="Bold"
                                Foreground="White"/>
 
                     <TextBlock TextWrapping="Wrap"
                                Foreground="#CCCCCC"
-                               Margin="0,2,0,12"
-                               Text="DoorSim is an independent training/demo utility that interacts with Genetec Softwire simulation environments. It is not an official Genetec product, is not endorsed or supported by Genetec Inc., and is intended for local training and demonstration use only."/>
+                               Margin="0,2,0,12">
 
+                        DoorSim is an independent training, testing, and demonstration tool designed to interact with simulated Genetec Softwire environments.
+
+                        <LineBreak/>
+                        <LineBreak/>
+
+                        DoorSim is not an official Genetec Inc. product and is not endorsed, supported, maintained, or warranted by Genetec Inc.
+
+                        <LineBreak/>
+                        <LineBreak/>
+
+                        This tool is intended for local training, lab testing, and demonstration use only. It should not be used with production systems or live customer environments.
+
+                    </TextBlock>
+
+                    <Border Height="1"
+                            Background="#3F3F46"
+                            Margin="0,2,0,8"/>
+                    
                     <TextBlock Text="About:"
                                FontWeight="Bold"
                                Foreground="White"/>
 
                     <TextBlock TextWrapping="Wrap"
                                Foreground="#CCCCCC"
-                               Margin="0,2,0,12"
-                               Text="DoorSim is a training/demo tool for interacting with Softwire simulated access control doors, including cardholders, readers, REX inputs, breakglass inputs, and interlocking scenarios."/>
+                               Margin="0,2,0,12">
+
+                        DoorSim provides a visual way to interact with simulated access-controlled doors, cardholders, readers, REX inputs, breakglass inputs, and interlocking scenarios.
+
+                        <LineBreak/>
+                        <LineBreak/>
+
+                        It was created to better support technical training, testing, and demonstrations without requiring physical access control hardware. 
+
+                    </TextBlock>
+
+                    <Border Height="1"
+                            Background="#3F3F46"
+                            Margin="0,2,0,8"/>
 
                     <TextBlock Text="Support:"
                                FontWeight="Bold"
@@ -173,8 +202,22 @@
 
                     <TextBlock TextWrapping="Wrap"
                                Foreground="#CCCCCC"
-                               Margin="0,2,0,0"
-                               Text="For help, use the Help menu in DoorSim. To report bugs or request improvements, use the project’s GitHub Issues page."/>
+                               Margin="0,2,0,0">
+                        
+                        For help, use the 'Help' menu in DoorSim. 
+                        
+                        <LineBreak/>
+                        <LineBreak/>
+                        
+                        To download DoorSim or view the source code, visit the DoorSim project’s GitHub repository: LINK TO FOLLOW
+                        
+                        <LineBreak/>
+                        <LineBreak/>
+                        
+                        To report bugs or request improvements, use the DoorSim project’s GitHub Issues page: LINK TO FOLLOW
+                        
+                    </TextBlock>
+                               
 
                 </StackPanel>
                 
