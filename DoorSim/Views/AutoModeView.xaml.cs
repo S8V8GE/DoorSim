@@ -72,4 +72,5 @@ public partial class AutoModeView : UserControl
             e.CancelCommand();
         }
     }
+
 }

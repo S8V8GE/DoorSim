@@ -19,6 +19,19 @@ public partial class AutoModeViewModel : ObservableObject
 {
     /*
       #############################################################################
+                          Simulation Engine State
+      #############################################################################
+    */
+
+    // Used to stop the running simulation loop safely.
+    private CancellationTokenSource? _simulationCancellation;
+
+    // Random number generator used for delays and event type selection.
+    private readonly Random _random = new Random();
+
+
+    /*
+      #############################################################################
                                   Page Text
       #############################################################################
     */
@@ -272,7 +285,7 @@ public partial class AutoModeViewModel : ObservableObject
     */
 
     [RelayCommand(CanExecute = nameof(CanStartSimulation))]
-    private void StartSimulation()
+    private async Task StartSimulationAsync()
     {
         IsSimulationRunning = true;
         SimulationStatus = "Running";
@@ -283,17 +296,54 @@ public partial class AutoModeViewModel : ObservableObject
         ExecutedForcedEvents = 0;
         ExecutedHeldEvents = 0;
 
+        _simulationCancellation = new CancellationTokenSource();
+
         AddLog(
             level: "Info",
             eventType: "-",
             doorName: "-",
-            message: "Auto Mode started. Real simulation logic will be added next.");
+            message: "Auto Mode started.");
 
         AddLog(
             level: "Info",
             eventType: "-",
             doorName: "-",
             message: $"Settings: {NumberOfEvents} events, {SelectedDelayMode} delay, {SelectedEventProfile}, PIN {GlobalPin}.");
+
+        try
+        {
+            await RunFakeSimulationAsync(_simulationCancellation.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            AddLog(
+                level: "Warning",
+                eventType: "-",
+                doorName: "-",
+                message: "Auto Mode stopped by user.");
+        }
+        finally
+        {
+            _simulationCancellation?.Dispose();
+            _simulationCancellation = null;
+
+            IsSimulationRunning = false;
+
+            if (CompletedEvents >= NumberOfEvents)
+            {
+                SimulationStatus = "Completed";
+
+                AddLog(
+                    level: "Success",
+                    eventType: "-",
+                    doorName: "-",
+                    message: "Auto Mode completed all requested events.");
+            }
+            else if (SimulationStatus != "Stopped")
+            {
+                SimulationStatus = "Stopped";
+            }
+        }
     }
 
     private bool CanStartSimulation()
@@ -304,14 +354,9 @@ public partial class AutoModeViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanStopSimulation))]
     private void StopSimulation()
     {
-        IsSimulationRunning = false;
-        SimulationStatus = "Stopped";
+        SimulationStatus = "Stopping...";
 
-        AddLog(
-            level: "Warning",
-            eventType: "-",
-            doorName: "-",
-            message: "Auto Mode stopped by user.");
+        _simulationCancellation?.Cancel();
     }
 
     private bool CanStopSimulation()
@@ -324,11 +369,120 @@ public partial class AutoModeViewModel : ObservableObject
     {
         LogEntries.Clear();
 
+        if (!IsSimulationRunning)
+        {
+            AddLog(
+                level: "Info",
+                eventType: "-",
+                doorName: "-",
+                message: "Event log cleared.");
+        }
+    }
+
+
+    /*
+  #############################################################################
+                          Fake Simulation Engine
+  #############################################################################
+*/
+
+    // Runs a fake timed simulation loop.
+    //
+    // This proves the Auto Mode engine before we connect it to real Softwire actions.
+    // Later, ExecuteFakeEventAsync(...) will be replaced with real door/cardholder/input logic.
+    private async Task RunFakeSimulationAsync(CancellationToken cancellationToken)
+    {
+        for (var eventNumber = 1; eventNumber <= NumberOfEvents; eventNumber++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var waitSeconds = GetRandomDelaySeconds();
+
+            AddLog(
+                level: "Info",
+                eventType: "-",
+                doorName: "-",
+                message: waitSeconds == 0
+                    ? "No delay before next event."
+                    : $"Waiting {waitSeconds} second(s) before next event.",
+                eventNumber: eventNumber);
+
+            if (waitSeconds > 0)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var eventType = GetRandomEventType();
+
+            AddLog(
+                level: "Info",
+                eventType: eventType,
+                doorName: "-",
+                message: $"Event type selected: {eventType}.",
+                eventNumber: eventNumber);
+
+            await ExecuteFakeEventAsync(eventNumber, eventType, cancellationToken);
+        }
+    }
+
+    // Executes one fake event and updates the running summary.
+    //
+    // No Softwire commands are sent here yet.
+    private async Task ExecuteFakeEventAsync(int eventNumber, string eventType, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // Tiny delay so the log feels alive and proves the UI remains responsive.
+        await Task.Delay(150, cancellationToken);
+
+        switch (eventType)
+        {
+            case "Normal":
+                ExecutedNormalEvents++;
+                break;
+
+            case "Forced":
+                ExecutedForcedEvents++;
+                break;
+
+            case "Held":
+                ExecutedHeldEvents++;
+                break;
+        }
+
+        CompletedEvents++;
+
         AddLog(
-            level: "Info",
-            eventType: "-",
+            level: "Success",
+            eventType: eventType,
             doorName: "-",
-            message: "Event log cleared.");
+            message: $"Fake {eventType.ToLower()} event completed.",
+            eventNumber: eventNumber);
+    }
+
+    // Returns a random delay between the configured minimum and maximum values.
+    private int GetRandomDelaySeconds()
+    {
+        if (MaximumDelaySeconds <= MinimumDelaySeconds)
+            return MinimumDelaySeconds;
+
+        return _random.Next(MinimumDelaySeconds, MaximumDelaySeconds + 1);
+    }
+
+    // Randomly chooses Normal / Forced / Held based on the selected event profile.
+    private string GetRandomEventType()
+    {
+        var roll = _random.Next(1, 101);
+
+        if (roll <= NormalEventPercentage)
+            return "Normal";
+
+        if (roll <= NormalEventPercentage + ForcedEventPercentage)
+            return "Forced";
+
+        return "Held";
     }
 
 
