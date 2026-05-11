@@ -644,26 +644,11 @@ public partial class AutoModeViewModel : ObservableObject
                 return;
             }
 
-            AddLog(
-                level: "Info",
-                eventType: "Normal",
-                doorName: selectedDoor.Name,
-                message: $"Reader selected: {readerSelection.Description} ({readerSelection.ReaderMode}). Reader/cardholder execution will be added next.",
-                eventNumber: eventNumber);
-
-            // Temporary placeholder.
-            //
-            // This proves door/method/reader selection before we add the more complex
-            // cardholder swipe, Card + PIN, decision polling, and door sensor logic.
-            FailedAttempts++;
-            CompletedEvents++;
-
-            AddLog(
-                level: "Warning",
-                eventType: "Normal",
-                doorName: selectedDoor.Name,
-                message: "Normal reader event selected but not executed yet.",
-                eventNumber: eventNumber);
+            await ExecuteNormalReaderEventAsync(
+                eventNumber,
+                selectedDoor,
+                readerSelection,
+                cancellationToken);
 
             return;
         }
@@ -956,28 +941,356 @@ public partial class AutoModeViewModel : ObservableObject
             eventNumber: eventNumber);
     }
 
-    // Selects a random door suitable for a normal REX event.
+    // Executes a real normal access event using a reader and cardholder credential.
     //
-    // For this first Normal implementation, we only use REX. Reader/cardholder normal events will be added later.
+    // Sequence:
+    //      1. Select a suitable cardholder.
+    //      2. Swipe the card credential at the selected reader.
+    //      3. If the reader is Card + PIN, send the configured Global PIN.
+    //      4. Poll Softwire briefly to see whether the door unlocks or reports denial.
+    //      5. If the door unlocks and has a sensor, open and close the door sensor.
     //
-    // A normal REX candidate must:
-    //      - be locked,
-    //      - not be unlocked for maintenance,
-    //      - allow REX to unlock the door,
-    //      - have at least one configured REX input.
-    private SoftwireDoor? SelectNormalRexDoorCandidate(IEnumerable<SoftwireDoor> doors)
+    // Important Card + PIN rule:
+    //      For Card + PIN readers, Auto Mode only selects cardholders where HasPin is true.
+    //      This mirrors the PowerShell PoC behaviour and avoids deliberately selecting
+    //      cardholders that cannot complete a Card + PIN transaction.
+    private async Task ExecuteNormalReaderEventAsync(int eventNumber, SoftwireDoor selectedDoor, AutoReaderSelection readerSelection, CancellationToken cancellationToken)
     {
-        var candidates = doors
-            .Where(d => d.DoorIsLocked)
-            .Where(d => !d.UnlockedForMaintenance)
-            .Where(d => d.AutoUnlockOnRex)
-            .Where(HasUsableRex)
-            .ToList();
+        if (_getCardholders == null ||
+            _getDoorsAsync == null ||
+            _setInputStateAsync == null ||
+            _swipeRawAsync == null ||
+            _swipeWiegand26Async == null)
+        {
+            FailedAttempts++;
+            CompletedEvents++;
 
-        if (!candidates.Any())
-            return null;
+            AddLog(
+                level: "Error",
+                eventType: "Normal",
+                doorName: selectedDoor.Name,
+                message: "Normal reader event failed because one or more simulation callbacks are not configured.",
+                eventNumber: eventNumber);
 
-        return candidates[_random.Next(candidates.Count)];
+            return;
+        }
+
+        var cardholder = SelectCardholderForReader(readerSelection);
+
+        if (cardholder == null)
+        {
+            FailedAttempts++;
+            CompletedEvents++;
+
+            var reason = readerSelection.RequiresCardAndPin
+                ? "No suitable cardholder found with both a card credential and PIN."
+                : "No suitable cardholder found with a card credential.";
+
+            AddLog(
+                level: "Warning",
+                eventType: "Normal",
+                doorName: selectedDoor.Name,
+                message: reason,
+                eventNumber: eventNumber);
+
+            return;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var doorSensorWasOpened = false;
+        var eventWasCancelled = false;
+        var cleanupFailed = false;
+
+        try
+        {
+            AddLog(
+                level: "Info",
+                eventType: "Normal",
+                doorName: selectedDoor.Name,
+                message: $"Reader selected: {readerSelection.Description} ({readerSelection.ReaderMode}).",
+                eventNumber: eventNumber);
+
+            AddLog(
+                level: "Info",
+                eventType: "Normal",
+                doorName: selectedDoor.Name,
+                message: $"Cardholder selected: {cardholder.CardholderName}.",
+                eventNumber: eventNumber);
+
+            AddLog(
+                level: "Info",
+                eventType: "Normal",
+                doorName: selectedDoor.Name,
+                message: "Swiping card credential.",
+                eventNumber: eventNumber);
+
+            var cardSwipeSucceeded = await _swipeRawAsync(
+                readerSelection.ReaderPath,
+                cardholder.TrimmedCredential,
+                cardholder.BitCount);
+
+            if (!cardSwipeSucceeded)
+            {
+                FailedAttempts++;
+                CompletedEvents++;
+
+                AddLog(
+                    level: "Error",
+                    eventType: "Normal",
+                    doorName: selectedDoor.Name,
+                    message: "Card swipe command failed.",
+                    eventNumber: eventNumber);
+
+                return;
+            }
+
+            if (readerSelection.RequiresCardAndPin)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                AddLog(
+                    level: "Info",
+                    eventType: "Normal",
+                    doorName: selectedDoor.Name,
+                    message: "Reader requires Card + PIN. Sending Global PIN.",
+                    eventNumber: eventNumber);
+
+                // Softwire expects PIN input through SwipeWiegand26.
+                // Facility code remains 0; the PIN is sent as the card value.
+                var pinSucceeded = await _swipeWiegand26Async(
+                    readerSelection.ReaderPath,
+                    0,
+                    int.Parse(GlobalPin));
+
+                if (!pinSucceeded)
+                {
+                    FailedAttempts++;
+                    CompletedEvents++;
+
+                    AddLog(
+                        level: "Error",
+                        eventType: "Normal",
+                        doorName: selectedDoor.Name,
+                        message: "PIN command failed.",
+                        eventNumber: eventNumber);
+
+                    return;
+                }
+            }
+
+            var decision = await WaitForReaderDecisionAsync(
+                selectedDoor.Id,
+                cancellationToken);
+
+            if (decision == null)
+            {
+                FailedAttempts++;
+                CompletedEvents++;
+
+                AddLog(
+                    level: "Warning",
+                    eventType: "Normal",
+                    doorName: selectedDoor.Name,
+                    message: "No access decision or unlock was observed before timeout.",
+                    eventNumber: eventNumber);
+
+                return;
+            }
+
+            if (decision.LastDecisionDenied)
+            {
+                CompletedEvents++;
+                ExecutedNormalEvents++;
+
+                AddLog(
+                    level: "Warning",
+                    eventType: "Normal",
+                    doorName: decision.Name,
+                    message: "Access denied. Door will not be opened.",
+                    eventNumber: eventNumber);
+
+                return;
+            }
+
+            if (decision.LastDecisionGranted && decision.DoorIsLocked)
+            {
+                CompletedEvents++;
+                ExecutedNormalEvents++;
+
+                AddLog(
+                    level: "Warning",
+                    eventType: "Normal",
+                    doorName: decision.Name,
+                    message: "Credential accepted, but the door remained locked. Door will not be opened.",
+                    eventNumber: eventNumber);
+
+                return;
+            }
+
+            if (!decision.DoorIsLocked)
+            {
+                AddLog(
+                    level: "Success",
+                    eventType: "Normal",
+                    doorName: decision.Name,
+                    message: "Access granted and door unlocked.",
+                    eventNumber: eventNumber);
+
+                if (decision.HasDoorSensor &&
+                    !string.IsNullOrWhiteSpace(decision.DoorSensorDevicePath))
+                {
+                    AddLog(
+                        level: "Info",
+                        eventType: "Normal",
+                        doorName: decision.Name,
+                        message: "Opening door sensor after reader unlock.",
+                        eventNumber: eventNumber);
+
+                    var sensorOpened = await _setInputStateAsync(
+                        decision.DoorSensorDevicePath,
+                        "Active");
+
+                    if (!sensorOpened)
+                    {
+                        FailedAttempts++;
+                        CompletedEvents++;
+
+                        AddLog(
+                            level: "Error",
+                            eventType: "Normal",
+                            doorName: decision.Name,
+                            message: "Access was granted, but DoorSim failed to open the door sensor.",
+                            eventNumber: eventNumber);
+
+                        return;
+                    }
+
+                    doorSensorWasOpened = true;
+
+                    await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+
+                    AddLog(
+                        level: "Info",
+                        eventType: "Normal",
+                        doorName: decision.Name,
+                        message: "Closing door sensor.",
+                        eventNumber: eventNumber);
+
+                    var sensorClosed = await _setInputStateAsync(
+                        decision.DoorSensorDevicePath,
+                        "Inactive");
+
+                    if (!sensorClosed)
+                    {
+                        cleanupFailed = true;
+
+                        AddLog(
+                            level: "Error",
+                            eventType: "Normal",
+                            doorName: decision.Name,
+                            message: "Door sensor was opened, but DoorSim failed to close it. Manual cleanup may be required.",
+                            eventNumber: eventNumber);
+
+                        return;
+                    }
+
+                    doorSensorWasOpened = false;
+                }
+                else
+                {
+                    AddLog(
+                        level: "Info",
+                        eventType: "Normal",
+                        doorName: decision.Name,
+                        message: "Access granted, but no door sensor is configured to open/close.",
+                        eventNumber: eventNumber);
+                }
+
+                CompletedEvents++;
+                ExecutedNormalEvents++;
+
+                AddLog(
+                    level: "Success",
+                    eventType: "Normal",
+                    doorName: decision.Name,
+                    message: "Normal reader event completed.",
+                    eventNumber: eventNumber);
+
+                return;
+            }
+
+            FailedAttempts++;
+            CompletedEvents++;
+
+            AddLog(
+                level: "Warning",
+                eventType: "Normal",
+                doorName: selectedDoor.Name,
+                message: "Reader action completed, but DoorSim could not determine a clear granted/denied outcome.",
+                eventNumber: eventNumber);
+        }
+        catch (OperationCanceledException)
+        {
+            eventWasCancelled = true;
+
+            AddLog(
+                level: "Warning",
+                eventType: "Normal",
+                doorName: selectedDoor.Name,
+                message: "Normal reader event was stopped while running. Cleaning up simulated inputs.",
+                eventNumber: eventNumber);
+        }
+        finally
+        {
+            if (doorSensorWasOpened)
+            {
+                AddLog(
+                    level: "Info",
+                    eventType: "Normal",
+                    doorName: selectedDoor.Name,
+                    message: "Cleaning up door sensor.",
+                    eventNumber: eventNumber);
+
+                var sensorClosed = await _setInputStateAsync(
+                    selectedDoor.DoorSensorDevicePath,
+                    "Inactive");
+
+                if (!sensorClosed)
+                {
+                    cleanupFailed = true;
+
+                    AddLog(
+                        level: "Error",
+                        eventType: "Normal",
+                        doorName: selectedDoor.Name,
+                        message: "DoorSim failed to clean up the door sensor. Manual cleanup may be required.",
+                        eventNumber: eventNumber);
+                }
+            }
+        }
+
+        if (cleanupFailed)
+        {
+            FailedAttempts++;
+            CompletedEvents++;
+            return;
+        }
+
+        if (eventWasCancelled)
+        {
+            FailedAttempts++;
+            CompletedEvents++;
+
+            AddLog(
+                level: "Warning",
+                eventType: "Normal",
+                doorName: selectedDoor.Name,
+                message: "Normal reader event stopped and cleaned up.",
+                eventNumber: eventNumber);
+
+            return;
+        }
     }
 
     // Selects a random door suitable for a normal event.
@@ -1120,6 +1433,72 @@ public partial class AutoModeViewModel : ObservableObject
             return null;
 
         return readers[_random.Next(readers.Count)];
+    }
+
+    // Selects a random cardholder suitable for the selected reader.
+    //
+    // Card-only reader:
+    //      Any cardholder with a usable card credential can be used.
+    //
+    // Card + PIN reader:
+    //      Only cardholders with a usable card credential AND HasPin = true are used.
+    //      The actual PIN sent is the Auto Mode Global PIN, so the training system
+    //      should be configured with matching cardholder PINs.
+    private Cardholder? SelectCardholderForReader(AutoReaderSelection readerSelection)
+    {
+        if (_getCardholders == null)
+            return null;
+
+        var candidates = _getCardholders()
+            .Where(c => !string.IsNullOrWhiteSpace(c.TrimmedCredential))
+            .Where(c => c.BitCount > 0)
+            .Where(c => !readerSelection.RequiresCardAndPin || c.HasPin)
+            .ToList();
+
+        if (!candidates.Any())
+            return null;
+
+        return candidates[_random.Next(candidates.Count)];
+    }
+
+    // Waits briefly for Softwire to report a result after a reader action.
+    //
+    // Reader decisions and door unlock state are reported on the door object.
+    // Rather than relying on the manual UI feedback system, Auto Mode refreshes the
+    // door directly and uses the latest decision/lock state for logging and behaviour.
+    //
+    // Returns:
+    //      - refreshed door when granted/denied/unlocked state is observed,
+    //      - null if no useful result appears before timeout.
+    private async Task<SoftwireDoor?> WaitForReaderDecisionAsync(string doorId, CancellationToken cancellationToken)
+    {
+        if (_getDoorsAsync == null)
+            return null;
+
+        var timeoutAtUtc = DateTime.UtcNow.AddSeconds(4);
+
+        while (DateTime.UtcNow < timeoutAtUtc)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var doors = await _getDoorsAsync();
+
+            var refreshedDoor = doors.FirstOrDefault(d => d.Id == doorId);
+
+            if (refreshedDoor == null)
+                return null;
+
+            if (refreshedDoor.LastDecisionGranted ||
+                refreshedDoor.LastDecisionDenied ||
+                !refreshedDoor.DoorIsLocked)
+            {
+                return refreshedDoor;
+            }
+
+            await Task.Delay(250, cancellationToken);
+        }
+
+        return null;
     }
 
     // Executes a real forced-door event against Softwire.
