@@ -100,7 +100,7 @@
                             - Shows a check mark beside the active mode
                     -->
                     <MenuItem Header="_Mode"
-                              IsEnabled="{Binding IsConnected}">
+                              IsEnabled="{Binding CanUseModeMenu}">
 
                         <MenuItem Header="_Manual Mode"
                                   IsCheckable="True"

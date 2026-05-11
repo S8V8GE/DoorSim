@@ -66,6 +66,9 @@ public partial class MainViewModel : ObservableObject
     // Used by the View menu to show a checkmark next to Two Door.
     public bool IsTwoDoorViewSelected => CurrentViewMode == "TwoDoor";
 
+    // Mode can be changed only when connected and no Auto Mode simulation is running.
+    public bool CanUseModeMenu => IsConnected && !AutoMode.IsSimulationRunning;
+
 
     /*
       #############################################################################
@@ -193,6 +196,10 @@ public partial class MainViewModel : ObservableObject
         // Give the interlocking controls a safe callback for changing Softwire
         // simulated input state. The child ViewModel does not need direct access to the full Softwire service.
         TwoDoor.Interlocking.ConfigureInputStateSender(SetInterlockingInputStateAsync);
+
+        // Watch Auto Mode so the main menu can disable Mode switching while a simulation is running.
+        AutoMode.PropertyChanged += AutoMode_PropertyChanged;
+
     }
 
 
@@ -220,6 +227,16 @@ public partial class MainViewModel : ObservableObject
     partial void OnIsConnectedChanged(bool value)
     {
         OnPropertyChanged(nameof(CanUseViewMenu));
+        OnPropertyChanged(nameof(CanUseModeMenu));
+    }
+
+    // Refreshes main menu state when Auto Mode starts or stops.
+    private void AutoMode_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AutoModeViewModel.IsSimulationRunning))
+        {
+            OnPropertyChanged(nameof(CanUseModeMenu));
+        }
     }
 
 
