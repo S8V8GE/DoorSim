@@ -109,6 +109,10 @@ public partial class MainViewModel : ObservableObject
     // Used by the Mode menu to show a checkmark next to Auto Mode.
     public bool IsAutoModeSelected => CurrentAppMode == "Auto";
 
+    // The View menu only applies to Manual Mode.
+    // In Auto Mode, Single Door / Two Door selection is disabled to avoid changing the hidden manual view behind the scenes.
+    public bool CanUseViewMenu => IsConnected && CurrentAppMode == "Manual";
+
 
     /*
       #############################################################################
@@ -210,6 +214,12 @@ public partial class MainViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(IsManualModeSelected));
         OnPropertyChanged(nameof(IsAutoModeSelected));
+        OnPropertyChanged(nameof(CanUseViewMenu));
+    }
+
+    partial void OnIsConnectedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanUseViewMenu));
     }
 
 

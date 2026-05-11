@@ -94,27 +94,6 @@
                               Command="{Binding ConnectCommand}"
                               IsEnabled="{Binding CanConnect}"/>
 
-                    <!--
-                        View selection:
-                            - Switches between Single Door and Two Door layouts
-                            - Shows a check mark beside the active view
-                            - Enabled only when connected to Softwire
-                    -->
-                    <MenuItem Header="_View"
-                              IsEnabled="{Binding IsConnected}">
-
-                        <MenuItem Header="_Single Door"
-                                  IsCheckable="True"
-                                  IsChecked="{Binding IsSingleDoorViewSelected, Mode=OneWay}"
-                                  Command="{Binding ShowSingleDoorViewCommand}"/>
-
-                        <MenuItem Header="_Two Doors"
-                                  IsCheckable="True"
-                                  IsChecked="{Binding IsTwoDoorViewSelected, Mode=OneWay}"
-                                  Command="{Binding ShowTwoDoorViewCommand}"/>
-
-                    </MenuItem>
-
                     <!--    
                         Mode selection:
                             - Switches between Manual Mode and Auto Mode
@@ -132,6 +111,27 @@
                                   IsCheckable="True"
                                   IsChecked="{Binding IsAutoModeSelected, Mode=OneWay}"
                                   Command="{Binding ShowAutoModeCommand}"/>
+
+                    </MenuItem>
+
+                    <!--
+                        View selection:
+                            - Switches between Single Door and Two Door layouts
+                            - Shows a check mark beside the active view
+                            - Enabled only when connected to Softwire
+                    -->
+                    <MenuItem Header="_View"
+                              IsEnabled="{Binding CanUseViewMenu}">
+
+                        <MenuItem Header="_Single Door"
+                                  IsCheckable="True"
+                                  IsChecked="{Binding IsSingleDoorViewSelected, Mode=OneWay}"
+                                  Command="{Binding ShowSingleDoorViewCommand}"/>
+
+                        <MenuItem Header="_Two Doors"
+                                  IsCheckable="True"
+                                  IsChecked="{Binding IsTwoDoorViewSelected, Mode=OneWay}"
+                                  Command="{Binding ShowTwoDoorViewCommand}"/>
 
                     </MenuItem>
 
