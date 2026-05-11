@@ -327,13 +327,33 @@ public partial class MainViewModel : ObservableObject
 
         if (updatedDoor.LastDecisionGranted)
         {
+            // A granted access decision means Softwire accepted the credential/rule decision.
+            // However, depending on Config Tool rules, schedules, interlocking, lockdown,
+            // or other logic, the door may still remain locked.
+            //
+            // So DoorSim separates:
+            // - "Access granted" when the door actually unlocked
+            // - "Accepted - door locked" when the credential was accepted but the lock stayed locked
+            var doorUnlocked = !updatedDoor.DoorIsLocked;
+
+            var feedbackText = doorUnlocked
+                ? "Access granted"
+                : "Credential OK";
+
             if (_pendingDecisionIsInReader)
-                _ = targetDoors.ShowInReaderDecisionFeedbackAsync("Access granted", true);
+                _ = targetDoors.ShowInReaderDecisionFeedbackAsync(feedbackText, doorUnlocked);
             else
-                _ = targetDoors.ShowOutReaderDecisionFeedbackAsync("Access granted", true);
+                _ = targetDoors.ShowOutReaderDecisionFeedbackAsync(feedbackText, doorUnlocked);
 
             // Access decision audio happens here, not from reader LED changes.
-            _ = _soundService.PlayAccessGrantedAsync(_pendingDecisionCardholder);
+            //
+            // If the door unlocked, play the normal granted sound.
+            // If the credential was accepted but the door stayed locked, use the denied/warning
+            // pattern so the trainer notices something did not behave like a normal unlock.
+            if (doorUnlocked)
+                _ = _soundService.PlayAccessGrantedAsync(_pendingDecisionCardholder);
+            else
+                _ = _soundService.PlayAccessDeniedAsync(_pendingDecisionCardholder);
         }
         else if (updatedDoor.LastDecisionDenied)
         {

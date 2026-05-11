@@ -206,7 +206,7 @@ public partial class DoorsViewModel : ObservableObject
         get
         {
             if (SelectedDoor == null)
-                return "";
+                return null;
 
             return SelectedDoor.DoorSensorIsOpen
                 ? "/Images/Door_Open.png"

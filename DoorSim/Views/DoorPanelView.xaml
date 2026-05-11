@@ -348,7 +348,7 @@
                     -->
                     <Image Grid.Column="1"
                            x:Name="DoorImage"
-                           Source="{Binding DoorImagePath}"
+                           Source="{Binding DoorImagePath, TargetNullValue={x:Null}, FallbackValue={x:Null}}"
                            Width="220"
                            Height="220"
                            Margin="0,15,0,0"
