@@ -39,6 +39,13 @@ public partial class AutoModeViewModel : ObservableObject
     // Value = reservation details for logging/debugging
     private readonly Dictionary<string, AutoDoorReservation> _reservedDoors = new();
 
+    // Tracks background cleanup tasks for Held events.
+    //
+    // Held events deliberately leave a door sensor open long enough for Softwire to
+    // generate a door-held-open event. The main simulation loop continues meanwhile,
+    // so cleanup happens in the background.
+    private readonly List<Task> _heldCleanupTasks = new();
+
 
     /*
       #############################################################################
@@ -424,10 +431,13 @@ public partial class AutoModeViewModel : ObservableObject
             _simulationCancellation?.Dispose();
             _simulationCancellation = null;
 
-            // Real Held events will reserve doors while their door sensors are deliberately left open.
-            // When the overall simulation stops/completes, clear any remaining reservations so a future run starts cleanly.
-            // Later, when Held cleanup is added, Stop will also make a best effort to close any Auto Mode-opened sensors before reservations are cleared.
+            // Held events may still have background cleanup tasks running after the last
+            // requested event has been generated. Before the run fully ends, wait for those
+            // cleanup tasks so Auto Mode does not leave simulated door sensors open.
+            await WaitForHeldCleanupTasksAsync();
+
             _reservedDoors.Clear();
+            _heldCleanupTasks.Clear();
 
             IsSimulationRunning = false;
 
@@ -517,7 +527,9 @@ public partial class AutoModeViewModel : ObservableObject
     // Releases a previously reserved door.
     //
     // It is safe to call this even if the door is not currently reserved.
-    private void ReleaseDoorReservation(string doorId, string message)
+    // The log level can be changed by the caller so normal cleanup can be Info,
+    // while cleanup after Stop/cancellation can be Warning.
+    private void ReleaseDoorReservation(string doorId, string message, string level = "Info")
     {
         if (string.IsNullOrWhiteSpace(doorId))
             return;
@@ -528,7 +540,7 @@ public partial class AutoModeViewModel : ObservableObject
         _reservedDoors.Remove(doorId);
 
         AddLog(
-            level: "Info",
+            level: level,
             eventType: "-",
             doorName: reservation.DoorName,
             message: message);
@@ -588,9 +600,18 @@ public partial class AutoModeViewModel : ObservableObject
     // Later, ExecuteFakeEventAsync(...) will be replaced with real door/cardholder/input logic.
     private async Task RunFakeSimulationAsync(CancellationToken cancellationToken)
     {
-        for (var eventNumber = 1; eventNumber <= NumberOfEvents; eventNumber++)
+        // CompletedEvents now means successfully executed events only.
+        //
+        // Failed/skipped attempts increment FailedAttempts but do not consume one of
+        // the requested events. This mirrors the original PowerShell PoC behaviour:
+        // if an event cannot be executed because the system changed or no suitable
+        // door/cardholder is available, Auto Mode retries until the requested number
+        // of real events has been generated.
+        while (CompletedEvents < NumberOfEvents)
         {
             cancellationToken.ThrowIfCancellationRequested();
+
+            var eventNumber = CompletedEvents + 1;
 
             AddEventSeparator(eventNumber);
 
@@ -650,20 +671,8 @@ public partial class AutoModeViewModel : ObservableObject
             return;
         }
 
-        // Held events are still fake for now. They will become real later because
-        // they need reservation/cleanup logic to keep the door open long enough for
-        // Softwire to generate a door-held-open event.
-        await Task.Delay(150, cancellationToken);
+        await ExecuteHeldRexEventAsync(eventNumber, cancellationToken);
 
-        ExecutedHeldEvents++;
-        CompletedEvents++;
-
-        AddLog(
-            level: "Success",
-            eventType: eventType,
-            doorName: "-",
-            message: "Fake held event completed.",
-            eventNumber: eventNumber);
     }
 
     // Executes a normal access event.
@@ -684,7 +693,6 @@ public partial class AutoModeViewModel : ObservableObject
         if (_getDoorsAsync == null || _setInputStateAsync == null)
         {
             FailedAttempts++;
-            CompletedEvents++;
 
             AddLog(
                 level: "Error",
@@ -703,7 +711,6 @@ public partial class AutoModeViewModel : ObservableObject
         if (selectedDoor == null)
         {
             FailedAttempts++;
-            CompletedEvents++;
 
             AddLog(
                 level: "Warning",
@@ -746,7 +753,6 @@ public partial class AutoModeViewModel : ObservableObject
             if (readerSelection == null)
             {
                 FailedAttempts++;
-                CompletedEvents++;
 
                 AddLog(
                     level: "Warning",
@@ -768,7 +774,6 @@ public partial class AutoModeViewModel : ObservableObject
         }
 
         FailedAttempts++;
-        CompletedEvents++;
 
         AddLog(
             level: "Error",
@@ -799,7 +804,6 @@ public partial class AutoModeViewModel : ObservableObject
         if (_setInputStateAsync == null)
         {
             FailedAttempts++;
-            CompletedEvents++;
 
             AddLog(
                 level: "Error",
@@ -814,7 +818,6 @@ public partial class AutoModeViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(rexPath))
         {
             FailedAttempts++;
-            CompletedEvents++;
 
             AddLog(
                 level: "Error",
@@ -847,7 +850,6 @@ public partial class AutoModeViewModel : ObservableObject
             if (!rexActivated)
             {
                 FailedAttempts++;
-                CompletedEvents++;
 
                 AddLog(
                     level: "Error",
@@ -907,7 +909,6 @@ public partial class AutoModeViewModel : ObservableObject
                 if (!sensorOpened)
                 {
                     FailedAttempts++;
-                    CompletedEvents++;
 
                     AddLog(
                         level: "Error",
@@ -1025,14 +1026,12 @@ public partial class AutoModeViewModel : ObservableObject
         if (cleanupFailed)
         {
             FailedAttempts++;
-            CompletedEvents++;
             return;
         }
 
         if (eventWasCancelled)
         {
             FailedAttempts++;
-            CompletedEvents++;
 
             AddLog(
                 level: "Warning",
@@ -1077,7 +1076,6 @@ public partial class AutoModeViewModel : ObservableObject
             _swipeWiegand26Async == null)
         {
             FailedAttempts++;
-            CompletedEvents++;
 
             AddLog(
                 level: "Error",
@@ -1094,7 +1092,6 @@ public partial class AutoModeViewModel : ObservableObject
         if (cardholder == null)
         {
             FailedAttempts++;
-            CompletedEvents++;
 
             var reason = readerSelection.RequiresCardAndPin
                 ? "No suitable cardholder found with both a card credential and PIN."
@@ -1147,7 +1144,6 @@ public partial class AutoModeViewModel : ObservableObject
             if (!cardSwipeSucceeded)
             {
                 FailedAttempts++;
-                CompletedEvents++;
 
                 AddLog(
                     level: "Error",
@@ -1180,7 +1176,6 @@ public partial class AutoModeViewModel : ObservableObject
                 if (!pinSucceeded)
                 {
                     FailedAttempts++;
-                    CompletedEvents++;
 
                     AddLog(
                         level: "Error",
@@ -1200,7 +1195,6 @@ public partial class AutoModeViewModel : ObservableObject
             if (decision == null)
             {
                 FailedAttempts++;
-                CompletedEvents++;
 
                 AddLog(
                     level: "Warning",
@@ -1268,7 +1262,6 @@ public partial class AutoModeViewModel : ObservableObject
                     if (!sensorOpened)
                     {
                         FailedAttempts++;
-                        CompletedEvents++;
 
                         AddLog(
                             level: "Error",
@@ -1335,7 +1328,6 @@ public partial class AutoModeViewModel : ObservableObject
             }
 
             FailedAttempts++;
-            CompletedEvents++;
 
             AddLog(
                 level: "Warning",
@@ -1387,14 +1379,12 @@ public partial class AutoModeViewModel : ObservableObject
         if (cleanupFailed)
         {
             FailedAttempts++;
-            CompletedEvents++;
             return;
         }
 
         if (eventWasCancelled)
         {
             FailedAttempts++;
-            CompletedEvents++;
 
             AddLog(
                 level: "Warning",
@@ -1403,6 +1393,246 @@ public partial class AutoModeViewModel : ObservableObject
                 message: "Normal reader event stopped and cleaned up.",
                 eventNumber: eventNumber);
 
+            return;
+        }
+    }
+
+    // Executes a real held-open event using REX.
+    //
+    // This first Held implementation deliberately uses REX only. Reader-held events
+    // will be added later once the held-open reservation/cleanup behaviour is proven.
+    //
+    // Sequence:
+    //      1. Select a suitable held-capable door.
+    //      2. If every suitable held door is reserved, wait briefly for one to become free.
+    //      3. Reserve the selected door.
+    //      4. Activate and release REX.
+    //      5. Open the door sensor and leave it open.
+    //      6. Start background cleanup to close the sensor after DoorHeldTime + buffer.
+    //
+    // Important:
+    //      The event is counted as executed once the door sensor has been opened and
+    //      cleanup has been scheduled. The door remains reserved until cleanup closes
+    //      the sensor or discovers the door was deleted.
+    private async Task ExecuteHeldRexEventAsync(int eventNumber, CancellationToken cancellationToken)
+    {
+        if (_getDoorsAsync == null || _setInputStateAsync == null)
+        {
+            FailedAttempts++;
+
+            AddLog(
+                level: "Error",
+                eventType: "Held",
+                doorName: "-",
+                message: "Held REX event failed because Auto Mode dependencies are not configured.",
+                eventNumber: eventNumber);
+
+            return;
+        }
+
+        var selectedDoor = await WaitForHeldRexDoorCandidateAsync(eventNumber, cancellationToken);
+
+        if (selectedDoor == null)
+        {
+            FailedAttempts++;
+
+            AddLog(
+                level: "Warning",
+                eventType: "Held",
+                doorName: "-",
+                message: "No suitable held REX door became available. Door must be locked, not in maintenance, have a door sensor, have 'Door Held' configured, and support AutoUnlockOnRex.",
+                eventNumber: eventNumber);
+
+            return;
+        }
+
+        var rexPath = SelectRexPath(selectedDoor);
+        var rexDescription = GetRexDescription(selectedDoor, rexPath);
+
+        if (string.IsNullOrWhiteSpace(rexPath))
+        {
+            FailedAttempts++;
+
+            AddLog(
+                level: "Error",
+                eventType: "Held",
+                doorName: selectedDoor.Name,
+                message: "Held REX event failed because no valid REX path could be selected.",
+                eventNumber: eventNumber);
+
+            return;
+        }
+
+        var doorSensorWasOpened = false;
+        var rexWasActivated = false;
+        var eventWasCancelled = false;
+        var cleanupFailed = false;
+
+        ReserveDoor(selectedDoor, "Held-open event in progress");
+
+        try
+        {
+            AddLog(
+                level: "Info",
+                eventType: "Held",
+                doorName: selectedDoor.Name,
+                message: $"Activating {rexDescription}.",
+                eventNumber: eventNumber);
+
+            var rexActivated = await _setInputStateAsync(rexPath, "Active");
+
+            if (!rexActivated)
+            {
+                cleanupFailed = true;
+
+                AddLog(
+                    level: "Error",
+                    eventType: "Held",
+                    doorName: selectedDoor.Name,
+                    message: $"Failed to activate {rexDescription}.",
+                    eventNumber: eventNumber);
+
+                return;
+            }
+
+            rexWasActivated = true;
+
+            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken);
+
+            AddLog(
+                level: "Info",
+                eventType: "Held",
+                doorName: selectedDoor.Name,
+                message: $"Releasing {rexDescription}.",
+                eventNumber: eventNumber);
+
+            var rexReleased = await _setInputStateAsync(rexPath, "Inactive");
+
+            if (!rexReleased)
+            {
+                cleanupFailed = true;
+
+                AddLog(
+                    level: "Error",
+                    eventType: "Held",
+                    doorName: selectedDoor.Name,
+                    message: $"{rexDescription} was activated, but DoorSim failed to release it. Manual cleanup may be required.",
+                    eventNumber: eventNumber);
+
+                return;
+            }
+
+            rexWasActivated = false;
+
+            AddLog(
+                level: "Info",
+                eventType: "Held",
+                doorName: selectedDoor.Name,
+                message: "Opening door sensor and leaving it open.",
+                eventNumber: eventNumber);
+
+            var sensorOpened = await _setInputStateAsync(selectedDoor.DoorSensorDevicePath, "Active");
+
+            if (!sensorOpened)
+            {
+                cleanupFailed = true;
+
+                AddLog(
+                    level: "Error",
+                    eventType: "Held",
+                    doorName: selectedDoor.Name,
+                    message: "DoorSim failed to open the door sensor for the held-open event.",
+                    eventNumber: eventNumber);
+
+                return;
+            }
+
+            doorSensorWasOpened = true;
+
+            var cleanupDelaySeconds = GetHeldCleanupDelaySeconds(selectedDoor);
+
+            AddLog(
+                level: "Info",
+                eventType: "Held",
+                doorName: selectedDoor.Name,
+                message: $"Door will remain open for approximately {cleanupDelaySeconds} second(s) before cleanup.",
+                eventNumber: eventNumber);
+
+            var cleanupTask = CleanupHeldDoorLaterAsync(
+                doorId: selectedDoor.Id,
+                doorName: selectedDoor.Name,
+                doorSensorPath: selectedDoor.DoorSensorDevicePath,
+                delaySeconds: cleanupDelaySeconds,
+                cancellationToken: cancellationToken);
+
+            _heldCleanupTasks.Add(cleanupTask);
+
+            ExecutedHeldEvents++;
+            CompletedEvents++;
+
+            AddLog(
+                level: "Success",
+                eventType: "Held",
+                doorName: selectedDoor.Name,
+                message: "Held-open event generated. Door reserved until cleanup closes the sensor.",
+                eventNumber: eventNumber);
+        }
+        catch (OperationCanceledException)
+        {
+            eventWasCancelled = true;
+
+            AddLog(
+                level: "Warning",
+                eventType: "Held",
+                doorName: selectedDoor.Name,
+                message: "Held REX event was stopped while running. Cleaning up simulated inputs.",
+                eventNumber: eventNumber);
+        }
+        finally
+        {
+            // If cancellation/failure happened before background cleanup was scheduled,
+            // clean up immediately here.
+            if (cleanupFailed || eventWasCancelled)
+            {
+                if (doorSensorWasOpened)
+                {
+                    AddLog(
+                        level: "Info",
+                        eventType: "Held",
+                        doorName: selectedDoor.Name,
+                        message: "Closing door sensor during held-event cleanup.",
+                        eventNumber: eventNumber);
+
+                    await _setInputStateAsync(selectedDoor.DoorSensorDevicePath, "Inactive");
+                }
+
+                if (rexWasActivated)
+                {
+                    AddLog(
+                        level: "Info",
+                        eventType: "Held",
+                        doorName: selectedDoor.Name,
+                        message: $"Cleaning up {rexDescription}.",
+                        eventNumber: eventNumber);
+
+                    await _setInputStateAsync(rexPath, "Inactive");
+                }
+
+                ReleaseDoorReservation(
+                    selectedDoor.Id,
+                    "Held-open reservation released after failed/stopped setup.");
+            }
+        }
+
+        if (cleanupFailed)
+        {
+            FailedAttempts++;
+            return;
+        }
+
+        if (eventWasCancelled)
+        {
+            FailedAttempts++;
             return;
         }
     }
@@ -1644,7 +1874,6 @@ public partial class AutoModeViewModel : ObservableObject
         if (_getDoorsAsync == null || _setInputStateAsync == null)
         {
             FailedAttempts++;
-            CompletedEvents++;
 
             AddLog(
                 level: "Error",
@@ -1663,7 +1892,6 @@ public partial class AutoModeViewModel : ObservableObject
         if (selectedDoor == null)
         {
             FailedAttempts++;
-            CompletedEvents++;
 
             AddLog(
                 level: "Warning",
@@ -1695,7 +1923,6 @@ public partial class AutoModeViewModel : ObservableObject
             if (!opened)
             {
                 FailedAttempts++;
-                CompletedEvents++;
 
                 AddLog(
                     level: "Error",
@@ -1755,15 +1982,12 @@ public partial class AutoModeViewModel : ObservableObject
         if (cleanupFailed)
         {
             FailedAttempts++;
-            CompletedEvents++;
-
             return;
         }
 
         if (eventWasCancelled)
         {
             FailedAttempts++;
-            CompletedEvents++;
 
             AddLog(
                 level: "Warning",
@@ -1840,6 +2064,194 @@ public partial class AutoModeViewModel : ObservableObject
             return "Forced";
 
         return "Held";
+    }
+
+    // Waits for a held-capable REX door to become available.
+    //
+    // If all suitable Held doors are currently reserved, Auto Mode waits briefly
+    // rather than immediately failing. This matters when multiple Held events occur
+    // close together and every held-capable door is already waiting for cleanup.
+    private async Task<SoftwireDoor?> WaitForHeldRexDoorCandidateAsync(int eventNumber, CancellationToken cancellationToken)
+    {
+        if (_getDoorsAsync == null)
+            return null;
+
+        var timeoutAtUtc = DateTime.UtcNow.AddSeconds(30);
+        var hasLoggedWaiting = false;
+
+        while (DateTime.UtcNow < timeoutAtUtc)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var doors = await _getDoorsAsync();
+            var doorList = doors.ToList();
+
+            ReleaseReservationsForDeletedDoors(doorList);
+
+            var candidate = SelectHeldRexDoorCandidate(doorList);
+
+            if (candidate != null)
+                return candidate;
+
+            var hasHeldCapableDoors = doorList.Any(IsHeldRexCapableDoor);
+            var allHeldCapableDoorsReserved =
+                hasHeldCapableDoors &&
+                doorList
+                    .Where(IsHeldRexCapableDoor)
+                    .All(d => IsDoorReserved(d.Id));
+
+            if (!allHeldCapableDoorsReserved)
+                return null;
+
+            if (!hasLoggedWaiting)
+            {
+                hasLoggedWaiting = true;
+
+                AddLog(
+                    level: "Warning",
+                    eventType: "Held",
+                    doorName: "-",
+                    message: "All held-capable doors are currently reserved. Waiting for a door to become available.",
+                    eventNumber: eventNumber);
+            }
+
+            await Task.Delay(1000, cancellationToken);
+        }
+
+        return null;
+    }
+
+    // Selects a random door suitable for a held-open REX event.
+    private SoftwireDoor? SelectHeldRexDoorCandidate(IEnumerable<SoftwireDoor> doors)
+    {
+        var candidates = doors
+            .Where(IsHeldRexCapableDoor)
+            .Where(d => !IsDoorReserved(d.Id))
+            .ToList();
+
+        if (!candidates.Any())
+            return null;
+
+        return candidates[_random.Next(candidates.Count)];
+    }
+
+    // Returns true when a door can generate a held-open event using REX.
+    private static bool IsHeldRexCapableDoor(SoftwireDoor door)
+    {
+        return door.DoorIsLocked &&
+               !door.UnlockedForMaintenance &&
+               door.HasDoorSensor &&
+               !string.IsNullOrWhiteSpace(door.DoorSensorDevicePath) &&
+               door.DoorHeldTimeSeconds > 0 &&
+               !door.IgnoreHeldOpenWhenUnlocked &&
+               HasUsableAutoUnlockRex(door);
+    }
+
+    // Returns the delay before Auto Mode should close a held-open door.
+    private static int GetHeldCleanupDelaySeconds(SoftwireDoor door)
+    {
+        const int heldEventBufferSeconds = 5;
+
+        return Math.Max(door.DoorHeldTimeSeconds + heldEventBufferSeconds, 1);
+    }
+
+    // Closes a held-open door sensor after the configured held-open delay.
+    //
+    // This runs in the background so Auto Mode can continue generating other events
+    // while the selected door remains open long enough for Softwire to raise the
+    // held-open event.
+    private async Task CleanupHeldDoorLaterAsync(string doorId, string doorName, string doorSensorPath, int delaySeconds, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
+
+            if (_getDoorsAsync == null || _setInputStateAsync == null)
+                return;
+
+            var doors = await _getDoorsAsync();
+
+            var refreshedDoor = doors.FirstOrDefault(d => d.Id == doorId);
+
+            if (refreshedDoor == null)
+            {
+                ReleaseDoorReservation(
+                    doorId,
+                    "Held-open door no longer exists in Softwire. Reservation released.",
+                    level: "Warning");
+
+                return;
+            }
+
+            AddLog(
+                level: "Info",
+                eventType: "Held",
+                doorName: doorName,
+                message: "Held-open timer elapsed. Closing door sensor.");
+
+            var closed = await _setInputStateAsync(doorSensorPath, "Inactive");
+
+            if (!closed)
+            {
+                AddLog(
+                    level: "Error",
+                    eventType: "Held",
+                    doorName: doorName,
+                    message: "DoorSim failed to close the held-open door sensor. Manual cleanup may be required.");
+
+                return;
+            }
+
+            ReleaseDoorReservation(
+                doorId,
+                "Held-open cleanup complete. Door reservation released.");
+        }
+        catch (OperationCanceledException)
+        {
+            if (_setInputStateAsync != null)
+            {
+                AddLog(
+                    level: "Info",
+                    eventType: "Held",
+                    doorName: doorName,
+                    message: "Simulation stopped. Closing held-open door sensor.");
+
+                await _setInputStateAsync(doorSensorPath, "Inactive");
+            }
+
+            ReleaseDoorReservation(
+                doorId,
+                "Held-open reservation released after simulation stop.",
+                level: "Warning");
+        }
+    }
+
+    // Waits for all currently scheduled Held cleanup tasks to finish.
+    //
+    // We remove completed tasks first so repeated calls do not keep old completed
+    // tasks around forever.
+    private async Task WaitForHeldCleanupTasksAsync()
+    {
+        _heldCleanupTasks.RemoveAll(t => t.IsCompleted);
+
+        if (!_heldCleanupTasks.Any())
+            return;
+
+        AddLog(
+            level: "Warning",
+            eventType: "-",
+            doorName: "-",
+            message: "Waiting for held-open cleanup tasks to finish.");
+
+        try
+        {
+            await Task.WhenAll(_heldCleanupTasks);
+        }
+        catch
+        {
+            // Individual cleanup tasks already log their own cleanup/failure details.
+            // Swallow here so one cleanup issue does not crash the application shell.
+        }
     }
 
 
