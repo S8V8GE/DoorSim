@@ -32,6 +32,33 @@ public partial class AutoModeViewModel : ObservableObject
 
     /*
       #############################################################################
+                      Simulation Dependencies / Callbacks
+      #############################################################################
+    */
+
+    // Auto Mode does not own SoftwireService directly.
+    //
+    // MainViewModel owns the application services and passes Auto Mode a small set of safe callbacks.
+    // This keeps AutoModeViewModel focused on simulation logic rather than login/session ownership.
+    private Func<Task<List<SoftwireDoor>>>? _getDoorsAsync;
+    private Func<IReadOnlyList<Cardholder>>? _getCardholders;
+    private Func<string, Task<InputState?>>? _getInputStateAsync;
+    private Func<string, string, Task<bool>>? _setInputStateAsync;
+    private Func<string, string, int, Task<bool>>? _swipeRawAsync;
+    private Func<string, int, int, Task<bool>>? _swipeWiegand26Async;
+
+    // True when MainViewModel has supplied all callbacks required for real simulation.
+    private bool HasSimulationDependencies =>
+        _getDoorsAsync != null &&
+        _getCardholders != null &&
+        _getInputStateAsync != null &&
+        _setInputStateAsync != null &&
+        _swipeRawAsync != null &&
+        _swipeWiegand26Async != null;
+
+
+    /*
+      #############################################################################
                                   Page Text
       #############################################################################
     */
@@ -278,6 +305,41 @@ public partial class AutoModeViewModel : ObservableObject
     }
 
 
+
+    /*
+      #############################################################################
+                          Dependency Configuration
+      #############################################################################
+    */
+
+    // Configures the callbacks Auto Mode needs in order to run real simulations.
+    //
+    // MainViewModel owns the actual services and live data sources. Auto Mode only receives the specific actions it needs:
+    //
+    //      - load current doors,
+    //      - read loaded cardholders,
+    //      - read/set input state,
+    //      - swipe card credentials,
+    //      - send PIN values.
+    //
+    // This avoids making AutoModeViewModel responsible for Softwire login/session handling and keeps the design similar to the interlocking controls.
+    public void ConfigureSimulationDependencies(
+        Func<Task<List<SoftwireDoor>>> getDoorsAsync,
+        Func<IReadOnlyList<Cardholder>> getCardholders,
+        Func<string, Task<InputState?>> getInputStateAsync,
+        Func<string, string, Task<bool>> setInputStateAsync,
+        Func<string, string, int, Task<bool>> swipeRawAsync,
+        Func<string, int, int, Task<bool>> swipeWiegand26Async)
+    {
+        _getDoorsAsync = getDoorsAsync;
+        _getCardholders = getCardholders;
+        _getInputStateAsync = getInputStateAsync;
+        _setInputStateAsync = setInputStateAsync;
+        _swipeRawAsync = swipeRawAsync;
+        _swipeWiegand26Async = swipeWiegand26Async;
+    }
+
+
     /*
       #############################################################################
                                     Commands
@@ -289,6 +351,7 @@ public partial class AutoModeViewModel : ObservableObject
     {
         IsSimulationRunning = true;
         SimulationStatus = "Running";
+
 
         CompletedEvents = 0;
         FailedAttempts = 0;
@@ -309,6 +372,26 @@ public partial class AutoModeViewModel : ObservableObject
             eventType: "-",
             doorName: "-",
             message: $"Settings: {NumberOfEvents} events, {SelectedDelayMode} delay, {SelectedEventProfile}, PIN {GlobalPin}.");
+
+        AddLog(
+            level: "Info",
+            eventType: "-",
+            doorName: "-",
+            message: "Simulation dependencies configured. Running fake simulation loop.");
+
+        if (!HasSimulationDependencies)
+        {
+            SimulationStatus = "Configuration error";
+
+            AddLog(
+                level: "Error",
+                eventType: "-",
+                doorName: "-",
+                message: "Auto Mode cannot start because simulation dependencies are not configured.");
+
+            IsSimulationRunning = false;
+            return;
+        }
 
         try
         {

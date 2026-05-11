@@ -197,6 +197,18 @@ public partial class MainViewModel : ObservableObject
         // simulated input state. The child ViewModel does not need direct access to the full Softwire service.
         TwoDoor.Interlocking.ConfigureInputStateSender(SetInterlockingInputStateAsync);
 
+        // Give Auto Mode the specific service/data callbacks it needs for simulation.
+        //
+        // Auto Mode does not own SoftwireService directly. MainViewModel remains the
+        // application-level coordinator and passes only the operations Auto Mode needs.
+        AutoMode.ConfigureSimulationDependencies(
+            getDoorsAsync: _softwireService.GetDoorsAsync,
+            getCardholders: () => Cardholders.AllCardholders,
+            getInputStateAsync: _softwireService.GetInputStateAsync,
+            setInputStateAsync: _softwireService.SetInputStateAsync,
+            swipeRawAsync: _softwireService.SwipeRawAsync,
+            swipeWiegand26Async: _softwireService.SwipeWiegand26Async);
+
         // Watch Auto Mode so the main menu can disable Mode switching while a simulation is running.
         AutoMode.PropertyChanged += AutoMode_PropertyChanged;
 

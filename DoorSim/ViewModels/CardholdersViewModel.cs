@@ -25,6 +25,11 @@ public partial class CardholdersViewModel : ObservableObject
     // This list is kept separate from VisibleCardholders so search filtering can be reapplied without needing to query SQL again.
     private List<Cardholder> _allCardholders = new List<Cardholder>();
 
+    // Returns a snapshot of all loaded cardholders/credentials.
+    //
+    // Auto Mode should use the full cardholder list, not VisibleCardholders, because VisibleCardholders is affected by the trainer's search filter in the UI.
+    public IReadOnlyList<Cardholder> AllCardholders => _allCardholders.ToList();
+
 
     /*
       #############################################################################
