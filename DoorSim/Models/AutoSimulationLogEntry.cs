@@ -13,18 +13,29 @@ namespace DoorSim.Models;
 //      - action failed / skipped
 public class AutoSimulationLogEntry
 {
+    // True when this row is only used as a visual separator between events.
+    public bool IsSeparator { get; set; }
+
     public DateTime Timestamp { get; set; } = DateTime.Now;
 
-    public string TimeText => Timestamp.ToString("HH:mm:ss");
+    public string TimeText => IsSeparator ? "" : Timestamp.ToString("HH:mm:ss");
 
     public int? EventNumber { get; set; }
 
     public int? TotalEvents { get; set; }
 
-    public string EventText =>
-        EventNumber == null || TotalEvents == null
-            ? "-"
-            : $"{EventNumber}/{TotalEvents}";
+    public string EventText
+    {
+        get
+        {
+            if (IsSeparator)
+                return "";
+
+            return EventNumber == null || TotalEvents == null
+                ? "-"
+                : $"{EventNumber}/{TotalEvents}";
+        }
+    }
 
     public string Level { get; set; } = "Info";
 
@@ -38,6 +49,9 @@ public class AutoSimulationLogEntry
     {
         get
         {
+            if (IsSeparator)
+                return new SolidColorBrush(Color.FromRgb(90, 90, 90));
+
             return Level switch
             {
                 "Success" => new SolidColorBrush(Color.FromRgb(40, 200, 120)),

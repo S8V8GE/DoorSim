@@ -478,6 +478,8 @@ public partial class AutoModeViewModel : ObservableObject
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            AddEventSeparator(eventNumber);
+
             var waitSeconds = GetRandomDelaySeconds();
 
             AddLog(
@@ -511,14 +513,22 @@ public partial class AutoModeViewModel : ObservableObject
 
     // Executes one simulation event.
     //
-    // For now:
-    //      - Forced events are real Softwire actions.
-    //      - Normal and Held events are still fake placeholders.
+    // Current implementation status:
+    //      - Normal events are real Softwire REX events.
+    //      - Forced events are real Softwire door sensor events.
+    //      - Held events are still fake placeholders.
     //
-    // This lets us prove real Softwire event execution one event type at a time.
+    // We are intentionally replacing fake events one type at a time so Auto Mode
+    // remains stable while the real simulation logic grows.
     private async Task ExecuteFakeEventAsync(int eventNumber, string eventType, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+
+        if (eventType == "Normal")
+        {
+            await ExecuteNormalRexEventAsync(eventNumber, cancellationToken);
+            return;
+        }
 
         if (eventType == "Forced")
         {
@@ -526,28 +536,389 @@ public partial class AutoModeViewModel : ObservableObject
             return;
         }
 
-        // Tiny delay so the log feels alive and proves the UI remains responsive.
+        // Held events are still fake for now. They will become real later because
+        // they need reservation/cleanup logic to keep the door open long enough for
+        // Softwire to generate a door-held-open event.
         await Task.Delay(150, cancellationToken);
 
-        switch (eventType)
-        {
-            case "Normal":
-                ExecutedNormalEvents++;
-                break;
-
-            case "Held":
-                ExecutedHeldEvents++;
-                break;
-        }
-
+        ExecutedHeldEvents++;
         CompletedEvents++;
 
         AddLog(
             level: "Success",
             eventType: eventType,
             doorName: "-",
-            message: $"Fake {eventType.ToLower()} event completed.",
+            message: "Fake held event completed.",
             eventNumber: eventNumber);
+    }
+
+    // Executes a real normal access event using a REX input.
+    //
+    // This is the first real "Normal" event implementation. It deliberately uses REX
+    // before reader/cardholder logic because it proves the normal door lifecycle
+    // without access-decision/Card+PIN complexity.
+    //
+    // Sequence:
+    //      1. Find a suitable locked door where REX can unlock the door.
+    //      2. Activate one available REX input.
+    //      3. Release the REX input.
+    //      4. If the door has a sensor, open and close the door sensor.
+    //      5. Log success/failure.
+    //
+    // Important cleanup rule:
+    //      If Auto Mode activates a REX or opens a door sensor, it must make a best
+    //      effort to restore them to Inactive even if the trainer presses Stop.
+    private async Task ExecuteNormalRexEventAsync(int eventNumber, CancellationToken cancellationToken)
+    {
+        if (_getDoorsAsync == null || _setInputStateAsync == null)
+        {
+            FailedAttempts++;
+            CompletedEvents++;
+
+            AddLog(
+                level: "Error",
+                eventType: "Normal",
+                doorName: "-",
+                message: "Normal REX event failed because Auto Mode dependencies are not configured.",
+                eventNumber: eventNumber);
+
+            return;
+        }
+
+        var doors = await _getDoorsAsync();
+
+        var selectedDoor = SelectNormalRexDoorCandidate(doors);
+
+        if (selectedDoor == null)
+        {
+            FailedAttempts++;
+            CompletedEvents++;
+
+            AddLog(
+                level: "Warning",
+                eventType: "Normal",
+                doorName: "-",
+                message: "No suitable normal REX candidate found. Door must be locked, not in maintenance, 'Unlock On Rex' enabled, and have a REX input.",
+                eventNumber: eventNumber);
+
+            return;
+        }
+
+        var rexPath = SelectRexPath(selectedDoor);
+        var rexDescription = GetRexDescription(selectedDoor, rexPath);
+
+        if (string.IsNullOrWhiteSpace(rexPath))
+        {
+            FailedAttempts++;
+            CompletedEvents++;
+
+            AddLog(
+                level: "Error",
+                eventType: "Normal",
+                doorName: selectedDoor.Name,
+                message: "Normal REX event failed because no valid REX path could be selected.",
+                eventNumber: eventNumber);
+
+            return;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var rexWasActivated = false;
+        var doorSensorWasOpened = false;
+        var eventWasCancelled = false;
+        var cleanupFailed = false;
+
+        try
+        {
+            AddLog(
+                level: "Info",
+                eventType: "Normal",
+                doorName: selectedDoor.Name,
+                message: $"Activating {rexDescription}.",
+                eventNumber: eventNumber);
+
+            var rexActivated = await _setInputStateAsync(rexPath, "Active");
+
+            if (!rexActivated)
+            {
+                FailedAttempts++;
+                CompletedEvents++;
+
+                AddLog(
+                    level: "Error",
+                    eventType: "Normal",
+                    doorName: selectedDoor.Name,
+                    message: $"Failed to activate {rexDescription}.",
+                    eventNumber: eventNumber);
+
+                return;
+            }
+
+            rexWasActivated = true;
+
+            // Give Softwire a brief moment to process the REX activation and unlock
+            // the door. In testing, Softwire reacts quickly, so one second is enough.
+            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+
+            AddLog(
+                level: "Info",
+                eventType: "Normal",
+                doorName: selectedDoor.Name,
+                message: $"Releasing {rexDescription}.",
+                eventNumber: eventNumber);
+
+            var rexReleased = await _setInputStateAsync(rexPath, "Inactive");
+
+            if (!rexReleased)
+            {
+                cleanupFailed = true;
+
+                AddLog(
+                    level: "Error",
+                    eventType: "Normal",
+                    doorName: selectedDoor.Name,
+                    message: $"{rexDescription} was activated, but DoorSim failed to release it. Manual cleanup may be required.",
+                    eventNumber: eventNumber);
+
+                return;
+            }
+
+            rexWasActivated = false;
+
+            // If the door has a sensor, simulate a normal user opening and closing
+            // the door after the REX unlock.
+            if (selectedDoor.HasDoorSensor &&
+                !string.IsNullOrWhiteSpace(selectedDoor.DoorSensorDevicePath))
+            {
+                AddLog(
+                    level: "Info",
+                    eventType: "Normal",
+                    doorName: selectedDoor.Name,
+                    message: "Opening door sensor after REX unlock.",
+                    eventNumber: eventNumber);
+
+                var sensorOpened = await _setInputStateAsync(selectedDoor.DoorSensorDevicePath, "Active");
+
+                if (!sensorOpened)
+                {
+                    FailedAttempts++;
+                    CompletedEvents++;
+
+                    AddLog(
+                        level: "Error",
+                        eventType: "Normal",
+                        doorName: selectedDoor.Name,
+                        message: "REX was processed, but DoorSim failed to open the door sensor.",
+                        eventNumber: eventNumber);
+
+                    return;
+                }
+
+                doorSensorWasOpened = true;
+
+                await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+
+                AddLog(
+                    level: "Info",
+                    eventType: "Normal",
+                    doorName: selectedDoor.Name,
+                    message: "Closing door sensor.",
+                    eventNumber: eventNumber);
+
+                var sensorClosed = await _setInputStateAsync(selectedDoor.DoorSensorDevicePath, "Inactive");
+
+                if (!sensorClosed)
+                {
+                    cleanupFailed = true;
+
+                    AddLog(
+                        level: "Error",
+                        eventType: "Normal",
+                        doorName: selectedDoor.Name,
+                        message: "Door sensor was opened, but DoorSim failed to close it. Manual cleanup may be required.",
+                        eventNumber: eventNumber);
+
+                    return;
+                }
+
+                doorSensorWasOpened = false;
+            }
+            else
+            {
+                AddLog(
+                    level: "Info",
+                    eventType: "Normal",
+                    doorName: selectedDoor.Name,
+                    message: "REX event completed without door sensor movement because this door has no configured door sensor.",
+                    eventNumber: eventNumber);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            eventWasCancelled = true;
+
+            AddLog(
+                level: "Warning",
+                eventType: "Normal",
+                doorName: selectedDoor.Name,
+                message: "Normal REX event was stopped while running. Cleaning up simulated inputs.",
+                eventNumber: eventNumber);
+        }
+        finally
+        {
+            // Best-effort door sensor cleanup.
+            if (doorSensorWasOpened)
+            {
+                AddLog(
+                    level: "Info",
+                    eventType: "Normal",
+                    doorName: selectedDoor.Name,
+                    message: "Cleaning up door sensor.",
+                    eventNumber: eventNumber);
+
+                var sensorClosed = await _setInputStateAsync(selectedDoor.DoorSensorDevicePath, "Inactive");
+
+                if (!sensorClosed)
+                {
+                    cleanupFailed = true;
+
+                    AddLog(
+                        level: "Error",
+                        eventType: "Normal",
+                        doorName: selectedDoor.Name,
+                        message: "DoorSim failed to clean up the door sensor. Manual cleanup may be required.",
+                        eventNumber: eventNumber);
+                }
+            }
+
+            // Best-effort REX cleanup.
+            if (rexWasActivated)
+            {
+                AddLog(
+                    level: "Info",
+                    eventType: "Normal",
+                    doorName: selectedDoor.Name,
+                    message: $"Cleaning up {rexDescription}.",
+                    eventNumber: eventNumber);
+
+                var rexReleased = await _setInputStateAsync(rexPath, "Inactive");
+
+                if (!rexReleased)
+                {
+                    cleanupFailed = true;
+
+                    AddLog(
+                        level: "Error",
+                        eventType: "Normal",
+                        doorName: selectedDoor.Name,
+                        message: $"DoorSim failed to clean up {rexDescription}. Manual cleanup may be required.",
+                        eventNumber: eventNumber);
+                }
+            }
+        }
+
+        if (cleanupFailed)
+        {
+            FailedAttempts++;
+            CompletedEvents++;
+            return;
+        }
+
+        if (eventWasCancelled)
+        {
+            FailedAttempts++;
+            CompletedEvents++;
+
+            AddLog(
+                level: "Warning",
+                eventType: "Normal",
+                doorName: selectedDoor.Name,
+                message: "Normal REX event stopped and cleaned up.",
+                eventNumber: eventNumber);
+
+            return;
+        }
+
+        ExecutedNormalEvents++;
+        CompletedEvents++;
+
+        AddLog(
+            level: "Success",
+            eventType: "Normal",
+            doorName: selectedDoor.Name,
+            message: "Normal REX event completed.",
+            eventNumber: eventNumber);
+    }
+
+    // Selects a random door suitable for a normal REX event.
+    //
+    // For this first Normal implementation, we only use REX. Reader/cardholder normal events will be added later.
+    //
+    // A normal REX candidate must:
+    //      - be locked,
+    //      - not be unlocked for maintenance,
+    //      - allow REX to unlock the door,
+    //      - have at least one configured REX input.
+    private SoftwireDoor? SelectNormalRexDoorCandidate(IEnumerable<SoftwireDoor> doors)
+    {
+        var candidates = doors
+            .Where(d => d.DoorIsLocked)
+            .Where(d => !d.UnlockedForMaintenance)
+            .Where(d => d.AutoUnlockOnRex)
+            .Where(HasUsableRex)
+            .ToList();
+
+        if (!candidates.Any())
+            return null;
+
+        return candidates[_random.Next(candidates.Count)];
+    }
+
+    // Returns true when the door has at least one REX input path Auto Mode can use.
+    private static bool HasUsableRex(SoftwireDoor door)
+    {
+        return !string.IsNullOrWhiteSpace(door.RexSideInDevicePath) ||
+               !string.IsNullOrWhiteSpace(door.RexSideOutDevicePath) ||
+               !string.IsNullOrWhiteSpace(door.RexNoSideDevicePath);
+    }
+
+    // Selects one available REX path from the supplied door.
+    //
+    // If more than one REX exists, a random one is chosen so repeated Auto Mode runs
+    // do not always exercise the same side.
+    private string SelectRexPath(SoftwireDoor door)
+    {
+        var rexPaths = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(door.RexSideInDevicePath))
+            rexPaths.Add(door.RexSideInDevicePath);
+
+        if (!string.IsNullOrWhiteSpace(door.RexSideOutDevicePath))
+            rexPaths.Add(door.RexSideOutDevicePath);
+
+        if (!string.IsNullOrWhiteSpace(door.RexNoSideDevicePath))
+            rexPaths.Add(door.RexNoSideDevicePath);
+
+        if (!rexPaths.Any())
+            return string.Empty;
+
+        return rexPaths[_random.Next(rexPaths.Count)];
+    }
+
+    // Returns friendly log text for whichever REX path was selected.
+    private static string GetRexDescription(SoftwireDoor door, string rexPath)
+    {
+        if (string.Equals(rexPath, door.RexSideInDevicePath, StringComparison.OrdinalIgnoreCase))
+            return "In REX";
+
+        if (string.Equals(rexPath, door.RexSideOutDevicePath, StringComparison.OrdinalIgnoreCase))
+            return "Out REX";
+
+        if (string.Equals(rexPath, door.RexNoSideDevicePath, StringComparison.OrdinalIgnoreCase))
+            return "No-side REX";
+
+        return "REX";
     }
 
     // Executes a real forced-door event against Softwire.
@@ -781,4 +1152,26 @@ public partial class AutoModeViewModel : ObservableObject
             Message = message
         });
     }
+
+    // Adds a visual separator row to the log.
+    //
+    // The log displays newest entries at the top using Insert(0).
+    // Therefore this is called at the start of each event. As later log entries for
+    // the same event are inserted above it, the separator naturally ends up between
+    // this event and the previous event.
+    private void AddEventSeparator(int eventNumber)
+    {
+        LogEntries.Insert(0, new AutoSimulationLogEntry
+        {
+            Timestamp = DateTime.Now,
+            EventNumber = eventNumber,
+            TotalEvents = NumberOfEvents,
+            IsSeparator = true,
+            Level = "",
+            EventType = "",
+            DoorName = "",
+            Message = "────────────────────────────────────────────────────────"
+        });
+    }
+
 }
