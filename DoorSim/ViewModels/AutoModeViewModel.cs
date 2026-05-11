@@ -65,8 +65,7 @@ public partial class AutoModeViewModel : ObservableObject
 
     public string Title => "Auto Mode";
 
-    public string Subtitle =>
-        "Busy site simulation for training, demos, and stress testing.";
+    public string Subtitle => "Busy site simulation for training, demos, and stress testing.";
 
 
     /*
@@ -510,12 +509,22 @@ public partial class AutoModeViewModel : ObservableObject
         }
     }
 
-    // Executes one fake event and updates the running summary.
+    // Executes one simulation event.
     //
-    // No Softwire commands are sent here yet.
+    // For now:
+    //      - Forced events are real Softwire actions.
+    //      - Normal and Held events are still fake placeholders.
+    //
+    // This lets us prove real Softwire event execution one event type at a time.
     private async Task ExecuteFakeEventAsync(int eventNumber, string eventType, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+
+        if (eventType == "Forced")
+        {
+            await ExecuteForcedDoorEventAsync(eventNumber, cancellationToken);
+            return;
+        }
 
         // Tiny delay so the log feels alive and proves the UI remains responsive.
         await Task.Delay(150, cancellationToken);
@@ -524,10 +533,6 @@ public partial class AutoModeViewModel : ObservableObject
         {
             case "Normal":
                 ExecutedNormalEvents++;
-                break;
-
-            case "Forced":
-                ExecutedForcedEvents++;
                 break;
 
             case "Held":
@@ -543,6 +548,194 @@ public partial class AutoModeViewModel : ObservableObject
             doorName: "-",
             message: $"Fake {eventType.ToLower()} event completed.",
             eventNumber: eventNumber);
+    }
+
+    // Executes a real forced-door event against Softwire.
+    //
+    // A forced-door event simulates the door sensor opening while the door is still
+    // locked. If the door is configured to enforce forced-open events, Softwire
+    // should generate the corresponding door forced event.
+    //
+    // Important cleanup rule:
+    //      If Auto Mode opens a door sensor, it must make a best effort to close it
+    //      again, even if the trainer presses Stop while the event is running.
+    //
+    // Sequence:
+    //      1. Find a suitable locked door with a door sensor.
+    //      2. Set the door sensor Active.
+    //      3. Wait briefly so Softwire registers the event.
+    //      4. Always attempt to set the door sensor Inactive again.
+    //      5. Log success/failure.
+    private async Task ExecuteForcedDoorEventAsync(int eventNumber, CancellationToken cancellationToken)
+    {
+        if (_getDoorsAsync == null || _setInputStateAsync == null)
+        {
+            FailedAttempts++;
+            CompletedEvents++;
+
+            AddLog(
+                level: "Error",
+                eventType: "Forced",
+                doorName: "-",
+                message: "Forced event failed because Auto Mode dependencies are not configured.",
+                eventNumber: eventNumber);
+
+            return;
+        }
+
+        var doors = await _getDoorsAsync();
+
+        var selectedDoor = SelectForcedDoorCandidate(doors);
+
+        if (selectedDoor == null)
+        {
+            FailedAttempts++;
+            CompletedEvents++;
+
+            AddLog(
+                level: "Warning",
+                eventType: "Forced",
+                doorName: "-",
+                message: "No suitable forced-door candidate found. Door must be locked, not in maintenance, have a door sensor, and have forced-open enforcement enabled.",
+                eventNumber: eventNumber);
+
+            return;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var doorSensorWasOpened = false;
+        var eventWasCancelled = false;
+        var cleanupFailed = false;
+
+        try
+        {
+            AddLog(
+                level: "Info",
+                eventType: "Forced",
+                doorName: selectedDoor.Name,
+                message: "Opening door sensor without a valid unlock.",
+                eventNumber: eventNumber);
+
+            var opened = await _setInputStateAsync(selectedDoor.DoorSensorDevicePath, "Active");
+
+            if (!opened)
+            {
+                FailedAttempts++;
+                CompletedEvents++;
+
+                AddLog(
+                    level: "Error",
+                    eventType: "Forced",
+                    doorName: selectedDoor.Name,
+                    message: "Failed to set door sensor Active.",
+                    eventNumber: eventNumber);
+
+                return;
+            }
+
+            doorSensorWasOpened = true;
+
+            // Softwire sees the input state change immediately in testing.
+            // One second is enough to generate the forced-door condition without
+            // slowing the simulation unnecessarily.
+            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            eventWasCancelled = true;
+
+            AddLog(
+                level: "Warning",
+                eventType: "Forced",
+                doorName: selectedDoor.Name,
+                message: "Forced event was stopped while running. Cleaning up door sensor.",
+                eventNumber: eventNumber);
+        }
+        finally
+        {
+            if (doorSensorWasOpened)
+            {
+                AddLog(
+                    level: "Info",
+                    eventType: "Forced",
+                    doorName: selectedDoor.Name,
+                    message: "Closing door sensor.",
+                    eventNumber: eventNumber);
+
+                var closed = await _setInputStateAsync(selectedDoor.DoorSensorDevicePath, "Inactive");
+
+                if (!closed)
+                {
+                    cleanupFailed = true;
+
+                    AddLog(
+                        level: "Error",
+                        eventType: "Forced",
+                        doorName: selectedDoor.Name,
+                        message: "Door sensor was opened, but DoorSim failed to set it Inactive again. Manual cleanup may be required.",
+                        eventNumber: eventNumber);
+                }
+            }
+        }
+
+        if (cleanupFailed)
+        {
+            FailedAttempts++;
+            CompletedEvents++;
+
+            return;
+        }
+
+        if (eventWasCancelled)
+        {
+            FailedAttempts++;
+            CompletedEvents++;
+
+            AddLog(
+                level: "Warning",
+                eventType: "Forced",
+                doorName: selectedDoor.Name,
+                message: "Forced-door event stopped and cleaned up.",
+                eventNumber: eventNumber);
+
+            return;
+        }
+
+        ExecutedForcedEvents++;
+        CompletedEvents++;
+
+        AddLog(
+            level: "Success",
+            eventType: "Forced",
+            doorName: selectedDoor.Name,
+            message: "Forced-door event completed. Door sensor opened and closed.",
+            eventNumber: eventNumber);
+    }
+
+    // Selects a random door suitable for a forced-door event.
+    //
+    // A forced-door event should only use doors where opening the door sensor without
+    // an unlock is meaningful. Therefore the door must:
+    //      - be locked,
+    //      - not be unlocked for maintenance,
+    //      - have a door sensor,
+    //      - have a valid door sensor device path,
+    //      - have forced-open enforcement enabled.
+    private SoftwireDoor? SelectForcedDoorCandidate(IEnumerable<SoftwireDoor> doors)
+    {
+        var candidates = doors
+            .Where(d => d.DoorIsLocked)
+            .Where(d => !d.UnlockedForMaintenance)
+            .Where(d => d.HasDoorSensor)
+            .Where(d => !string.IsNullOrWhiteSpace(d.DoorSensorDevicePath))
+            .Where(d => d.EnforceDoorForcedOpen)
+            .ToList();
+
+        if (!candidates.Any())
+            return null;
+
+        return candidates[_random.Next(candidates.Count)];
     }
 
     // Returns a random delay between the configured minimum and maximum values.
