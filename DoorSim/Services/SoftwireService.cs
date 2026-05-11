@@ -418,8 +418,22 @@ public class SoftwireService : ISoftwireService
                 Href = href,
                 Id = door.TryGetProperty("Id", out var id) ? id.GetString() ?? "" : "",
                 Name = door.TryGetProperty("Name", out var name) ? name.GetString() ?? "" : "",
+
+                // Door behaviour configuration.
+                //
+                // These values are parsed from the top-level Softwire door JSON and are used by Auto Mode to decide which doors are suitable for normal, forced-open, and held-open simulation events.
+                GrantTimeSeconds = door.TryGetProperty("GrantTime", out var grantTime) ? grantTime.GetInt32() : 0,
+                ExtendedGrantTimeSeconds = door.TryGetProperty("ExtendedGrantTime", out var extendedGrantTime) ? extendedGrantTime.GetInt32() : 0,
+                DoorHeldTimeSeconds = door.TryGetProperty("DoorHeldTime", out var doorHeldTime) ? doorHeldTime.GetInt32() : 0,
+                AutoUnlockOnRex = door.TryGetProperty("AutoUnlockOnRex", out var autoUnlockOnRex) && autoUnlockOnRex.GetBoolean(),
+                EnforceDoorForcedOpen = door.TryGetProperty("EnforceDoorForcedOpen", out var enforceDoorForcedOpen) && enforceDoorForcedOpen.GetBoolean(),
+                IgnoreHeldOpenWhenUnlocked = door.TryGetProperty("IgnoreHeldOpenWhenUnlocked", out var ignoreHeldOpenWhenUnlocked) && ignoreHeldOpenWhenUnlocked.GetBoolean(),
                 DoorIsLocked = door.TryGetProperty("IsLocked", out var locked) && locked.GetBoolean(),
                 UnlockedForMaintenance = door.TryGetProperty("UnlockedForMaintenance", out var maintenance) && maintenance.GetBoolean(),
+
+                // Door configuration
+                //
+                // These values are derived from the presence of specific roles and their properties in the Softwire door JSON.
                 HasDoorSensor = hasDoorSensor,
                 HasLock = hasLock,
                 DoorSensorDevicePath = doorSensorPath,
@@ -443,7 +457,9 @@ public class SoftwireService : ISoftwireService
                 LastDecisionReaderPath = lastDecisionReaderPath,
                 LastDecisionGranted = lastDecisionGranted,
                 LastDecisionDenied = lastDecisionDenied
+
             });
+
         }
 
         return doors.OrderBy(d => d.Name).ToList();

@@ -39,6 +39,42 @@ public class SoftwireDoor
 
 
     /*
+  #############################################################################
+                       Door Behaviour Configuration
+  #############################################################################
+*/
+
+    // Door timing and behaviour configuration parsed from the Softwire door JSON.
+    //
+    // These values are mainly used by Auto Mode to decide which doors are suitable for different simulated events:
+    //
+    //      - GrantTimeSeconds:
+    //          How long a normal access grant lasts.
+    //
+    //      - ExtendedGrantTimeSeconds:
+    //          How long an extended access grant lasts.
+    //
+    //      - DoorHeldTimeSeconds:
+    //          How long the door must remain open before Softwire generates a door-held-open event.
+    //
+    //      - AutoUnlockOnRex:
+    //          Whether activating a REX input can unlock the door.
+    //
+    //      - EnforceDoorForcedOpen:
+    //          Whether opening the door without a valid unlock should generate
+    //          a door-forced-open event.
+    //
+    //      - IgnoreHeldOpenWhenUnlocked:
+    //          Whether Softwire ignores held-open logic while the door is unlocked.
+    public int GrantTimeSeconds { get; set; }
+    public int ExtendedGrantTimeSeconds { get; set; }
+    public int DoorHeldTimeSeconds { get; set; }
+    public bool AutoUnlockOnRex { get; set; }
+    public bool EnforceDoorForcedOpen { get; set; }
+    public bool IgnoreHeldOpenWhenUnlocked { get; set; }
+
+
+    /*
       #############################################################################
                        In Reader Configuration and Live State
       #############################################################################
