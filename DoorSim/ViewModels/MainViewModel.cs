@@ -57,6 +57,9 @@ public partial class MainViewModel : ObservableObject
     // ViewModel for Two Door View. Owns the independent left/right door panel states while sharing the cardholder list with the rest of the application.
     public TwoDoorViewModel TwoDoor { get; }
 
+    // ViewModel for Auto Mode. Auto Mode is separate from Manual Mode's Single/Two Door views.
+    public AutoModeViewModel AutoMode { get; } = new AutoModeViewModel();
+
     // Used by the View menu to show a checkmark next to Single Door.
     public bool IsSingleDoorViewSelected => CurrentViewMode == "SingleDoor";
 
@@ -93,6 +96,18 @@ public partial class MainViewModel : ObservableObject
     // Tracks which main simulator view is currently selected (Single Door is the default view).
     [ObservableProperty]
     private string currentViewMode = "SingleDoor";
+
+    // Tracks whether the application is currently showing Manual Mode or Auto Mode.
+    //      - Manual Mode is the normal interactive DoorSim experience.
+    //      - Auto Mode will run automated busy-site simulations.
+    [ObservableProperty]
+    private string currentAppMode = "Manual";
+
+    // Used by the Mode menu to show a checkmark next to Manual Mode.
+    public bool IsManualModeSelected => CurrentAppMode == "Manual";
+
+    // Used by the Mode menu to show a checkmark next to Auto Mode.
+    public bool IsAutoModeSelected => CurrentAppMode == "Auto";
 
 
     /*
@@ -188,6 +203,13 @@ public partial class MainViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(IsSingleDoorViewSelected));
         OnPropertyChanged(nameof(IsTwoDoorViewSelected));
+    }
+
+    // Refreshes Mode menu checkmarks when Manual/Auto mode changes.
+    partial void OnCurrentAppModeChanged(string value)
+    {
+        OnPropertyChanged(nameof(IsManualModeSelected));
+        OnPropertyChanged(nameof(IsAutoModeSelected));
     }
 
 
@@ -823,6 +845,21 @@ public partial class MainViewModel : ObservableObject
         TwoDoor.PrepareFromSingleDoorSelection(Doors.SelectedDoor);
 
         CurrentViewMode = "TwoDoor";
+    }
+
+    // The below both control the switch between manual mode and auto mode.
+    // Note: this does not change CurrentViewMode. So if you were in Two Door View, switch to Auto Mode, then switch back to Manual Mode, you should still be in Two Door View.
+
+    [RelayCommand]
+    private void ShowManualMode()
+    {
+        CurrentAppMode = "Manual";
+    }
+
+    [RelayCommand]
+    private void ShowAutoMode()
+    {
+        CurrentAppMode = "Auto";
     }
 
 }
