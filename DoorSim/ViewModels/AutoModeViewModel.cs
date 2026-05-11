@@ -29,6 +29,16 @@ public partial class AutoModeViewModel : ObservableObject
     // Random number generator used for delays and event type selection.
     private readonly Random _random = new Random();
 
+    // Tracks doors that Auto Mode must not use temporarily.
+    //
+    // This will be used by real Held events. When Auto Mode leaves a door open long
+    // enough to generate a Door Held event, that door must not be selected again by
+    // another Normal/Forced/Held event until cleanup has closed the sensor.
+    //
+    // Key   = Softwire door Id
+    // Value = reservation details for logging/debugging
+    private readonly Dictionary<string, AutoDoorReservation> _reservedDoors = new();
+
 
     /*
       #############################################################################
@@ -358,6 +368,11 @@ public partial class AutoModeViewModel : ObservableObject
         ExecutedForcedEvents = 0;
         ExecutedHeldEvents = 0;
 
+        // Start each run with a clean reservation list.
+        // If a previous run was stopped or completed, we do not want stale reservations
+        // preventing doors from being selected in the next run.
+        _reservedDoors.Clear();
+
         _simulationCancellation = new CancellationTokenSource();
 
         AddLog(
@@ -408,6 +423,11 @@ public partial class AutoModeViewModel : ObservableObject
         {
             _simulationCancellation?.Dispose();
             _simulationCancellation = null;
+
+            // Real Held events will reserve doors while their door sensors are deliberately left open.
+            // When the overall simulation stops/completes, clear any remaining reservations so a future run starts cleanly.
+            // Later, when Held cleanup is added, Stop will also make a best effort to close any Auto Mode-opened sensors before reservations are cleared.
+            _reservedDoors.Clear();
 
             IsSimulationRunning = false;
 
@@ -463,10 +483,104 @@ public partial class AutoModeViewModel : ObservableObject
 
 
     /*
-  #############################################################################
+      #############################################################################
+                          Door Reservation Helpers
+      #############################################################################
+    */
+
+    // Reserves a door so Auto Mode will not select it for another event.
+    //
+    // This is mainly for Held events. A held-open door needs time to remain open so
+    // Softwire can generate the door-held-open event. During that time, Auto Mode
+    // must not accidentally pick the same door for a Normal or Forced event and
+    // close/reopen the sensor.
+    private void ReserveDoor(SoftwireDoor door, string reason)
+    {
+        if (string.IsNullOrWhiteSpace(door.Id))
+            return;
+
+        _reservedDoors[door.Id] = new AutoDoorReservation
+        {
+            DoorId = door.Id,
+            DoorName = door.Name,
+            Reason = reason,
+            ReservedAtUtc = DateTime.UtcNow
+        };
+
+        AddLog(
+            level: "Info",
+            eventType: "-",
+            doorName: door.Name,
+            message: $"Door reserved: {reason}.");
+    }
+
+    // Releases a previously reserved door.
+    //
+    // It is safe to call this even if the door is not currently reserved.
+    private void ReleaseDoorReservation(string doorId, string message)
+    {
+        if (string.IsNullOrWhiteSpace(doorId))
+            return;
+
+        if (!_reservedDoors.TryGetValue(doorId, out var reservation))
+            return;
+
+        _reservedDoors.Remove(doorId);
+
+        AddLog(
+            level: "Info",
+            eventType: "-",
+            doorName: reservation.DoorName,
+            message: message);
+    }
+
+    // Returns true when the supplied door is currently reserved by Auto Mode.
+    private bool IsDoorReserved(string doorId)
+    {
+        if (string.IsNullOrWhiteSpace(doorId))
+            return false;
+
+        return _reservedDoors.ContainsKey(doorId);
+    }
+
+    // Releases reservations for doors that no longer exist in the latest Softwire
+    // door list.
+    //
+    // This is important during training because someone may delete or reconfigure a
+    // door while Auto Mode is running. If a reserved door disappears, we simply log
+    // the situation, release the reservation, and keep the simulation moving.
+    private void ReleaseReservationsForDeletedDoors(IEnumerable<SoftwireDoor> currentDoors)
+    {
+        if (!_reservedDoors.Any())
+            return;
+
+        var currentDoorIds = currentDoors
+            .Where(d => !string.IsNullOrWhiteSpace(d.Id))
+            .Select(d => d.Id)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var deletedReservations = _reservedDoors.Values
+            .Where(r => !currentDoorIds.Contains(r.DoorId))
+            .ToList();
+
+        foreach (var reservation in deletedReservations)
+        {
+            _reservedDoors.Remove(reservation.DoorId);
+
+            AddLog(
+                level: "Warning",
+                eventType: "-",
+                doorName: reservation.DoorName,
+                message: "Reserved door no longer exists in Softwire. Releasing reservation and continuing.");
+        }
+    }
+
+
+    /*
+      #############################################################################
                           Fake Simulation Engine
-  #############################################################################
-*/
+      #############################################################################
+    */
 
     // Runs a fake timed simulation loop.
     //
@@ -1303,7 +1417,15 @@ public partial class AutoModeViewModel : ObservableObject
     // a meaningful access attempt rather than interacting with an already-unlocked door.
     private SoftwireDoor? SelectNormalDoorCandidate(IEnumerable<SoftwireDoor> doors)
     {
-        var candidates = doors
+        var doorList = doors.ToList();
+
+        // If a reserved door was deleted while Auto Mode is running, release the
+        // reservation and move on cleanly. This prevents a stale reservation from
+        // blocking future event selection.
+        ReleaseReservationsForDeletedDoors(doorList);
+
+        var candidates = doorList
+            .Where(d => !IsDoorReserved(d.Id))
             .Where(d => d.DoorIsLocked)
             .Where(d => !d.UnlockedForMaintenance)
             .Where(d => HasUsableReader(d) || HasUsableAutoUnlockRex(d))
@@ -1675,7 +1797,15 @@ public partial class AutoModeViewModel : ObservableObject
     //      - have forced-open enforcement enabled.
     private SoftwireDoor? SelectForcedDoorCandidate(IEnumerable<SoftwireDoor> doors)
     {
-        var candidates = doors
+        var doorList = doors.ToList();
+
+        // Reserved doors are deliberately being held by Auto Mode, usually because a
+        // Held event has opened the sensor and is waiting for Softwire to generate a
+        // Door Held event. Do not use those doors for forced events.
+        ReleaseReservationsForDeletedDoors(doorList);
+
+        var candidates = doorList
+            .Where(d => !IsDoorReserved(d.Id))
             .Where(d => d.DoorIsLocked)
             .Where(d => !d.UnlockedForMaintenance)
             .Where(d => d.HasDoorSensor)
@@ -1771,6 +1901,20 @@ public partial class AutoModeViewModel : ObservableObject
         public string ReaderMode => RequiresCardAndPin
             ? "Card + PIN"
             : "Card only";
+    }
+
+    // Small internal model used to track doors that Auto Mode has temporarily
+    // reserved.
+    //
+    // Held events will use this so a door can remain open long enough for Softwire
+    // to generate the door-held-open event without another Auto Mode event selecting
+    // the same door and interrupting the scenario.
+    private class AutoDoorReservation
+    {
+        public string DoorId { get; set; } = string.Empty;
+        public string DoorName { get; set; } = string.Empty;
+        public string Reason { get; set; } = string.Empty;
+        public DateTime ReservedAtUtc { get; set; }
     }
 
 }
