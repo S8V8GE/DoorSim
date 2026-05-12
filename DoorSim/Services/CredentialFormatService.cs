@@ -200,8 +200,8 @@ public static class CredentialFormatService
     //      - Card Number:   1–524287
     //
     // Parity:
-    //      - Leading parity gives even parity over the 16 facility code bits.
-    //      - Trailing parity gives odd parity over the 19 card number bits.
+    //      - Leading parity gives even parity over the first 19 bits.
+    //      - Trailing parity gives odd parity over the last  19 bits.
     public static CredentialFormatResult CreateH10304_37Bit(int facilityCode, int cardNumber)
     {
         if (facilityCode < 1 || facilityCode > 65535)
@@ -211,21 +211,38 @@ public static class CredentialFormatService
             throw new ArgumentOutOfRangeException(nameof(cardNumber), "Card Number must be between 1 and 524287.");
 
         // 35 data bits:
-        // - 16-bit facility code
-        // - 19-bit card number
+        //      - 16-bit facility code
+        //      - 19-bit card number
+        //
+        // This creates bits 1–35 of the final 37-bit credential.
         var data35 = ((long)facilityCode << 19) | (uint)cardNumber;
 
-        var facilityCodeBits = facilityCode & 0xFFFF;
-        var cardNumberBits = cardNumber & 0x7FFFF;
+        // Leading even parity covers the first 18 data bits:
+        //      - all 16 facility-code bits,
+        //      - the first 2 card-number bits.
+        //
+        // The card number is 19 bits. Its first 2 bits are bits 18 and 17 of the
+        // card-number value, so shift right by 17 to isolate them.
+        var firstTwoCardBits = (cardNumber >> 17) & 0b11;
 
-        var facilityCodeOnes = CountSetBits(facilityCodeBits);
-        var cardNumberOnes = CountSetBits(cardNumberBits);
+        var leadingParityData =
+            ((facilityCode & 0xFFFF) << 2) |
+            firstTwoCardBits;
 
-        // Leading parity: even parity over the facility code bits.
-        var p1 = facilityCodeOnes % 2 == 0 ? 0L : 1L;
+        var leadingParityOnes = CountSetBits(leadingParityData);
 
-        // Trailing parity: odd parity over the card number bits.
-        var p2 = cardNumberOnes % 2 == 1 ? 0L : 1L;
+        // p1 is chosen so p1 + leadingParityData has even parity.
+        var p1 = leadingParityOnes % 2 == 0 ? 0L : 1L;
+
+        // Trailing odd parity covers the last 18 card-number bits.
+        //
+        // Mask 0x3FFFF = 18 bits.
+        var lastEighteenCardBits = cardNumber & 0x3FFFF;
+
+        var trailingParityOnes = CountSetBits(lastEighteenCardBits);
+
+        // p2 is chosen so trailingParityData + p2 has odd parity.
+        var p2 = trailingParityOnes % 2 == 0 ? 1L : 0L;
 
         var full37 = (p1 << 36) | (data35 << 1) | p2;
 
@@ -240,22 +257,34 @@ public static class CredentialFormatService
 
     /*
       #############################################################################
-                               HID Corporate 1000 (35-bits)
+                           HID Corporate 1000 (35-bits)
       #############################################################################
     */
     //
     // Converts HID Corporate 1000 / 35-bit Wiegand fields into raw hex.
     //
-    // Format:
-    //      - 1 leading parity bit
-    //      - 1 fixed Corporate 1000 format bit
-    //      - 12-bit Facility Code
-    //      - 20-bit Card Number
-    //      - 1 trailing parity bit
+    // Format used here:
+    //      - Bit 1:  odd parity bit
+    //      - Bit 2:  even parity bit
+    //      - Bits 3–14: 12-bit Facility Code
+    //      - Bits 15–34: 20-bit Card Number
+    //      - Bit 35: odd parity bit
+    //
+    // In zero-based integer terms:
+    //      - bit 34 = first odd parity bit
+    //      - bit 33 = even parity bit
+    //      - bits 32–21 = 12-bit facility code
+    //      - bits 20–1 = 20-bit card number
+    //      - bit 0 = final odd parity bit
     //
     // Field ranges used by this app:
     //      - Facility Code: 1–4095
     //      - Card Number:   1–1048575
+    //
+    // Important:
+    //      HID Corporate 1000 35-bit does not use a simple "facility parity" +
+    //      "card parity" split. The parity masks are irregular, and bit 2 is a
+    //      parity bit, not a fixed format bit.
     public static CredentialFormatResult CreateCorporate1000_35Bit(int facilityCode, int cardNumber)
     {
         if (facilityCode < 1 || facilityCode > 4095)
@@ -267,27 +296,97 @@ public static class CredentialFormatService
         var facilityBits = facilityCode & 0xFFF;
         var cardBits = cardNumber & 0xFFFFF;
 
-        var facilityOnes = CountSetBits(facilityBits);
-        var cardOnes = CountSetBits(cardBits);
-
-        // Leading parity: even parity over the facility code bits.
-        var p1 = facilityOnes % 2 == 0 ? 0L : 1L;
-
-        // Trailing parity: even parity over the card number bits.
-        var p2 = cardOnes % 2 == 0 ? 0L : 1L;
-
-        // Corporate 1000 35-bit layout:
-        // bit 34      = leading parity
-        // bit 33      = fixed Corporate 1000 format bit, always 1
-        // bits 32–21  = 12-bit facility code
-        // bits 20–1   = 20-bit card number
-        // bit 0       = trailing parity
+        // Start with the 32 data bits only:
+        //      bits 32–21 = facility code
+        //      bits 20–1  = card number
+        //
+        // Parity bits are added afterwards.
         var full35 =
-            (p1 << 34) |
-            (1L << 33) |
             ((long)facilityBits << 21) |
-            ((long)cardBits << 1) |
-            p2;
+            ((long)cardBits << 1);
+
+        // Bit numbering below follows the usual card-format documentation style:
+        //      bit 1 = most significant bit of the 35-bit value
+        //      bit 35 = least significant bit
+        //
+        // The helper converts that 1-based card bit number into the zero-based
+        // integer bit position used by C# shifts.
+        static bool IsBitSet(long value, int cardBitNumber)
+        {
+            var zeroBasedBit = 35 - cardBitNumber;
+            return ((value >> zeroBasedBit) & 1L) == 1L;
+        }
+
+        static int CountMaskedBits(long value, int[] cardBitNumbers)
+        {
+            var count = 0;
+
+            foreach (var cardBitNumber in cardBitNumbers)
+            {
+                if (IsBitSet(value, cardBitNumber))
+                    count++;
+            }
+
+            return count;
+        }
+
+        static int CountSetBitsLong(long value)
+        {
+            var count = 0;
+
+            while (value != 0)
+            {
+                count += (int)(value & 1L);
+                value >>= 1;
+            }
+
+            return count;
+        }
+
+        // Bit 2 even parity mask.
+        //
+        // This mask intentionally crosses the facility/card-number boundary.
+        var bit2EvenMask = new[]
+        {
+            3, 4, 6, 7, 9, 10, 12, 13,
+            15, 16, 18, 19, 21, 22, 24, 25,
+            27, 28, 30, 31, 33, 34
+        };
+
+        var bit2Ones = CountMaskedBits(full35, bit2EvenMask);
+
+        // Bit 2 is chosen so the masked group has even parity.
+        var bit2 = bit2Ones % 2 == 0 ? 0L : 1L;
+
+        full35 |= bit2 << 33;
+
+        // Bit 35 odd parity mask.
+        //
+        // This includes bit 2, so calculate bit 2 before calculating bit 35.
+        var bit35OddMask = new[]
+        {
+            2, 3, 5, 6, 8, 9, 11, 12,
+            14, 15, 17, 18, 20, 21, 23, 24,
+            26, 27, 29, 30, 32, 33
+        };
+
+        var bit35Ones = CountMaskedBits(full35, bit35OddMask);
+
+        // Bit 35 is chosen so the masked group has odd parity.
+        var bit35 = bit35Ones % 2 == 0 ? 1L : 0L;
+
+        full35 |= bit35;
+
+        // Bit 1 odd parity over the whole 35-bit credential.
+        //
+        // Calculate this last because it depends on the completed bit 2 and bit 35
+        // parity values.
+        var bitsWithoutBit1 = full35 & 0x3FFFFFFFFL; // bits 33–0
+        var bit1Ones = CountSetBitsLong(bitsWithoutBit1);
+
+        var bit1 = bit1Ones % 2 == 0 ? 1L : 0L;
+
+        full35 |= bit1 << 34;
 
         return new CredentialFormatResult
         {
@@ -307,19 +406,23 @@ public static class CredentialFormatService
     // Converts HID Corporate 1000 / 48-bit Wiegand fields into raw hex.
     //
     // Format fields used by Security Center:
-    //      - 22-bit Facility Code
+    //      - 22-bit Facility Code / Company Code
     //      - 23-bit Card Number
     //
     // Field ranges used by this app:
     //      - Facility Code: 1–4,194,303
     //      - Card Number:   1–8,388,607
     //
-    // Bit layout verified against Security Center examples:
-    //      - Bit 47     = odd parity over the 23-bit card number
-    //      - Bit 46     = even parity over the 22-bit facility code
-    //      - Bits 45–24 = 22-bit facility code
-    //      - Bits 23–1  = 23-bit card number
-    //      - Bit 0      = fixed 0
+    // Bit layout:
+    //      - Bit 1      = odd parity over bits 2–48
+    //      - Bit 2      = even parity over bits 4–5, 7–8, 10–11, ... 46–47
+    //      - Bits 3–24  = 22-bit facility/company code
+    //      - Bits 25–47 = 23-bit card number
+    //      - Bit 48     = odd parity over bits 3–4, 6–7, 9–10, ... 45–46
+    //
+    // Important:
+    //      This format uses three parity bits.
+    //      Bit 48 is not fixed; it is a real odd parity bit.
     public static CredentialFormatResult CreateCorporate1000_48Bit(int facilityCode, int cardNumber)
     {
         if (facilityCode < 1 || facilityCode > 4194303)
@@ -331,20 +434,104 @@ public static class CredentialFormatService
         var facilityBits = facilityCode & 0x3FFFFF; // 22 bits
         var cardBits = cardNumber & 0x7FFFFF;       // 23 bits
 
-        var facilityOnes = CountSetBits(facilityBits);
-        var cardOnes = CountSetBits(cardBits);
-
-        // Bit 47: odd parity over the card number bits.
-        var p1 = cardOnes % 2 == 1 ? 0L : 1L;
-
-        // Bit 46: even parity over the facility code bits.
-        var p2 = facilityOnes % 2 == 0 ? 0L : 1L;
-
+        // Start with data fields only:
+        //      bits 3–24  = facility/company code
+        //      bits 25–47 = card number
+        //
+        // In zero-based C# bit positions:
+        //      bit 47 = card-format bit 1
+        //      bit 0  = card-format bit 48
         var full48 =
-            (p1 << 47) |
-            (p2 << 46) |
             ((long)facilityBits << 24) |
             ((long)cardBits << 1);
+
+        // Converts a card-format bit number into a C# bit test.
+        //
+        // Card-format bit numbering:
+        //      bit 1  = most significant bit
+        //      bit 48 = least significant bit
+        static bool IsCardBitSet(long value, int cardBitNumber)
+        {
+            var zeroBasedBit = 48 - cardBitNumber;
+            return ((value >> zeroBasedBit) & 1L) == 1L;
+        }
+
+        static int CountCardBits(long value, IEnumerable<int> cardBitNumbers)
+        {
+            var count = 0;
+
+            foreach (var cardBitNumber in cardBitNumbers)
+            {
+                if (IsCardBitSet(value, cardBitNumber))
+                    count++;
+            }
+
+            return count;
+        }
+
+        static int CountSetBitsLong(long value)
+        {
+            var count = 0;
+
+            while (value != 0)
+            {
+                count += (int)(value & 1L);
+                value >>= 1;
+            }
+
+            return count;
+        }
+
+    // Bit 2: even parity over bits 4–5, 7–8, 10–11, ... 46–47.
+    //
+    // This is not simply "facility parity" or "card parity"; the mask crosses
+    // through the packed fields in a repeating two-bits-on, one-bit-off pattern.
+    var bit2EvenMask = new List<int>();
+
+        for (var bit = 4; bit <= 47; bit += 3)
+        {
+            bit2EvenMask.Add(bit);
+
+            if (bit + 1 <= 47)
+                bit2EvenMask.Add(bit + 1);
+        }
+
+        var bit2Ones = CountCardBits(full48, bit2EvenMask);
+
+        var bit2 = bit2Ones % 2 == 0 ? 0L : 1L;
+
+        full48 |= bit2 << 46;
+
+        // Bit 48: odd parity over bits 3–4, 6–7, 9–10, ... 45–46.
+        //
+        // This is another repeating parity mask and is calculated after bit 2 only
+        // because both are independent of bit 1.
+        var bit48OddMask = new List<int>();
+
+        for (var bit = 3; bit <= 46; bit += 3)
+        {
+            bit48OddMask.Add(bit);
+
+            if (bit + 1 <= 46)
+                bit48OddMask.Add(bit + 1);
+        }
+
+        var bit48Ones = CountCardBits(full48, bit48OddMask);
+
+        var bit48 = bit48Ones % 2 == 0 ? 1L : 0L;
+
+        full48 |= bit48;
+
+        // Bit 1: odd parity over bits 2–48.
+        //
+        // Calculate this last because it includes the completed bit 2 and bit 48
+        // parity values.
+        var bits2To48 = full48 & 0x7FFFFFFFFFFFL; // lower 47 bits
+        var bit1Ones = CountSetBitsLong(bits2To48);
+
+        var bit1 = bit1Ones % 2 == 0 ? 1L : 0L;
+
+        full48 |= bit1 << 47;
 
         return new CredentialFormatResult
         {
