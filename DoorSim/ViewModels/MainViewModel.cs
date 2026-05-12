@@ -6,6 +6,7 @@ using DoorSim.Views;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
+using System.Diagnostics;
 
 namespace DoorSim.ViewModels;
 
@@ -258,6 +259,35 @@ public partial class MainViewModel : ObservableObject
      #############################################################################
    */
 
+    // Safely moves DoorSim back to a disconnected state.
+    //
+    // This is used when Softwire becomes unavailable while background polling is running.
+    // Without this, one of the refresh timers may hit a failed API call and crash the app.
+    //
+    // The goal is simple:
+    //      - stop all polling timers,
+    //      - mark the app as disconnected,
+    //      - re-enable Connect,
+    //      - show a clear message to the trainer.
+    //
+    // We do not try to preserve live door state here because the Softwire session is no longer trustworthy. The user can reconnect and reload fresh data.
+    private void HandleConnectionLost(string reason)
+    {
+        _connectionTimer?.Stop();
+        _selectedDoorTimer?.Stop();
+        _readerTimer?.Stop();
+
+        IsConnected = false;
+        CanConnect = true;
+
+        StatusText = "Connection lost";
+        StatusColor = new SolidColorBrush(Color.FromRgb(220, 80, 80));
+
+        MainMessage = string.IsNullOrWhiteSpace(reason)
+            ? "Connection lost. Use 'Connect' to reconnect."
+            : $"Connection lost. {reason} Use 'Connect' to reconnect.";
+    }
+
     // Refreshes the cardholder list from SQL and updates the Cardholders panel
     private async Task RefreshCardholdersAsync()
     {
@@ -441,7 +471,7 @@ public partial class MainViewModel : ObservableObject
      #############################################################################
    */
 
-    // Starts a timer that checks connection status and refreshes doors/cardholders every 3 seconds
+    // Starts a timer that checks connection status and refreshes doors/cardholders every 3 seconds.
     private void StartConnectionMonitoring()
     {
         _connectionTimer?.Stop();
@@ -453,28 +483,21 @@ public partial class MainViewModel : ObservableObject
 
         _connectionTimer.Tick += async (s, e) =>
         {
-            // Ask service if connection is still valid
-            var stillConnected = await _softwireService.CheckConnectionAsync();
-
-            if (!stillConnected)
+            try
             {
-                // Stop timer to avoid repeated checks and background polling.
-                _connectionTimer?.Stop();
-                _selectedDoorTimer?.Stop();
-                _readerTimer?.Stop();
+                // Ask Softwire if the current connection/session is still valid.
+                var stillConnected = await _softwireService.CheckConnectionAsync();
 
-                // Reset UI to disconnected state
-                IsConnected = false;
-                CanConnect = true;
+                if (!stillConnected)
+                {
+                    HandleConnectionLost("");
+                    return;
+                }
 
-                StatusText = "Connection lost";
-                StatusColor = new SolidColorBrush(Color.FromRgb(220, 80, 80));
-
-                MainMessage = "Connection lost. Use 'Connect' to reconnect.";
-            }
-            else
-            {
-                // Connection is still valid, so refresh live data (cardholders from SQL and doors from Softwire)
+                // Connection is still valid, so refresh live data:
+                //      - cardholders from SQL,
+                //      - doors from Softwire,
+                //      - available simulated inputs for interlocking controls.
                 await RefreshCardholdersAsync();
 
                 var doorCount = await RefreshDoorsAsync();
@@ -489,6 +512,12 @@ public partial class MainViewModel : ObservableObject
                 {
                     MainMessage = $"Connected to Softwire and loaded {doorCount} doors, select a door to begin.";
                 }
+            }
+            catch
+            {
+                // If Softwire restarts or the API becomes unavailable while this timer
+                // is refreshing, disconnect safely instead of letting the app crash.
+                HandleConnectionLost("Softwire could not be reached during refresh.");
             }
         };
 
@@ -560,6 +589,9 @@ public partial class MainViewModel : ObservableObject
 
                 if (inRexState != null)
                 {
+                    // For testing - comment out when not used! Needs: using System.Diagnostics;
+                    //Debug.WriteLine($"[DoorSim DEBUG] In REX state for {targetDoors.SelectedDoor.Name}: Active={inRexState.Active}, Shunted={inRexState.IsShunted}, Path={targetDoors.SelectedDoor.RexSideInDevicePath}");
+
                     var inRexIsShunted = inRexState.IsShunted;
 
                     var inRexIsActive = inRexIsShunted
@@ -578,6 +610,9 @@ public partial class MainViewModel : ObservableObject
 
                 if (outRexState != null)
                 {
+                    // For testing - comment out when not used! Needs: using System.Diagnostics;
+                    //Debug.WriteLine($"[DoorSim DEBUG] Out REX state for {targetDoors.SelectedDoor.Name}: Active={outRexState.Active}, Shunted={outRexState.IsShunted}, Path={targetDoors.SelectedDoor.RexSideOutDevicePath}");
+
                     var outRexIsShunted = outRexState.IsShunted;
 
                     var outRexIsActive = outRexIsShunted
@@ -596,6 +631,9 @@ public partial class MainViewModel : ObservableObject
 
                 if (noSideRexState != null)
                 {
+                    // For testing - comment out when not used! Needs: using System.Diagnostics;
+                    //Debug.WriteLine($"[DoorSim DEBUG] No-side REX state for {targetDoors.SelectedDoor.Name}: Active={noSideRexState.Active}, Shunted={noSideRexState.IsShunted}, Path={targetDoors.SelectedDoor.RexNoSideDevicePath}");
+
                     var noSideRexIsShunted = noSideRexState.IsShunted;
 
                     var noSideRexIsActive = noSideRexIsShunted
@@ -614,6 +652,9 @@ public partial class MainViewModel : ObservableObject
 
                 if (breakGlassState != null)
                 {
+                    // For testing - comment out when not used! Needs: using System.Diagnostics;
+                    //Debug.WriteLine($"[DoorSim DEBUG] Breakglass state for {targetDoors.SelectedDoor.Name}: Active={breakGlassState.Active}, Shunted={breakGlassState.IsShunted}, Path={targetDoors.SelectedDoor.BreakGlassDevicePath}");
+
                     var breakGlassIsShunted = breakGlassState.IsShunted;
 
                     var breakGlassIsActive = breakGlassIsShunted
@@ -634,7 +675,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    // Starts a fast timer to refresh the selected door state every second
+    // Starts a fast timer to refresh the selected door state every second.
     private void StartSelectedDoorMonitoring()
     {
         _selectedDoorTimer?.Stop();
@@ -665,6 +706,13 @@ public partial class MainViewModel : ObservableObject
                 {
                     await RefreshSelectedDoorStateAsync(Doors);
                 }
+            }
+            catch
+            {
+                // If Softwire restarts or becomes unavailable while this timer is
+                // refreshing door hardware state, disconnect safely instead of
+                // letting the app crash.
+                HandleConnectionLost("Softwire could not be reached while refreshing door hardware state.");
             }
             finally
             {
@@ -758,6 +806,13 @@ public partial class MainViewModel : ObservableObject
                 {
                     await RefreshReaderStateAsync(Doors);
                 }
+            }
+            catch
+            {
+                // If Softwire restarts or becomes unavailable while this timer is
+                // refreshing reader state, disconnect safely instead of letting the
+                // app crash.
+                HandleConnectionLost("Softwire could not be reached while refreshing reader state.");
             }
             finally
             {

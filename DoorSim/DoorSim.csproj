@@ -23,8 +23,8 @@
     <None Remove="Images\REX_Active.png" />
     <None Remove="Images\REX_Normal.png" />
     <None Remove="Sounds\Credential_Beep.wav" />
-    <None Remove="Sounds\Simpsons_Denied.wav" />
-    <None Remove="Sounds\Simpsons_Granted.wav" />
+    <None Remove="Sounds\EasterEgg02_Denied.wav" />
+    <None Remove="Sounds\EasterEgg02_Granted.wav" />
   </ItemGroup>
 
   <ItemGroup>
@@ -58,10 +58,16 @@
     <Resource Include="Images\REX_Active.png" />
     <Resource Include="Images\REX_Normal.png" />
     <Resource Include="Sounds\Credential_Beep.wav" />
-    <Resource Include="Sounds\Simpsons_Denied.wav">
+    <Resource Include="Sounds\EasterEgg01_Denied.wav">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </Resource>
-    <Resource Include="Sounds\Simpsons_Granted.wav">
+    <Resource Include="Sounds\EasterEgg01_Granted.wav">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Sounds\EasterEgg02_Denied.wav">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Sounds\EasterEgg02_Granted.wav">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </Resource>
   </ItemGroup>
