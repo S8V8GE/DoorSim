@@ -102,7 +102,7 @@ public partial class MainViewModel : ObservableObject
 
     // Tracks whether the application is currently showing Manual Mode or Auto Mode.
     //      - Manual Mode is the normal interactive DoorSim experience.
-    //      - Auto Mode will run automated busy-site simulations.
+    //      - Auto Mode runs automated busy-site simulations.
     [ObservableProperty]
     private string currentAppMode = "Manual";
 

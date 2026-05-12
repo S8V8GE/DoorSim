@@ -112,13 +112,25 @@ public partial class AutoModeViewModel : ObservableObject
     private string selectedDelayMode = "Relaxed";
 
     [ObservableProperty]
-    private int minimumDelaySeconds = 3;
+    private string minimumDelaySecondsText = "3";
 
     [ObservableProperty]
-    private int maximumDelaySeconds = 7;
+    private string maximumDelaySecondsText = "7";
 
     [ObservableProperty]
-    private int numberOfEvents = 100;
+    private string numberOfEventsText = "100";
+
+    // Parsed numeric value used by the simulation engine.
+    // Safe to use only when validation has passed.
+    private int NumberOfEventsValue => int.Parse(NumberOfEventsText);
+
+    // Parsed minimum delay used by the simulation engine.
+    // Safe to use only when validation has passed.
+    private int MinimumDelaySecondsValue => int.Parse(MinimumDelaySecondsText);
+
+    // Parsed maximum delay used by the simulation engine.
+    // Safe to use only when validation has passed.
+    private int MaximumDelaySecondsValue => int.Parse(MaximumDelaySecondsText);
 
     public ObservableCollection<string> EventProfiles { get; } = new()
     {
@@ -143,16 +155,25 @@ public partial class AutoModeViewModel : ObservableObject
     {
         get
         {
-            if (NumberOfEvents < 1 || NumberOfEvents > 9999)
+            if (!int.TryParse(NumberOfEventsText, out var parsedNumberOfEvents))
                 return "Events must be a number between 1 and 9999.";
 
-            if (MinimumDelaySeconds < 0 || MinimumDelaySeconds > 60)
+            if (parsedNumberOfEvents < 1 || parsedNumberOfEvents > 9999)
+                return "Events must be a number between 1 and 9999.";
+
+            if (!int.TryParse(MinimumDelaySecondsText, out var parsedMinimumDelay))
+                return "Minimum delay must be a number between 0 and 60 seconds.";
+
+            if (parsedMinimumDelay < 0 || parsedMinimumDelay > 60)
                 return "Minimum delay must be between 0 and 60 seconds.";
 
-            if (MaximumDelaySeconds < 0 || MaximumDelaySeconds > 120)
+            if (!int.TryParse(MaximumDelaySecondsText, out var parsedMaximumDelay))
+                return "Maximum delay must be a number between 0 and 120 seconds.";
+
+            if (parsedMaximumDelay < 0 || parsedMaximumDelay > 120)
                 return "Maximum delay must be between 0 and 120 seconds.";
 
-            if (MaximumDelaySeconds < MinimumDelaySeconds)
+            if (parsedMaximumDelay < parsedMinimumDelay)
                 return "Maximum delay must be equal to or greater than minimum delay.";
 
             if (string.IsNullOrWhiteSpace(GlobalPin))
@@ -270,13 +291,13 @@ public partial class AutoModeViewModel : ObservableObject
     {
         if (value == "Extreme")
         {
-            MinimumDelaySeconds = 0;
-            MaximumDelaySeconds = 0;
+            MinimumDelaySecondsText = "0";
+            MaximumDelaySecondsText = "0";
         }
         else if (value == "Relaxed")
         {
-            MinimumDelaySeconds = 3;
-            MaximumDelaySeconds = 7;
+            MinimumDelaySecondsText = "3";
+            MaximumDelaySecondsText = "7";
         }
 
         OnPropertyChanged(nameof(IsCustomDelayMode));
@@ -306,17 +327,17 @@ public partial class AutoModeViewModel : ObservableObject
     // Settings can only be edited while the simulation is stopped.
     public bool CanEditSettings => !IsSimulationRunning;
 
-    partial void OnNumberOfEventsChanged(int value)
+    partial void OnNumberOfEventsTextChanged(string value)
     {
         RefreshValidationState();
     }
 
-    partial void OnMinimumDelaySecondsChanged(int value)
+    partial void OnMinimumDelaySecondsTextChanged(string value)
     {
         RefreshValidationState();
     }
 
-    partial void OnMaximumDelaySecondsChanged(int value)
+    partial void OnMaximumDelaySecondsTextChanged(string value)
     {
         RefreshValidationState();
     }
@@ -406,7 +427,7 @@ public partial class AutoModeViewModel : ObservableObject
             level: "Info",
             eventType: "-",
             doorName: "-",
-            message: $"Settings: {NumberOfEvents} events, {SelectedDelayMode} delay, {SelectedEventProfile}, PIN {GlobalPin}.");
+            message: $"Settings: {NumberOfEventsValue} events, {SelectedDelayMode} delay, {SelectedEventProfile}, PIN {GlobalPin}.");
 
         AddLog(
             level: "Info",
@@ -454,7 +475,7 @@ public partial class AutoModeViewModel : ObservableObject
 
             IsSimulationRunning = false;
 
-            if (CompletedEvents >= NumberOfEvents)
+            if (CompletedEvents >= NumberOfEventsValue)
             {
                 SimulationStatus = "Completed";
 
@@ -518,7 +539,7 @@ public partial class AutoModeViewModel : ObservableObject
     // A consecutive-failure guard prevents Auto Mode from retrying forever if the environment cannot currently produce valid events.
     private async Task RunSimulationAsync(CancellationToken cancellationToken)
     {
-        while (CompletedEvents < NumberOfEvents)
+        while (CompletedEvents < NumberOfEventsValue)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -627,10 +648,10 @@ public partial class AutoModeViewModel : ObservableObject
     // Returns a random delay between the configured minimum and maximum values.
     private int GetRandomDelaySeconds()
     {
-        if (MaximumDelaySeconds <= MinimumDelaySeconds)
-            return MinimumDelaySeconds;
+        if (MaximumDelaySecondsValue <= MinimumDelaySecondsValue)
+            return MinimumDelaySecondsValue;
 
-        return _random.Next(MinimumDelaySeconds, MaximumDelaySeconds + 1);
+        return _random.Next(MinimumDelaySecondsValue, MaximumDelaySecondsValue + 1);
     }
 
     // Randomly chooses Normal / Forced / Held based on the selected event profile.
@@ -2756,7 +2777,7 @@ public partial class AutoModeViewModel : ObservableObject
         {
             Timestamp = DateTime.Now,
             EventNumber = eventNumber,
-            TotalEvents = eventNumber == null ? null : NumberOfEvents,
+            TotalEvents = eventNumber == null ? null : NumberOfEventsValue,
             Level = level,
             EventType = eventType,
             DoorName = doorName,
@@ -2774,7 +2795,7 @@ public partial class AutoModeViewModel : ObservableObject
         {
             Timestamp = DateTime.Now,
             EventNumber = eventNumber,
-            TotalEvents = NumberOfEvents,
+            TotalEvents = NumberOfEventsValue,
             IsSeparator = true,
             Level = "",
             EventType = "",

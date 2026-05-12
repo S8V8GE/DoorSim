@@ -6,13 +6,15 @@
     <!--
         Auto Mode page.
 
-        Provides:
-            - simulation settings
-            - start/stop/clear controls
-            - running summary
-            - scrollable event log
+        Provides the UI for running automated Softwire simulation events:
+            - simulation settings,
+            - Start / Stop / Clear controls,
+            - running summary counters,
+            - event profile percentages,
+            - executed event totals,
+            - scrollable event log.
 
-        Real Softwire simulation logic will be added later.
+        The actual simulation logic lives in AutoModeViewModel.cs. This view is intentionally kept as a display/input layer only.
     -->
 
     <Grid Background="#1E1E1E"
@@ -44,7 +46,7 @@
         </StackPanel>
 
 
-        <!-- Settings panel -->
+        <!-- Simulation settings: delay mode, event count, Global PIN, delay range, and profile -->
         <Border Grid.Row="1"
                 Background="#252526"
                 BorderBrush="#3F3F46"
@@ -54,7 +56,11 @@
                 Margin="0,0,0,10">
 
             <Grid>
-                
+
+                <!--
+                    Fixed columns keep the compact Auto Mode settings aligned inside the single-door-width window. 
+                    The final "*" column gives the profile selector and Global PIN field room to stretch where needed.
+                -->
                 <Grid.ColumnDefinitions>
                     
                     <ColumnDefinition Width="135"/>
@@ -78,6 +84,13 @@
 
                 </Grid.RowDefinitions>
 
+                <!--
+                    NOTE:
+
+                    Numeric TextBoxes use code-behind input filtering to prevent non-digit characters being typed or pasted. 
+                    ViewModel validation still performs the final range checks.
+                -->
+                
                 <!-- Delay mode -->
                 <TextBlock Grid.Row="0"
                            Grid.Column="0"
@@ -105,13 +118,12 @@
                          Grid.Column="4"
                          Height="28"
                          MaxLength="4"
-                         Text="{Binding NumberOfEvents, UpdateSourceTrigger=PropertyChanged}"
+                         Text="{Binding NumberOfEventsText, UpdateSourceTrigger=PropertyChanged}"
                          IsEnabled="{Binding CanEditSettings}"
                          Background="White"
                          Foreground="#1E1E1E"
                          Padding="6,3"
                          PreviewTextInput="DigitsOnly_PreviewTextInput"
-                         PreviewKeyDown="NumberTextBox_PreviewKeyDown"
                          DataObject.Pasting="DigitsOnly_Pasting"/>
 
                 <!-- Global PIN -->
@@ -129,7 +141,9 @@
                          IsEnabled="{Binding CanEditSettings}"
                          Background="White"
                          Foreground="#1E1E1E"
-                         Padding="6,3"/>
+                         Padding="6,3"
+                         PreviewTextInput="DigitsOnly_PreviewTextInput"
+                         DataObject.Pasting="DigitsOnly_Pasting"/>
 
                 <!-- Delay values -->
                 <TextBlock Grid.Row="2"
@@ -145,13 +159,12 @@
                     <TextBox Width="65"
                              Height="28"
                              MaxLength="3"
-                             Text="{Binding MinimumDelaySeconds, UpdateSourceTrigger=PropertyChanged}"
+                             Text="{Binding MinimumDelaySecondsText, UpdateSourceTrigger=PropertyChanged}"
                              IsEnabled="{Binding CanEditCustomDelay}"
                              Background="White"
                              Foreground="#1E1E1E"
                              Padding="6,3"
                              PreviewTextInput="DigitsOnly_PreviewTextInput"
-                             PreviewKeyDown="NumberTextBox_PreviewKeyDown"
                              DataObject.Pasting="DigitsOnly_Pasting"/>
 
                     <TextBlock Text=" to "
@@ -162,13 +175,12 @@
                     <TextBox Width="65"
                              Height="28"
                              MaxLength="3"
-                             Text="{Binding MaximumDelaySeconds, UpdateSourceTrigger=PropertyChanged}"
+                             Text="{Binding MaximumDelaySecondsText, UpdateSourceTrigger=PropertyChanged}"
                              IsEnabled="{Binding CanEditCustomDelay}"
                              Background="White"
                              Foreground="#1E1E1E"
                              Padding="6,3"
                              PreviewTextInput="DigitsOnly_PreviewTextInput"
-                             PreviewKeyDown="NumberTextBox_PreviewKeyDown"
                              DataObject.Pasting="DigitsOnly_Pasting"/>
 
                     <TextBlock Text=" sec"
@@ -209,7 +221,7 @@
         </Border>
 
 
-        <!-- Controls and running summary -->
+        <!-- Simulation controls and live summary counters -->
         <Border Grid.Row="2"
                 Background="#252526"
                 BorderBrush="#3F3F46"
@@ -265,6 +277,13 @@
 
                     </Grid.RowDefinitions>
 
+                    <!--
+                        Summary is split into three rows:
+                            1. run status and counters,
+                            2. configured event profile percentages,
+                            3. executed event totals.
+                    -->
+
                     <StackPanel Grid.Row="0"
                                 Orientation="Horizontal">
 
@@ -280,7 +299,7 @@
                                    Foreground="White"
                                    FontWeight="Bold"/>
 
-                        <TextBlock Text="{Binding NumberOfEvents}"
+                        <TextBlock Text="{Binding NumberOfEventsText}"
                                    Foreground="#CCCCCC"
                                    Margin="0,0,18,0"/>
 
@@ -348,7 +367,7 @@
         </Border>
 
 
-        <!-- Event log -->
+        <!-- Scrollable event log showing newest entries first -->
         <Border Grid.Row="3"
                 Background="#111111"
                 BorderBrush="#3F3F46"
@@ -372,6 +391,12 @@
                            FontSize="14"
                            Margin="0,0,0,8"/>
 
+                <!--
+                    The log uses a GridView so each entry stays readable:
+                        Time / Event / Level / Type / Door / Message.
+
+                    Level colour is supplied by AutoSimulationLogEntry.LevelBrush.
+                -->
                 <ListView Grid.Row="1"
                           ItemsSource="{Binding LogEntries}"
                           Background="#111111"
@@ -401,6 +426,7 @@
                                         <TextBlock Text="{Binding Level}"
                                                    Foreground="{Binding LevelBrush}"
                                                    FontWeight="SemiBold"/>
+                                        
                                     </DataTemplate>
                                     
                                 </GridViewColumn.CellTemplate>

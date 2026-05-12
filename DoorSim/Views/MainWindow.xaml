@@ -5,7 +5,8 @@
         - Overall application shell layout
         - Top navigation menu
         - Status bar
-        - Hosting either Single Door View or Two Door View
+        - Hosting Manual Mode views and Auto Mode
+        - Switching between Single Door, Two Door, and Auto Mode content
 
     Behaviour and state are provided by MainViewModel.
 -->
@@ -72,8 +73,9 @@
 
                 Contains:
                     - Connect → triggers connection to Softwire
-                    - View → switches between single/two door views (enabled only when connected)
-                    - Help/About → informational views
+                    - Mode → switches between Manual Mode and Auto Mode
+                    - View → switches between Single Door and Two Door manual layouts
+                    - Help/About → help guide and application information
 
                 Visibility and behaviour controlled via MainViewModel bindings.
             -->
@@ -135,7 +137,7 @@
 
                     </MenuItem>
 
-                    <!-- menu items for help/documentation. -->
+                    <!-- Help/documentation and About window. -->
                     <MenuItem Header="_Help"
                               Click="HelpMenuItem_Click"/>
                     
@@ -185,11 +187,13 @@
             <!--
                 Main content area.
 
-                Hosts either:
-                    - Single Door layout
-                    - Two Door layout
+                Hosts one of:
+                    - Single Door manual layout
+                    - Two Door manual layout
+                    - Auto Mode layout
 
-                The View menu controls which layout is visible.
+                The Mode menu controls Manual vs Auto.
+                The View menu controls Single Door vs Two Door while in Manual Mode.
             -->
             <Grid>
 
@@ -392,7 +396,7 @@
                 <!--
                     Auto Mode layout.
 
-                    This page will eventually host the busy-site simulation controls and event log.
+                    Hosts the automated busy-site simulation controls, running summary, and event log. 
                     It is shown only when Mode > Auto Mode is selected.
                 -->
                 <views:AutoModeView DataContext="{Binding AutoMode}">
