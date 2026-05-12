@@ -7,19 +7,21 @@ using System.Text.RegularExpressions;
 namespace DoorSim.ViewModels;
 
 // ViewModel for Auto Mode.
+// ------------------------
+// Auto Mode generates automated access-control activity against a connected Softwire simulation environment.
 //
-// Auto Mode will eventually run automated Softwire simulation scenarios such as:
-// - normal access events
-// - door forced events
-// - door held open events
+// It can currently generate:
+//      - normal access events using readers/cardholders or REX inputs,
+//      - door forced events,
+//      - door held-open events using readers/cardholders or REX inputs.
 //
-// This version provides the settings UI, running summary, and event log.
-// Real Softwire simulation logic will be added later.
+// Auto Mode is designed for training, demo, and stress-test scenarios.
+// It keeps its own event log, running counters, retry guard, and held-door reservation tracking so automated events do not interfere with each other.
 public partial class AutoModeViewModel : ObservableObject
 {
     /*
       #############################################################################
-                          Simulation Engine State
+                          Simulation constants and state
       #############################################################################
     */
 
@@ -30,9 +32,7 @@ public partial class AutoModeViewModel : ObservableObject
     private readonly Random _random = new Random();
 
     // Maximum number of failed/retried attempts allowed in a row.
-    //
-    // This prevents Auto Mode from running forever if the environment cannot produce
-    // valid events, for example:
+    // This prevents Auto Mode from running forever if the environment cannot produce valid events, for example:
     //      - no suitable doors exist,
     //      - all suitable doors are in maintenance,
     //      - no suitable cardholders exist,
@@ -41,27 +41,20 @@ public partial class AutoModeViewModel : ObservableObject
     private const int MaxConsecutiveFailedAttempts = 50;
 
     // Counts failed/retried attempts since the last successfully executed event.
-    //
-    // This is deliberately consecutive rather than total. A long simulation may have
-    // occasional retries and still be healthy. Fifty failures in a row means Auto Mode
-    // is almost certainly stuck and should stop itself safely.
+    // This is deliberately consecutive rather than total. A long simulation may have occasional retries and still be healthy.
+    // Fifty failures in a row means Auto Mode is almost certainly stuck and should stop itself safely.
     private int _consecutiveFailedAttempts;
 
-    // Tracks doors that Auto Mode must not use temporarily.
-    //
-    // This will be used by real Held events. When Auto Mode leaves a door open long
-    // enough to generate a Door Held event, that door must not be selected again by
-    // another Normal/Forced/Held event until cleanup has closed the sensor.
-    //
-    // Key   = Softwire door Id
-    // Value = reservation details for logging/debugging
+    // Tracks doors temporarily reserved by Auto Mode.
+    // Held-open events deliberately leave a door sensor open while Softwire waits to generate the Door Held event.
+    // During that time, the same door must not be used by another Normal, Forced, or Held event.
+    //      - Key   = Softwire door Id
+    //      - Value = reservation details for logging/debugging
     private readonly Dictionary<string, AutoDoorReservation> _reservedDoors = new();
 
     // Tracks background cleanup tasks for Held events.
-    //
-    // Held events deliberately leave a door sensor open long enough for Softwire to
-    // generate a door-held-open event. The main simulation loop continues meanwhile,
-    // so cleanup happens in the background.
+    // Held events deliberately leave a door sensor open long enough for Softwire to generate a door-held-open event.
+    // The main simulation loop continues meanwhile, so cleanup happens in the background.
     private readonly List<Task> _heldCleanupTasks = new();
 
 
@@ -72,7 +65,6 @@ public partial class AutoModeViewModel : ObservableObject
     */
 
     // Auto Mode does not own SoftwireService directly.
-    //
     // MainViewModel owns the application services and passes Auto Mode a small set of safe callbacks.
     // This keeps AutoModeViewModel focused on simulation logic rather than login/session ownership.
     private Func<Task<List<SoftwireDoor>>>? _getDoorsAsync;
@@ -100,7 +92,7 @@ public partial class AutoModeViewModel : ObservableObject
 
     public string Title => "Auto Mode";
 
-    public string Subtitle => "Busy site simulation for training, demos, and stress testing.";
+    public string Subtitle => "Automatic busy site simulation for training, demos, and stress testing.";
 
 
     /*
@@ -146,8 +138,7 @@ public partial class AutoModeViewModel : ObservableObject
     // Custom delay fields are editable only when Custom mode is selected and the simulation is stopped.
     public bool CanEditCustomDelay => IsCustomDelayMode && CanEditSettings;
 
-    // User-facing validation message shown under the Auto Mode settings.
-    // Empty string means the current settings are valid.
+    // User-facing validation message shown under the Auto Mode settings. Empty string means the current settings are valid.
     public string ValidationMessage
     {
         get
@@ -184,6 +175,10 @@ public partial class AutoModeViewModel : ObservableObject
       #############################################################################
     */
 
+    // These percentages are used by GetRandomEventType(). They are statistical weights, not guarantees.
+    // A short run of 10 events may not match the exact displayed percentages.
+
+    // Percentage chance that the next generated event will be a normal access event.
     public int NormalEventPercentage
     {
         get
@@ -200,6 +195,7 @@ public partial class AutoModeViewModel : ObservableObject
         }
     }
 
+    // Percentage chance that the next generated event will be a forced-door event.
     public int ForcedEventPercentage
     {
         get
@@ -216,6 +212,7 @@ public partial class AutoModeViewModel : ObservableObject
         }
     }
 
+    // Percentage chance that the next generated event will be a held-open event.
     public int HeldEventPercentage
     {
         get
@@ -235,7 +232,7 @@ public partial class AutoModeViewModel : ObservableObject
 
     /*
       #############################################################################
-                                Running State
+                            Running State / counters / log
       #############################################################################
     */
 
@@ -339,7 +336,6 @@ public partial class AutoModeViewModel : ObservableObject
     }
 
 
-
     /*
       #############################################################################
                           Dependency Configuration
@@ -347,7 +343,6 @@ public partial class AutoModeViewModel : ObservableObject
     */
 
     // Configures the callbacks Auto Mode needs in order to run real simulations.
-    //
     // MainViewModel owns the actual services and live data sources. Auto Mode only receives the specific actions it needs:
     //
     //      - load current doors,
@@ -356,7 +351,7 @@ public partial class AutoModeViewModel : ObservableObject
     //      - swipe card credentials,
     //      - send PIN values.
     //
-    // This avoids making AutoModeViewModel responsible for Softwire login/session handling and keeps the design similar to the interlocking controls.
+    // This avoids making AutoModeViewModel responsible for Softwire login/session handling and keeps the design similar to manual mode/the interlocking controls.
     public void ConfigureSimulationDependencies(
         Func<Task<List<SoftwireDoor>>> getDoorsAsync,
         Func<IReadOnlyList<Cardholder>> getCardholders,
@@ -386,7 +381,8 @@ public partial class AutoModeViewModel : ObservableObject
         IsSimulationRunning = true;
         SimulationStatus = "Running";
 
-
+        // Reset all run counters before starting a new simulation.
+        // CompletedEvents counts real generated events only; FailedAttempts counts retries/skips.
         CompletedEvents = 0;
         FailedAttempts = 0;
         ExecutedNormalEvents = 0;
@@ -395,8 +391,7 @@ public partial class AutoModeViewModel : ObservableObject
         _consecutiveFailedAttempts = 0;
 
         // Start each run with a clean reservation list.
-        // If a previous run was stopped or completed, we do not want stale reservations
-        // preventing doors from being selected in the next run.
+        // If a previous run was stopped or completed, we do not want stale reservations preventing doors from being selected in the next run.
         _reservedDoors.Clear();
 
         _simulationCancellation = new CancellationTokenSource();
@@ -417,7 +412,7 @@ public partial class AutoModeViewModel : ObservableObject
             level: "Info",
             eventType: "-",
             doorName: "-",
-            message: "Simulation dependencies configured. Running fake simulation loop.");
+            message: "Simulation dependencies configured. Running simulation loop.");
 
         if (!HasSimulationDependencies)
         {
@@ -435,7 +430,7 @@ public partial class AutoModeViewModel : ObservableObject
 
         try
         {
-            await RunFakeSimulationAsync(_simulationCancellation.Token);
+            await RunSimulationAsync(_simulationCancellation.Token);
         }
         catch (OperationCanceledException)
         {
@@ -450,9 +445,8 @@ public partial class AutoModeViewModel : ObservableObject
             _simulationCancellation?.Dispose();
             _simulationCancellation = null;
 
-            // Held events may still have background cleanup tasks running after the last
-            // requested event has been generated. Before the run fully ends, wait for those
-            // cleanup tasks so Auto Mode does not leave simulated door sensors open.
+            // Held events may still have background cleanup tasks running after the last requested event has been generated.
+            // Before the run fully ends, wait for those cleanup tasks so Auto Mode does not leave simulated door sensors open.
             await WaitForHeldCleanupTasksAsync();
 
             _reservedDoors.Clear();
@@ -513,119 +507,17 @@ public partial class AutoModeViewModel : ObservableObject
 
     /*
       #############################################################################
-                          Door Reservation Helpers
+                        Simulation Loop and Event Routing
       #############################################################################
     */
 
-    // Reserves a door so Auto Mode will not select it for another event.
-    //
-    // This is mainly for Held events. A held-open door needs time to remain open so
-    // Softwire can generate the door-held-open event. During that time, Auto Mode
-    // must not accidentally pick the same door for a Normal or Forced event and
-    // close/reopen the sensor.
-    private void ReserveDoor(SoftwireDoor door, string reason)
+    // Runs the Auto Mode simulation loop.
+    // CompletedEvents represents successfully generated events only.
+    // Failed/skipped attempts increment FailedAttempts but do not consume one of the requested events.
+    // This means "Requested 100" means Auto Mode will try to generate 100 real events, not 100 attempts.
+    // A consecutive-failure guard prevents Auto Mode from retrying forever if the environment cannot currently produce valid events.
+    private async Task RunSimulationAsync(CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(door.Id))
-            return;
-
-        _reservedDoors[door.Id] = new AutoDoorReservation
-        {
-            DoorId = door.Id,
-            DoorName = door.Name,
-            Reason = reason,
-            ReservedAtUtc = DateTime.UtcNow
-        };
-
-        AddLog(
-            level: "Info",
-            eventType: "-",
-            doorName: door.Name,
-            message: $"Door reserved: {reason}.");
-    }
-
-    // Releases a previously reserved door.
-    //
-    // It is safe to call this even if the door is not currently reserved.
-    // The log level can be changed by the caller so normal cleanup can be Info,
-    // while cleanup after Stop/cancellation can be Warning.
-    private void ReleaseDoorReservation(string doorId, string message, string level = "Info")
-    {
-        if (string.IsNullOrWhiteSpace(doorId))
-            return;
-
-        if (!_reservedDoors.TryGetValue(doorId, out var reservation))
-            return;
-
-        _reservedDoors.Remove(doorId);
-
-        AddLog(
-            level: level,
-            eventType: "-",
-            doorName: reservation.DoorName,
-            message: message);
-    }
-
-    // Returns true when the supplied door is currently reserved by Auto Mode.
-    private bool IsDoorReserved(string doorId)
-    {
-        if (string.IsNullOrWhiteSpace(doorId))
-            return false;
-
-        return _reservedDoors.ContainsKey(doorId);
-    }
-
-    // Releases reservations for doors that no longer exist in the latest Softwire
-    // door list.
-    //
-    // This is important during training because someone may delete or reconfigure a
-    // door while Auto Mode is running. If a reserved door disappears, we simply log
-    // the situation, release the reservation, and keep the simulation moving.
-    private void ReleaseReservationsForDeletedDoors(IEnumerable<SoftwireDoor> currentDoors)
-    {
-        if (!_reservedDoors.Any())
-            return;
-
-        var currentDoorIds = currentDoors
-            .Where(d => !string.IsNullOrWhiteSpace(d.Id))
-            .Select(d => d.Id)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        var deletedReservations = _reservedDoors.Values
-            .Where(r => !currentDoorIds.Contains(r.DoorId))
-            .ToList();
-
-        foreach (var reservation in deletedReservations)
-        {
-            _reservedDoors.Remove(reservation.DoorId);
-
-            AddLog(
-                level: "Warning",
-                eventType: "-",
-                doorName: reservation.DoorName,
-                message: "Reserved door no longer exists in Softwire. Releasing reservation and continuing.");
-        }
-    }
-
-
-    /*
-      #############################################################################
-                          Fake Simulation Engine
-      #############################################################################
-    */
-
-    // Runs a fake timed simulation loop.
-    //
-    // This proves the Auto Mode engine before we connect it to real Softwire actions.
-    // Later, ExecuteFakeEventAsync(...) will be replaced with real door/cardholder/input logic.
-    private async Task RunFakeSimulationAsync(CancellationToken cancellationToken)
-    {
-        // CompletedEvents now means successfully executed events only.
-        //
-        // Failed/skipped attempts increment FailedAttempts but do not consume one of
-        // the requested events. This mirrors the original PowerShell PoC behaviour:
-        // if an event cannot be executed because the system changed or no suitable
-        // door/cardholder is available, Auto Mode retries until the requested number
-        // of real events has been generated.
         while (CompletedEvents < NumberOfEvents)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -662,30 +554,25 @@ public partial class AutoModeViewModel : ObservableObject
                 eventNumber: eventNumber);
 
             // Track counts before the event runs.
-            //
             // CompletedEvents should only increase when a real event was generated.
-            // FailedAttempts should increase when the event could not be generated and Auto
-            // Mode needs to retry.
+            // FailedAttempts should increase when the event could not be generated and Auto Mode needs to retry.
             var completedBeforeEvent = CompletedEvents;
             var failedBeforeEvent = FailedAttempts;
 
-            await ExecuteFakeEventAsync(eventNumber, eventType, cancellationToken);
+            await ExecuteSimulationEventAsync(eventNumber, eventType, cancellationToken);
 
             // If a real event was generated, reset the consecutive failure guard.
             if (CompletedEvents > completedBeforeEvent)
             {
                 _consecutiveFailedAttempts = 0;
             }
-            // If the event did not complete but did register a failed attempt, count it
-            // towards the runaway guard.
+            // If the event did not complete but did register a failed attempt, count it towards the runaway guard.
             else if (FailedAttempts > failedBeforeEvent)
             {
                 _consecutiveFailedAttempts++;
             }
             // Defensive fallback.
-            //
-            // If neither counter changed, something returned without clearly succeeding or
-            // failing. Treat it as a retry so Auto Mode cannot loop forever silently.
+            // If neither counter changed, something returned without clearly succeeding or failing. Treat it as a retry so Auto Mode cannot loop forever silently.
             else
             {
                 FailedAttempts++;
@@ -707,29 +594,23 @@ public partial class AutoModeViewModel : ObservableObject
                     level: "Error",
                     eventType: "-",
                     doorName: "-",
-                    message: $"Auto Mode stopped automatically after {MaxConsecutiveFailedAttempts} consecutive failed attempts. Check door configuration, cardholders, reader modes, held-open settings, and Softwire connectivity.");
+                    message: $"Auto Mode stopped automatically after {MaxConsecutiveFailedAttempts} consecutive failed attempts. Check door configuration, door settings/properties, reader modes, cardholders, credentials, held-open settings, and Softwire connectivity.");
 
                 break;
             }
         }
     }
 
-    // Executes one simulation event.
-    //
-    // Current implementation status:
-    //      - Normal events are real Softwire REX events.
-    //      - Forced events are real Softwire door sensor events.
-    //      - Held events are still fake placeholders.
-    //
-    // We are intentionally replacing fake events one type at a time so Auto Mode
-    // remains stable while the real simulation logic grows.
-    private async Task ExecuteFakeEventAsync(int eventNumber, string eventType, CancellationToken cancellationToken)
+    // Routes one generated event type to the correct simulation method.
+    // The event type is selected by GetRandomEventType() using the configured event profile percentages.
+    // Each execution method is responsible for deciding whether it produced a real event or recorded a failed/retry attempt.
+    private async Task ExecuteSimulationEventAsync(int eventNumber, string eventType, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         if (eventType == "Normal")
         {
-            await ExecuteNormalEventAsync(eventNumber, cancellationToken);
+            await ExecuteNormalAccessEventAsync(eventNumber, cancellationToken);
             return;
         }
 
@@ -739,24 +620,45 @@ public partial class AutoModeViewModel : ObservableObject
             return;
         }
 
-        await ExecuteHeldEventAsync(eventNumber, cancellationToken);
+        await ExecuteHeldOpenEventAsync(eventNumber, cancellationToken);
 
     }
 
-    // Executes a normal access event.
-    //
-    // Normal events can be generated by either:
+    // Returns a random delay between the configured minimum and maximum values.
+    private int GetRandomDelaySeconds()
+    {
+        if (MaximumDelaySeconds <= MinimumDelaySeconds)
+            return MinimumDelaySeconds;
+
+        return _random.Next(MinimumDelaySeconds, MaximumDelaySeconds + 1);
+    }
+
+    // Randomly chooses Normal / Forced / Held based on the selected event profile.
+    private string GetRandomEventType()
+    {
+        var roll = _random.Next(1, 101);
+
+        if (roll <= NormalEventPercentage)
+            return "Normal";
+
+        if (roll <= NormalEventPercentage + ForcedEventPercentage)
+            return "Forced";
+
+        return "Held";
+    }
+
+
+    /*
+      #############################################################################
+                                 Normal Access Events
+      #############################################################################
+    */
+
+    // Executes a normal access event. Normal events can be generated by either:
     //      - a reader/cardholder action,
     //      - a REX input action.
-    //
-    // Method selection is intentionally weighted:
-    //      - If a door has readers and usable REX inputs, prefer readers 80% of the time.
-    //      - If only readers exist, use a reader.
-    //      - If only usable REX inputs exist, use REX.
-    //
-    // Reader execution is still a placeholder in this step. The next step will add
-    // actual cardholder selection, card swipe, Card + PIN support, and decision checking.
-    private async Task ExecuteNormalEventAsync(int eventNumber, CancellationToken cancellationToken)
+    // If a door supports both methods, readers are preferred because they exercise cardholders, credentials, Card + PIN, access rules, and granted/denied logic.
+    private async Task ExecuteNormalAccessEventAsync(int eventNumber, CancellationToken cancellationToken)
     {
         if (_getDoorsAsync == null || _setInputStateAsync == null)
         {
@@ -816,7 +718,7 @@ public partial class AutoModeViewModel : ObservableObject
 
         if (method == "Reader")
         {
-            var readerSelection = SelectReaderForNormalEvent(selectedDoor);
+            var readerSelection = SelectReaderForDoor(selectedDoor);
 
             if (readerSelection == null)
             {
@@ -851,22 +753,9 @@ public partial class AutoModeViewModel : ObservableObject
             eventNumber: eventNumber);
     }
 
-    // Executes a real normal access event using a REX input.
-    //
-    // This is the first real "Normal" event implementation. It deliberately uses REX
-    // before reader/cardholder logic because it proves the normal door lifecycle
-    // without access-decision/Card+PIN complexity.
-    //
-    // Sequence:
-    //      1. Find a suitable locked door where REX can unlock the door.
-    //      2. Activate one available REX input.
-    //      3. Release the REX input.
-    //      4. If the door has a sensor, open and close the door sensor.
-    //      5. Log success/failure.
-    //
-    // Important cleanup rule:
-    //      If Auto Mode activates a REX or opens a door sensor, it must make a best
-    //      effort to restore them to Inactive even if the trainer presses Stop.
+    // Executes a normal access event using a REX input.
+    // The REX is activated and released, then the door sensor is opened and closed where available.
+    // Any input opened by Auto Mode is cleaned up if the simulation is stopped during the event.
     private async Task ExecuteNormalRexEventAsync(int eventNumber, SoftwireDoor selectedDoor, string rexPath, string rexDescription, CancellationToken cancellationToken)
     {
         if (_setInputStateAsync == null)
@@ -931,8 +820,8 @@ public partial class AutoModeViewModel : ObservableObject
 
             rexWasActivated = true;
 
-            // Give Softwire a brief moment to process the REX activation and unlock
-            // the door. In testing, Softwire reacts quickly, so one second is enough.
+            // Give Softwire a brief moment to process the REX activation and unlock the door.
+            // In testing, Softwire reacts quickly, so one second is enough.
             await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
 
             AddLog(
@@ -1122,19 +1011,15 @@ public partial class AutoModeViewModel : ObservableObject
             eventNumber: eventNumber);
     }
 
-    // Executes a real normal access event using a reader and cardholder credential.
-    //
-    // Sequence:
+    // Executes a real normal access event using a reader and cardholder credential. Sequence:
     //      1. Select a suitable cardholder.
     //      2. Swipe the card credential at the selected reader.
     //      3. If the reader is Card + PIN, send the configured Global PIN.
     //      4. Poll Softwire briefly to see whether the door unlocks or reports denial.
     //      5. If the door unlocks and has a sensor, open and close the door sensor.
-    //
     // Important Card + PIN rule:
     //      For Card + PIN readers, Auto Mode only selects cardholders where HasPin is true.
-    //      This mirrors the PowerShell PoC behaviour and avoids deliberately selecting
-    //      cardholders that cannot complete a Card + PIN transaction.
+    //      This avoids deliberately selecting cardholders that cannot complete a Card + PIN transaction.
     private async Task ExecuteNormalReaderEventAsync(int eventNumber, SoftwireDoor selectedDoor, AutoReaderSelection readerSelection, CancellationToken cancellationToken)
     {
         if (_getCardholders == null ||
@@ -1236,10 +1121,7 @@ public partial class AutoModeViewModel : ObservableObject
 
                 // Softwire expects PIN input through SwipeWiegand26.
                 // Facility code remains 0; the PIN is sent as the card value.
-                var pinSucceeded = await _swipeWiegand26Async(
-                    readerSelection.ReaderPath,
-                    0,
-                    int.Parse(GlobalPin));
+                var pinSucceeded = await _swipeWiegand26Async(readerSelection.ReaderPath, 0, int.Parse(GlobalPin));
 
                 if (!pinSucceeded)
                 {
@@ -1465,20 +1347,22 @@ public partial class AutoModeViewModel : ObservableObject
         }
     }
 
-    // Executes a held-open event.
-    //
-    // Held events can be generated by either:
+
+    /*
+      #############################################################################
+                                 Held-Open Events
+      #############################################################################
+    */
+
+    // Executes a held-open event. Held events can be generated by either:
     //      - a reader/cardholder action,
     //      - a REX input action.
-    //
     // Method selection mirrors Normal events:
     //      - If a door has readers and usable REX inputs, prefer readers 80% of the time.
     //      - If only readers exist, use a reader.
     //      - If only usable REX inputs exist, use REX.
-    //
-    // Unlike Normal events, a Held event only counts as completed when the door sensor
-    // is opened and a delayed cleanup task has been scheduled.
-    private async Task ExecuteHeldEventAsync(int eventNumber, CancellationToken cancellationToken)
+    // Unlike Normal events, a Held event only counts as completed when the door sensor is opened and a delayed cleanup task has been scheduled.
+    private async Task ExecuteHeldOpenEventAsync(int eventNumber, CancellationToken cancellationToken)
     {
         if (_getDoorsAsync == null || _setInputStateAsync == null)
         {
@@ -1504,7 +1388,7 @@ public partial class AutoModeViewModel : ObservableObject
                 level: "Warning",
                 eventType: "Held",
                 doorName: "-",
-                message: "No suitable held-open door became available. Door must be locked, not in maintenance, have a door sensor, have 'Door Held' configured, and support reader or AutoUnlockOnRex.",
+                message: "No suitable held-open door became available. Door must be locked, not in maintenance, have a door sensor, have 'Door Held' configured, and support reader or 'Unlock On Rex'.",
                 eventNumber: eventNumber);
 
             return;
@@ -1536,7 +1420,7 @@ public partial class AutoModeViewModel : ObservableObject
 
         if (method == "Reader")
         {
-            var readerSelection = SelectReaderForNormalEvent(selectedDoor);
+            var readerSelection = SelectReaderForDoor(selectedDoor);
 
             if (readerSelection == null)
             {
@@ -1571,21 +1455,16 @@ public partial class AutoModeViewModel : ObservableObject
             eventNumber: eventNumber);
     }
 
-    // Executes a real held-open event using REX.
-    //
-    // This method assumes the caller has already selected a suitable held-capable
-    // door and REX path.
-    //
-    // Sequence:
+    // Executes a held-open event using REX.
+    // The caller has already selected a suitable held-capable door and REX path.
+    // This method reserves the door, unlocks it with REX, opens the door sensor, and schedules delayed cleanup.
     //      1. Reserve the selected door.
     //      2. Activate and release REX.
     //      3. Open the door sensor and leave it open.
     //      4. Start background cleanup to close the sensor after DoorHeldTime + buffer.
-    //
     // Important:
-    //      The event is counted as executed once the door sensor has been opened and
-    //      cleanup has been scheduled. The door remains reserved until cleanup closes
-    //      the sensor or discovers the door was deleted.
+    //      The event is counted as executed once the door sensor has been opened and cleanup has been scheduled.
+    //      The door remains reserved until cleanup closes the sensor or discovers the door was deleted.
     private async Task ExecuteHeldRexEventAsync(int eventNumber, SoftwireDoor selectedDoor, string rexPath, string rexDescription, CancellationToken cancellationToken)
     {
         if (_setInputStateAsync == null)
@@ -1719,7 +1598,7 @@ public partial class AutoModeViewModel : ObservableObject
                 level: "Success",
                 eventType: "Held",
                 doorName: selectedDoor.Name,
-                message: "Held-open event generated. Door reserved until cleanup closes the sensor.",
+                message: "Held-open event generated. Door reserved until cleanup closes the door sensor.",
                 eventNumber: eventNumber);
         }
         catch (OperationCanceledException)
@@ -1782,9 +1661,8 @@ public partial class AutoModeViewModel : ObservableObject
         }
     }
 
-    // Executes a real held-open event using a reader and cardholder credential.
-    //
-    // Sequence:
+    // Executes a held-open event using a reader and cardholder credential.
+    // This follows the same reader/Card + PIN rules as a normal reader event, but instead of closing the door sensor after one second, it leaves the sensor open long enough for Softwire to generate a Door Held event.
     //      1. Reserve the selected door.
     //      2. Select a suitable cardholder.
     //      3. Swipe the card credential.
@@ -1792,9 +1670,7 @@ public partial class AutoModeViewModel : ObservableObject
     //      5. Wait for the door to unlock.
     //      6. Open the door sensor and leave it open.
     //      7. Start background cleanup to close the sensor after DoorHeldTime + buffer.
-    //
-    // Important Card + PIN rule:
-    //      For Card + PIN readers, Auto Mode only selects cardholders where HasPin is true.
+    // Important Card + PIN rule: For Card + PIN readers, Auto Mode only selects cardholders where HasPin is true.
     private async Task ExecuteHeldReaderEventAsync(int eventNumber, SoftwireDoor selectedDoor, AutoReaderSelection readerSelection, CancellationToken cancellationToken)
     {
         if (_getCardholders == null ||
@@ -2047,7 +1923,7 @@ public partial class AutoModeViewModel : ObservableObject
                 level: "Success",
                 eventType: "Held",
                 doorName: openedDoorName,
-                message: "Held-open reader event generated. Door reserved until cleanup closes the sensor.",
+                message: "Held-open reader event generated. Door reserved until cleanup closes the door sensor.",
                 eventNumber: eventNumber);
         }
         catch (OperationCanceledException)
@@ -2099,232 +1975,17 @@ public partial class AutoModeViewModel : ObservableObject
         }
     }
 
-    // Selects a random door suitable for a normal event.
-    //
-    // A normal event can use either:
-    //      - a reader,
-    //      - a REX input, but only when AutoUnlockOnRex is enabled.
-    //
-    // The door must be locked and not in maintenance mode so the simulation represents
-    // a meaningful access attempt rather than interacting with an already-unlocked door.
-    private SoftwireDoor? SelectNormalDoorCandidate(IEnumerable<SoftwireDoor> doors)
-    {
-        var doorList = doors.ToList();
 
-        // If a reserved door was deleted while Auto Mode is running, release the
-        // reservation and move on cleanly. This prevents a stale reservation from
-        // blocking future event selection.
-        ReleaseReservationsForDeletedDoors(doorList);
+    /*
+      #############################################################################
+                              Forced-Door Events
+      #############################################################################
+    */
 
-        var candidates = doorList
-            .Where(d => !IsDoorReserved(d.Id))
-            .Where(d => d.DoorIsLocked)
-            .Where(d => !d.UnlockedForMaintenance)
-            .Where(d => HasUsableReader(d) || HasUsableAutoUnlockRex(d))
-            .ToList();
-
-        if (!candidates.Any())
-            return null;
-
-        return candidates[_random.Next(candidates.Count)];
-    }
-
-    // Chooses whether a normal event should use Reader or REX.
-    //
-    // If both methods are available, readers are preferred because they create richer
-    // access-control activity: cardholders, credentials, Card + PIN, access granted,
-    // access denied, anti-passback, schedules, and other access-rule behaviour.
-    private string SelectNormalEventMethod(SoftwireDoor door)
-    {
-        var hasReader = HasUsableReader(door);
-        var hasRex = HasUsableAutoUnlockRex(door);
-
-        if (hasReader && !hasRex)
-            return "Reader";
-
-        if (!hasReader && hasRex)
-            return "REX";
-
-        if (hasReader && hasRex)
-            return _random.Next(1, 101) <= 80
-                ? "Reader"
-                : "REX";
-
-        return "None";
-    }
-
-    // Returns true when the door has at least one reader path Auto Mode can use.
-    private static bool HasUsableReader(SoftwireDoor door)
-    {
-        return !string.IsNullOrWhiteSpace(door.ReaderSideInDevicePath) ||
-               !string.IsNullOrWhiteSpace(door.ReaderSideOutDevicePath);
-    }
-
-    // Returns true when the door has at least one usable REX input and the door is
-    // configured to unlock on REX.
-    private static bool HasUsableAutoUnlockRex(SoftwireDoor door)
-    {
-        return door.AutoUnlockOnRex && HasUsableRex(door);
-    }
-
-    // Returns true when the door has at least one REX input path Auto Mode can use.
-    private static bool HasUsableRex(SoftwireDoor door)
-    {
-        return !string.IsNullOrWhiteSpace(door.RexSideInDevicePath) ||
-               !string.IsNullOrWhiteSpace(door.RexSideOutDevicePath) ||
-               !string.IsNullOrWhiteSpace(door.RexNoSideDevicePath);
-    }
-
-    // Selects one available REX path from the supplied door.
-    //
-    // If more than one REX exists, a random one is chosen so repeated Auto Mode runs
-    // do not always exercise the same side.
-    private string SelectRexPath(SoftwireDoor door)
-    {
-        var rexPaths = new List<string>();
-
-        if (!string.IsNullOrWhiteSpace(door.RexSideInDevicePath))
-            rexPaths.Add(door.RexSideInDevicePath);
-
-        if (!string.IsNullOrWhiteSpace(door.RexSideOutDevicePath))
-            rexPaths.Add(door.RexSideOutDevicePath);
-
-        if (!string.IsNullOrWhiteSpace(door.RexNoSideDevicePath))
-            rexPaths.Add(door.RexNoSideDevicePath);
-
-        if (!rexPaths.Any())
-            return string.Empty;
-
-        return rexPaths[_random.Next(rexPaths.Count)];
-    }
-
-    // Returns friendly log text for whichever REX path was selected.
-    private static string GetRexDescription(SoftwireDoor door, string rexPath)
-    {
-        if (string.Equals(rexPath, door.RexSideInDevicePath, StringComparison.OrdinalIgnoreCase))
-            return "In REX";
-
-        if (string.Equals(rexPath, door.RexSideOutDevicePath, StringComparison.OrdinalIgnoreCase))
-            return "Out REX";
-
-        if (string.Equals(rexPath, door.RexNoSideDevicePath, StringComparison.OrdinalIgnoreCase))
-            return "No-side REX";
-
-        return "REX";
-    }
-
-    // Selects one reader from the supplied door.
-    //
-    // If both In and Out readers exist, selection is 50/50. This gives Auto Mode a
-    // balanced mix of entry and exit reads during long simulations.
-    private AutoReaderSelection? SelectReaderForNormalEvent(SoftwireDoor door)
-    {
-        var readers = new List<AutoReaderSelection>();
-
-        if (!string.IsNullOrWhiteSpace(door.ReaderSideInDevicePath))
-        {
-            readers.Add(new AutoReaderSelection
-            {
-                ReaderPath = door.ReaderSideInDevicePath,
-                Side = "In",
-                Description = "In reader",
-                RequiresCardAndPin = door.InReaderRequiresCardAndPin
-            });
-        }
-
-        if (!string.IsNullOrWhiteSpace(door.ReaderSideOutDevicePath))
-        {
-            readers.Add(new AutoReaderSelection
-            {
-                ReaderPath = door.ReaderSideOutDevicePath,
-                Side = "Out",
-                Description = "Out reader",
-                RequiresCardAndPin = door.OutReaderRequiresCardAndPin
-            });
-        }
-
-        if (!readers.Any())
-            return null;
-
-        return readers[_random.Next(readers.Count)];
-    }
-
-    // Selects a random cardholder suitable for the selected reader.
-    //
-    // Card-only reader:
-    //      Any cardholder with a usable card credential can be used.
-    //
-    // Card + PIN reader:
-    //      Only cardholders with a usable card credential AND HasPin = true are used.
-    //      The actual PIN sent is the Auto Mode Global PIN, so the training system
-    //      should be configured with matching cardholder PINs.
-    private Cardholder? SelectCardholderForReader(AutoReaderSelection readerSelection)
-    {
-        if (_getCardholders == null)
-            return null;
-
-        var candidates = _getCardholders()
-            .Where(c => !string.IsNullOrWhiteSpace(c.TrimmedCredential))
-            .Where(c => c.BitCount > 0)
-            .Where(c => !readerSelection.RequiresCardAndPin || c.HasPin)
-            .ToList();
-
-        if (!candidates.Any())
-            return null;
-
-        return candidates[_random.Next(candidates.Count)];
-    }
-
-    // Waits briefly for Softwire to report a result after a reader action.
-    //
-    // Reader decisions and door unlock state are reported on the door object.
-    // Rather than relying on the manual UI feedback system, Auto Mode refreshes the
-    // door directly and uses the latest decision/lock state for logging and behaviour.
-    //
-    // Returns:
-    //      - refreshed door when granted/denied/unlocked state is observed,
-    //      - null if no useful result appears before timeout.
-    private async Task<SoftwireDoor?> WaitForReaderDecisionAsync(string doorId, CancellationToken cancellationToken)
-    {
-        if (_getDoorsAsync == null)
-            return null;
-
-        var timeoutAtUtc = DateTime.UtcNow.AddSeconds(4);
-
-        while (DateTime.UtcNow < timeoutAtUtc)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var doors = await _getDoorsAsync();
-
-            var refreshedDoor = doors.FirstOrDefault(d => d.Id == doorId);
-
-            if (refreshedDoor == null)
-                return null;
-
-            if (refreshedDoor.LastDecisionGranted ||
-                refreshedDoor.LastDecisionDenied ||
-                !refreshedDoor.DoorIsLocked)
-            {
-                return refreshedDoor;
-            }
-
-            await Task.Delay(250, cancellationToken);
-        }
-
-        return null;
-    }
-
-    // Executes a real forced-door event against Softwire.
-    //
-    // A forced-door event simulates the door sensor opening while the door is still
-    // locked. If the door is configured to enforce forced-open events, Softwire
-    // should generate the corresponding door forced event.
-    //
+    // A forced-door event simulates the door sensor opening while the door is still locked.
+    // If the door is configured to enforce forced-open events, Softwire should generate the corresponding door forced event.
     // Important cleanup rule:
-    //      If Auto Mode opens a door sensor, it must make a best effort to close it
-    //      again, even if the trainer presses Stop while the event is running.
-    //
+    //      If Auto Mode opens a door sensor, it must make a best effort to close it again, even if the trainer presses Stop while the event is running.
     // Sequence:
     //      1. Find a suitable locked door with a door sensor.
     //      2. Set the door sensor Active.
@@ -2359,7 +2020,7 @@ public partial class AutoModeViewModel : ObservableObject
                 level: "Warning",
                 eventType: "Forced",
                 doorName: "-",
-                message: "No suitable forced-door candidate found. Door must be locked, not in maintenance, have a door sensor, and have forced-open enforcement enabled.",
+                message: "No suitable forced-door candidate found. Door must be locked, not in maintenance, have a door sensor, and have door forced enabled.",
                 eventNumber: eventNumber);
 
             return;
@@ -2399,8 +2060,7 @@ public partial class AutoModeViewModel : ObservableObject
             doorSensorWasOpened = true;
 
             // Softwire sees the input state change immediately in testing.
-            // One second is enough to generate the forced-door condition without
-            // slowing the simulation unnecessarily.
+            // One second is enough to generate the forced-door condition without slowing the simulation unnecessarily.
             await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
         }
         catch (OperationCanceledException)
@@ -2472,10 +2132,167 @@ public partial class AutoModeViewModel : ObservableObject
             eventNumber: eventNumber);
     }
 
-    // Selects a random door suitable for a forced-door event.
+
+    /*
+      #############################################################################
+                          Door Reservation Helpers
+      #############################################################################
+    */
+
+    // Reserves a door so Auto Mode will not select it for another event.
     //
-    // A forced-door event should only use doors where opening the door sensor without
-    // an unlock is meaningful. Therefore the door must:
+    // This is mainly for Held events. A held-open door needs time to remain open so
+    // Softwire can generate the door-held-open event. During that time, Auto Mode
+    // must not accidentally pick the same door for a Normal or Forced event and
+    // close/reopen the sensor.
+    private void ReserveDoor(SoftwireDoor door, string reason)
+    {
+        if (string.IsNullOrWhiteSpace(door.Id))
+            return;
+
+        _reservedDoors[door.Id] = new AutoDoorReservation
+        {
+            DoorId = door.Id,
+            DoorName = door.Name,
+            Reason = reason,
+            ReservedAtUtc = DateTime.UtcNow
+        };
+
+        AddLog(
+            level: "Info",
+            eventType: "-",
+            doorName: door.Name,
+            message: $"Door reserved: {reason}.");
+    }
+
+    // Releases a previously reserved door.
+    //
+    // It is safe to call this even if the door is not currently reserved.
+    // The log level can be changed by the caller so normal cleanup can be Info,
+    // while cleanup after Stop/cancellation can be Warning.
+    private void ReleaseDoorReservation(string doorId, string message, string level = "Info")
+    {
+        if (string.IsNullOrWhiteSpace(doorId))
+            return;
+
+        if (!_reservedDoors.TryGetValue(doorId, out var reservation))
+            return;
+
+        _reservedDoors.Remove(doorId);
+
+        AddLog(
+            level: level,
+            eventType: "-",
+            doorName: reservation.DoorName,
+            message: message);
+    }
+
+    // Returns true when the supplied door is currently reserved by Auto Mode.
+    private bool IsDoorReserved(string doorId)
+    {
+        if (string.IsNullOrWhiteSpace(doorId))
+            return false;
+
+        return _reservedDoors.ContainsKey(doorId);
+    }
+
+    // Releases reservations for doors that no longer exist in the latest Softwire
+    // door list.
+    //
+    // This is important during training because someone may delete or reconfigure a
+    // door while Auto Mode is running. If a reserved door disappears, we simply log
+    // the situation, release the reservation, and keep the simulation moving.
+    private void ReleaseReservationsForDeletedDoors(IEnumerable<SoftwireDoor> currentDoors)
+    {
+        if (!_reservedDoors.Any())
+            return;
+
+        var currentDoorIds = currentDoors
+            .Where(d => !string.IsNullOrWhiteSpace(d.Id))
+            .Select(d => d.Id)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var deletedReservations = _reservedDoors.Values
+            .Where(r => !currentDoorIds.Contains(r.DoorId))
+            .ToList();
+
+        foreach (var reservation in deletedReservations)
+        {
+            _reservedDoors.Remove(reservation.DoorId);
+
+            AddLog(
+                level: "Warning",
+                eventType: "-",
+                doorName: reservation.DoorName,
+                message: "Reserved door no longer exists in Softwire. Releasing reservation and continuing.");
+        }
+    }
+
+
+    /*
+      #############################################################################
+                          Candidate and Method Selection Helpers
+      #############################################################################
+    */
+
+    // --> Normal candidates / method selection:
+    //     -------------------------------------
+
+    // Selects a random door suitable for a normal event. A normal event can use either:
+    //      - a reader,
+    //      - a REX input, but only when AutoUnlockOnRex is enabled.
+    // The door must be locked and not in maintenance mode so the simulation represents a meaningful access attempt rather than interacting with an already-unlocked door.
+    private SoftwireDoor? SelectNormalDoorCandidate(IEnumerable<SoftwireDoor> doors)
+    {
+        var doorList = doors.ToList();
+
+        // If a reserved door was deleted while Auto Mode is running, release the reservation and move on cleanly.
+        // This prevents a stale reservation from blocking future event selection.
+        ReleaseReservationsForDeletedDoors(doorList);
+
+        var candidates = doorList
+            .Where(d => !IsDoorReserved(d.Id))
+            .Where(d => d.DoorIsLocked)
+            .Where(d => !d.UnlockedForMaintenance)
+            .Where(d => HasUsableReader(d) || HasUsableAutoUnlockRex(d))
+            .ToList();
+
+        if (!candidates.Any())
+            return null;
+
+        return candidates[_random.Next(candidates.Count)];
+    }
+
+    // Chooses whether a normal event should use Reader or REX.
+    //
+    // If both methods are available, readers are preferred because they create richer
+    // access-control activity: cardholders, credentials, Card + PIN, access granted,
+    // access denied, anti-passback, schedules, and other access-rule behaviour.
+    private string SelectNormalEventMethod(SoftwireDoor door)
+    {
+        var hasReader = HasUsableReader(door);
+        var hasRex = HasUsableAutoUnlockRex(door);
+
+        if (hasReader && !hasRex)
+            return "Reader";
+
+        if (!hasReader && hasRex)
+            return "REX";
+
+        if (hasReader && hasRex)
+            return _random.Next(1, 101) <= 80
+                ? "Reader"
+                : "REX";
+
+        return "None";
+    }
+
+
+    // --> Forced candidates:
+    //     ------------------
+
+    // Selects a random door suitable for a forced-door event.
+    // A forced-door event should only use doors where opening the door sensor without an unlock is meaningful. Therefore the door must:
     //      - be locked,
     //      - not be unlocked for maintenance,
     //      - have a door sensor,
@@ -2485,9 +2302,8 @@ public partial class AutoModeViewModel : ObservableObject
     {
         var doorList = doors.ToList();
 
-        // Reserved doors are deliberately being held by Auto Mode, usually because a
-        // Held event has opened the sensor and is waiting for Softwire to generate a
-        // Door Held event. Do not use those doors for forced events.
+        // Reserved doors are deliberately being held by Auto Mode, usually because a Held event has opened the sensor and is waiting for Softwire to generate a Door Held event.
+        // Do not use those doors for forced events.
         ReleaseReservationsForDeletedDoors(doorList);
 
         var candidates = doorList
@@ -2505,34 +2321,13 @@ public partial class AutoModeViewModel : ObservableObject
         return candidates[_random.Next(candidates.Count)];
     }
 
-    // Returns a random delay between the configured minimum and maximum values.
-    private int GetRandomDelaySeconds()
-    {
-        if (MaximumDelaySeconds <= MinimumDelaySeconds)
-            return MinimumDelaySeconds;
 
-        return _random.Next(MinimumDelaySeconds, MaximumDelaySeconds + 1);
-    }
-
-    // Randomly chooses Normal / Forced / Held based on the selected event profile.
-    private string GetRandomEventType()
-    {
-        var roll = _random.Next(1, 101);
-
-        if (roll <= NormalEventPercentage)
-            return "Normal";
-
-        if (roll <= NormalEventPercentage + ForcedEventPercentage)
-            return "Forced";
-
-        return "Held";
-    }
+    // --> Held candidates / method selection:
+    //     -----------------------------------
 
     // Waits for a held-capable door to become available.
-    //
-    // If all suitable Held doors are currently reserved, Auto Mode waits briefly
-    // rather than immediately failing. This matters when multiple Held events occur
-    // close together and every held-capable door is already waiting for cleanup.
+    // If all suitable Held doors are currently reserved, Auto Mode waits briefly rather than immediately failing.
+    // This matters when multiple Held events occur close together and every held-capable door is already waiting for cleanup.
     private async Task<SoftwireDoor?> WaitForHeldDoorCandidateAsync(int eventNumber, CancellationToken cancellationToken)
     {
         if (_getDoorsAsync == null)
@@ -2562,6 +2357,8 @@ public partial class AutoModeViewModel : ObservableObject
                     .Where(IsHeldCapableDoor)
                     .All(d => IsDoorReserved(d.Id));
 
+            // If suitable held doors exist but are unsuitable for reasons other than reservation such as settings/hardware, do not wait.
+            // Waiting only helps when every otherwise valid held door is temporarily reserved.
             if (!allHeldCapableDoorsReserved)
                 return null;
 
@@ -2598,9 +2395,7 @@ public partial class AutoModeViewModel : ObservableObject
     }
 
     // Chooses whether a held-open event should use Reader or REX.
-    //
-    // Reader is preferred where possible because it exercises cardholders, credentials,
-    // Card + PIN, access rules, and denied/granted behaviour.
+    // Reader is preferred where possible because it uses cardholders, credentials, Card + PIN, access rules, and denied/granted behaviour.
     private string SelectHeldEventMethod(SoftwireDoor door)
     {
         var hasReader = IsHeldReaderCapableDoor(door);
@@ -2641,10 +2436,8 @@ public partial class AutoModeViewModel : ObservableObject
     }
 
     // Shared held-open requirements.
-    //
-    // IgnoreHeldOpenWhenUnlocked must be false. If Softwire is configured to ignore
-    // held-open behaviour while unlocked, Auto Mode should not select that door for a
-    // held-open scenario because the expected Door Held event may not be generated.
+    // IgnoreHeldOpenWhenUnlocked must be false (this is configured in Config Tool, door --> properties --> Door held).
+    // If Softwire is configured to ignore held-open behaviour while unlocked, Auto Mode should not select that door for a held-open scenario because the expected Door Held event may not be generated.
     private static bool IsBaseHeldCapableDoor(SoftwireDoor door)
     {
         return door.DoorIsLocked &&
@@ -2655,6 +2448,175 @@ public partial class AutoModeViewModel : ObservableObject
                !door.IgnoreHeldOpenWhenUnlocked;
     }
 
+
+    // --> Shared device capability checks:
+    //     --------------------------------
+
+    // Returns true when the door has at least one reader path Auto Mode can use.
+    private static bool HasUsableReader(SoftwireDoor door)
+    {
+        return !string.IsNullOrWhiteSpace(door.ReaderSideInDevicePath) ||
+               !string.IsNullOrWhiteSpace(door.ReaderSideOutDevicePath);
+    }
+
+    // Returns true when the door has at least one usable REX input and the door is configured to unlock on REX.
+    private static bool HasUsableAutoUnlockRex(SoftwireDoor door)
+    {
+        return door.AutoUnlockOnRex && HasUsableRex(door);
+    }
+
+    // Returns true when the door has at least one REX input path Auto Mode can use.
+    private static bool HasUsableRex(SoftwireDoor door)
+    {
+        return !string.IsNullOrWhiteSpace(door.RexSideInDevicePath) ||
+               !string.IsNullOrWhiteSpace(door.RexSideOutDevicePath) ||
+               !string.IsNullOrWhiteSpace(door.RexNoSideDevicePath);
+    }
+
+    // Selects one available REX path from the supplied door.
+    // If more than one REX exists, a random one is chosen so repeated Auto Mode runs do not always exercise the same side.
+    private string SelectRexPath(SoftwireDoor door)
+    {
+        var rexPaths = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(door.RexSideInDevicePath))
+            rexPaths.Add(door.RexSideInDevicePath);
+
+        if (!string.IsNullOrWhiteSpace(door.RexSideOutDevicePath))
+            rexPaths.Add(door.RexSideOutDevicePath);
+
+        if (!string.IsNullOrWhiteSpace(door.RexNoSideDevicePath))
+            rexPaths.Add(door.RexNoSideDevicePath);
+
+        if (!rexPaths.Any())
+            return string.Empty;
+
+        return rexPaths[_random.Next(rexPaths.Count)];
+    }
+
+    // Returns friendly log text for whichever REX path was selected.
+    private static string GetRexDescription(SoftwireDoor door, string rexPath)
+    {
+        if (string.Equals(rexPath, door.RexSideInDevicePath, StringComparison.OrdinalIgnoreCase))
+            return "In REX";
+
+        if (string.Equals(rexPath, door.RexSideOutDevicePath, StringComparison.OrdinalIgnoreCase))
+            return "Out REX";
+
+        if (string.Equals(rexPath, door.RexNoSideDevicePath, StringComparison.OrdinalIgnoreCase))
+            return "No-side REX";
+
+        return "REX";
+    }
+
+    // Selects one reader from the supplied door.
+    // If both In and Out readers exist, selection is 50/50. This gives Auto Mode a balanced mix of entry and exit reads during long simulations.
+    private AutoReaderSelection? SelectReaderForDoor(SoftwireDoor door)
+    {
+        var readers = new List<AutoReaderSelection>();
+
+        if (!string.IsNullOrWhiteSpace(door.ReaderSideInDevicePath))
+        {
+            readers.Add(new AutoReaderSelection
+            {
+                ReaderPath = door.ReaderSideInDevicePath,
+                Side = "In",
+                Description = "In reader",
+                RequiresCardAndPin = door.InReaderRequiresCardAndPin
+            });
+        }
+
+        if (!string.IsNullOrWhiteSpace(door.ReaderSideOutDevicePath))
+        {
+            readers.Add(new AutoReaderSelection
+            {
+                ReaderPath = door.ReaderSideOutDevicePath,
+                Side = "Out",
+                Description = "Out reader",
+                RequiresCardAndPin = door.OutReaderRequiresCardAndPin
+            });
+        }
+
+        if (!readers.Any())
+            return null;
+
+        return readers[_random.Next(readers.Count)];
+    }
+
+
+    /*
+      #############################################################################
+                          Reader and Cardholder Helpers
+      #############################################################################
+    */
+
+    // Selects a random cardholder suitable for the selected reader.
+    // Card-only reader:
+    //      - Any cardholder with a usable card credential can be used.
+    // Card + PIN reader:
+    //      - Only cardholders with a usable card credential AND HasPin = true are used.
+    //      - The actual PIN sent is the Auto Mode Global PIN, so the training system should be configured with matching cardholder PINs.
+    private Cardholder? SelectCardholderForReader(AutoReaderSelection readerSelection)
+    {
+        if (_getCardholders == null)
+            return null;
+
+        var candidates = _getCardholders()
+            .Where(c => !string.IsNullOrWhiteSpace(c.TrimmedCredential))
+            .Where(c => c.BitCount > 0)
+            .Where(c => !readerSelection.RequiresCardAndPin || c.HasPin)
+            .ToList();
+
+        if (!candidates.Any())
+            return null;
+
+        return candidates[_random.Next(candidates.Count)];
+    }
+
+    // Waits briefly for Softwire to report a result after a reader action.
+    // Reader decisions and door unlock state are reported on the door object.
+    // Rather than relying on the manual UI feedback system, Auto Mode refreshes the door directly and uses the latest decision/lock state for logging and behaviour.
+    // Returns:
+    //      - refreshed door when granted/denied/unlocked state is observed,
+    //      - null if no useful result appears before timeout.
+    private async Task<SoftwireDoor?> WaitForReaderDecisionAsync(string doorId, CancellationToken cancellationToken)
+    {
+        if (_getDoorsAsync == null)
+            return null;
+
+        var timeoutAtUtc = DateTime.UtcNow.AddSeconds(4);
+
+        while (DateTime.UtcNow < timeoutAtUtc)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var doors = await _getDoorsAsync();
+
+            var refreshedDoor = doors.FirstOrDefault(d => d.Id == doorId);
+
+            if (refreshedDoor == null)
+                return null;
+
+            if (refreshedDoor.LastDecisionGranted ||
+                refreshedDoor.LastDecisionDenied ||
+                !refreshedDoor.DoorIsLocked)
+            {
+                return refreshedDoor;
+            }
+
+            await Task.Delay(250, cancellationToken);
+        }
+
+        return null;
+    }
+
+
+    /*
+      #############################################################################
+                            Held-Open Cleanup Helpers
+      #############################################################################
+    */
+
     // Returns the delay before Auto Mode should close a held-open door.
     private static int GetHeldCleanupDelaySeconds(SoftwireDoor door)
     {
@@ -2664,9 +2626,8 @@ public partial class AutoModeViewModel : ObservableObject
     }
 
     // Schedules background cleanup for a held-open door.
-    //
-    // The cleanup task closes the door sensor after DoorHeldTime + buffer and then
-    // releases the reservation.
+    // The cleanup task closes the door sensor after DoorHeldTime + buffer and then releases the reservation.
+    // The delay is based on the door's configured DoorHeldTimeSeconds plus a small safety buffer (5secs), so Softwire has time to generate the Door Held event before DoorSim closes the sensor.
     private void ScheduleHeldDoorCleanup(string doorId, string doorName, string doorSensorPath, int delaySeconds, CancellationToken cancellationToken)
     {
         AddLog(
@@ -2686,10 +2647,7 @@ public partial class AutoModeViewModel : ObservableObject
     }
 
     // Closes a held-open door sensor after the configured held-open delay.
-    //
-    // This runs in the background so Auto Mode can continue generating other events
-    // while the selected door remains open long enough for Softwire to raise the
-    // held-open event.
+    // This runs in the background so Auto Mode can continue generating other events while the selected door remains open long enough for Softwire to raise the held-open event.
     private async Task CleanupHeldDoorLaterAsync(string doorId, string doorName, string doorSensorPath, int delaySeconds, CancellationToken cancellationToken)
     {
         try
@@ -2757,9 +2715,7 @@ public partial class AutoModeViewModel : ObservableObject
     }
 
     // Waits for all currently scheduled Held cleanup tasks to finish.
-    //
-    // We remove completed tasks first so repeated calls do not keep old completed
-    // tasks around forever.
+    // We remove completed tasks first so repeated calls do not keep old completed tasks around forever.
     private async Task WaitForHeldCleanupTasksAsync()
     {
         _heldCleanupTasks.RemoveAll(t => t.IsCompleted);
@@ -2780,7 +2736,7 @@ public partial class AutoModeViewModel : ObservableObject
         catch
         {
             // Individual cleanup tasks already log their own cleanup/failure details.
-            // Swallow here so one cleanup issue does not crash the application shell.
+            // Swallow here so one cleanup issue does not crash the application shell!!!
         }
     }
 
@@ -2791,6 +2747,9 @@ public partial class AutoModeViewModel : ObservableObject
       #############################################################################
     */
 
+    // Adds a row to the Auto Mode event log.
+    // New entries are inserted at the top so the most recent activity is immediately visible without scrolling.
+    // EventNumber is optional because some log messages describe the overall simulation rather than a specific event attempt.
     private void AddLog(string level, string eventType, string doorName, string message, int? eventNumber = null)
     {
         LogEntries.Insert(0, new AutoSimulationLogEntry
@@ -2806,11 +2765,9 @@ public partial class AutoModeViewModel : ObservableObject
     }
 
     // Adds a visual separator row to the log.
-    //
     // The log displays newest entries at the top using Insert(0).
-    // Therefore this is called at the start of each event. As later log entries for
-    // the same event are inserted above it, the separator naturally ends up between
-    // this event and the previous event.
+    // Therefore this is called at the start of each event. As later log entries for the same event are inserted above it,
+    // the separator naturally ends up between this event and the previous event.
     private void AddEventSeparator(int eventNumber)
     {
         LogEntries.Insert(0, new AutoSimulationLogEntry
@@ -2826,8 +2783,14 @@ public partial class AutoModeViewModel : ObservableObject
         });
     }
 
+
+    /*
+      #############################################################################
+                            Private Helper Classes
+      #############################################################################
+    */
+
     // Small internal model used by Auto Mode reader selection.
-    //
     // Keeping this as a tiny private class avoids passing around loose strings for:
     //      - reader path,
     //      - reader side,
@@ -2845,12 +2808,9 @@ public partial class AutoModeViewModel : ObservableObject
             : "Card only";
     }
 
-    // Small internal model used to track doors that Auto Mode has temporarily
-    // reserved.
-    //
-    // Held events will use this so a door can remain open long enough for Softwire
-    // to generate the door-held-open event without another Auto Mode event selecting
-    // the same door and interrupting the scenario.
+    // Small internal model used to track doors temporarily reserved by Auto Mode.
+    // Held-open events use this so a door can remain open long enough for Softwire to generate the Door Held event
+    // without another Auto Mode event selecting the same door and interrupting the scenario.
     private class AutoDoorReservation
     {
         public string DoorId { get; set; } = string.Empty;
