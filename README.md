@@ -139,7 +139,7 @@ The release installer is intended to package the required .NET runtime, so end u
 
 A full user guide is provided with the application and can be opened from the **Help** menu inside DoorSim.
 
-The bundled guide covers:
+The bundled guide covers many topics, including:
 
 - Connecting to Softwire
 - Manual Mode
@@ -153,6 +153,8 @@ The bundled guide covers:
 - Event profiles
 - Event log messages
 - Known limitations
+- Requirements
+- Installation, etc.
 
 ---
 
