@@ -10,7 +10,6 @@
 
   <ItemGroup>
     <None Remove="Help\DoorSim_Project_Map.txt" />
-    <None Remove="Help\DoorSim_User_Guide.pdf" />
     <None Remove="Images\AppIcon.ico" />
     <None Remove="Images\Breakglass_Active.png" />
     <None Remove="Images\Breakglass_Normal.png" />
