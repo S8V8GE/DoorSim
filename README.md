@@ -6,7 +6,7 @@
 ![.NET](https://img.shields.io/badge/.NET-8.0-purple)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
 ![Status](https://img.shields.io/badge/status-v1.0%20stable--release-brightgreen)
-![License](https://img.shields.io/badge/license-MIT-green)
+![License](https://img.shields.io/badge/license-Source--Available%20Non--Commercial-orange)
 
 DoorSim is a Windows desktop training, testing, and demonstration tool for interacting with simulated Genetec Softwire access control doors.
 
@@ -223,7 +223,14 @@ The source code is available here:
 
 ## License
 
-DoorSim is released under the MIT License.
+DoorSim is released under a source-available, non-commercial licence.
+
+You may view, download, use, copy, and modify the software for personal,
+educational, internal training, lab testing, and demonstration purposes.
+
+Commercial sale, resale, paid redistribution, sublicensing, hosted-service use,
+or monetisation of DoorSim or modified versions is not permitted without prior
+written permission.
 
 See the [LICENSE](LICENSE) file for details.
 
