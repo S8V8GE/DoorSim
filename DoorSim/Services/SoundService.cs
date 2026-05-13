@@ -15,8 +15,8 @@ namespace DoorSim.Services;
 //      - Reader alert: used for reader LED changes not caused by a pending credential decision.
 //
 // Future easter eggs belong here, for example:
-//      - Simpson + granted = "Woo Hoo"
-//      - Simpson + denied  = "D'oh"
+//      - Name contains: ?? + Access granted = EasterEgg??_Granted
+//      - Name contains: ?? + Access denied  = EasterEgg??_Denied
 //
 // Audio resource notes:
 //      - SoundPlayer requires real WAV files.
@@ -35,8 +35,10 @@ public class SoundService
     private const string CredentialBeepPath = "pack://application:,,,/Sounds/Credential_Beep.wav";
 
     // Easter egg sounds. Add future optional character/theme sounds here as WPF pack resource paths.
-    private const string SimpsonGrantedPath = "pack://application:,,,/Sounds/Simpsons_Granted.wav";
-    private const string SimpsonDeniedPath = "pack://application:,,,/Sounds/Simpsons_Denied.wav";
+    private const string EasterEgg01GrantedPath = "pack://application:,,,/Sounds/EasterEgg01_Granted.wav";
+    private const string EasterEgg01DeniedPath = "pack://application:,,,/Sounds/EasterEgg01_Denied.wav";
+    private const string EasterEgg02GrantedPath = "pack://application:,,,/Sounds/EasterEgg02_Granted.wav";
+    private const string EasterEgg02DeniedPath = "pack://application:,,,/Sounds/EasterEgg02_Denied.wav";
 
 
     /*
@@ -71,13 +73,27 @@ public class SoundService
     // Plays the sound for an access granted decision.
     // This happens after Softwire reports that access was granted.
     // The decision sound waits briefly if needed so it does not collide with the initial credential-presented beep.
+    // Later, easter egg sounds can be added here.
     public async Task PlayAccessGrantedAsync(Cardholder? cardholder)
     {
         await WaitForDecisionSoundGapAsync();
 
-        if (ShouldPlaySimpsonEasterEgg(cardholder))
+        if (ShouldPlayEasterEgg01(cardholder))
         {
-            var played = await TryPlayResourceSoundAsync(SimpsonGrantedPath);
+            var played = await TryPlayResourceSoundAsync(EasterEgg01GrantedPath);
+
+            if (!played)
+            {
+                // Fallback so a bad/missing easter egg sound does not make the app silent.
+                await PlayResourceSoundAsync(CredentialBeepPath);
+            }
+
+            return;
+        }
+
+        if (ShouldPlayEasterEgg02(cardholder))
+        {
+            var played = await TryPlayResourceSoundAsync(EasterEgg02GrantedPath);
 
             if (!played)
             {
@@ -93,14 +109,27 @@ public class SoundService
 
     // Plays the sound for an access denied decision.
     // This happens after Softwire reports that access was denied.
-    // Later, easter egg sounds such as "D'oh" can be added here.
+    // Later, easter egg sounds can be added here.
     public async Task PlayAccessDeniedAsync(Cardholder? cardholder)
     {
         await WaitForDecisionSoundGapAsync();
 
-        if (ShouldPlaySimpsonEasterEgg(cardholder))
+        if (ShouldPlayEasterEgg01(cardholder))
         {
-            var played = await TryPlayResourceSoundAsync(SimpsonDeniedPath);
+            var played = await TryPlayResourceSoundAsync(EasterEgg01DeniedPath);
+
+            if (!played)
+            {
+                // Fallback so a bad/missing easter egg sound does not make the app silent.
+                await PlayTripleBeepAsync();
+            }
+
+            return;
+        }
+
+        if (ShouldPlayEasterEgg02(cardholder))
+        {
+            var played = await TryPlayResourceSoundAsync(EasterEgg02DeniedPath);
 
             if (!played)
             {
@@ -128,9 +157,9 @@ public class SoundService
       #############################################################################
     */
 
-    // Returns true when a cardholder should use the Simpsons sound set.
+    // Returns true when a cardholder should use the EasterEgg01_Granted or _Denied sound.
     // Current rule: any cardholder name containing "Simpson", case-insensitive.
-    private bool ShouldPlaySimpsonEasterEgg(Cardholder? cardholder)
+    private bool ShouldPlayEasterEgg01(Cardholder? cardholder)
     {
         if (cardholder == null)
             return false;
@@ -139,6 +168,19 @@ public class SoundService
             return false;
 
         return cardholder.CardholderName.Contains("Simpson", StringComparison.OrdinalIgnoreCase);
+    }
+
+    // Returns true when a cardholder should use the EasterEgg02_Granted or _Denied sound.
+    // Current rule: any cardholder name containing "Pat Sharp", case-insensitive.
+    private bool ShouldPlayEasterEgg02(Cardholder? cardholder)
+    {
+        if (cardholder == null)
+            return false;
+
+        if (string.IsNullOrWhiteSpace(cardholder.CardholderName))
+            return false;
+
+        return cardholder.CardholderName.Contains("Pat Sharp", StringComparison.OrdinalIgnoreCase);
     }
 
 

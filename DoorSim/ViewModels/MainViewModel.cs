@@ -6,6 +6,7 @@ using DoorSim.Views;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
+using System.Diagnostics; // used for DEBUG testing. If it's highlighted as unused you commented out all lines :)
 
 namespace DoorSim.ViewModels;
 
@@ -57,11 +58,17 @@ public partial class MainViewModel : ObservableObject
     // ViewModel for Two Door View. Owns the independent left/right door panel states while sharing the cardholder list with the rest of the application.
     public TwoDoorViewModel TwoDoor { get; }
 
+    // ViewModel for Auto Mode. Auto Mode is separate from Manual Mode's Single/Two Door views.
+    public AutoModeViewModel AutoMode { get; } = new AutoModeViewModel();
+
     // Used by the View menu to show a checkmark next to Single Door.
     public bool IsSingleDoorViewSelected => CurrentViewMode == "SingleDoor";
 
     // Used by the View menu to show a checkmark next to Two Door.
     public bool IsTwoDoorViewSelected => CurrentViewMode == "TwoDoor";
+
+    // Mode can be changed only when connected and no Auto Mode simulation is running.
+    public bool CanUseModeMenu => IsConnected && !AutoMode.IsSimulationRunning;
 
 
     /*
@@ -93,6 +100,22 @@ public partial class MainViewModel : ObservableObject
     // Tracks which main simulator view is currently selected (Single Door is the default view).
     [ObservableProperty]
     private string currentViewMode = "SingleDoor";
+
+    // Tracks whether the application is currently showing Manual Mode or Auto Mode.
+    //      - Manual Mode is the normal interactive DoorSim experience.
+    //      - Auto Mode runs automated busy-site simulations.
+    [ObservableProperty]
+    private string currentAppMode = "Manual";
+
+    // Used by the Mode menu to show a checkmark next to Manual Mode.
+    public bool IsManualModeSelected => CurrentAppMode == "Manual";
+
+    // Used by the Mode menu to show a checkmark next to Auto Mode.
+    public bool IsAutoModeSelected => CurrentAppMode == "Auto";
+
+    // The View menu only applies to Manual Mode.
+    // In Auto Mode, Single Door / Two Door selection is disabled to avoid changing the hidden manual view behind the scenes.
+    public bool CanUseViewMenu => IsConnected && CurrentAppMode == "Manual";
 
 
     /*
@@ -174,6 +197,26 @@ public partial class MainViewModel : ObservableObject
         // Give the interlocking controls a safe callback for changing Softwire
         // simulated input state. The child ViewModel does not need direct access to the full Softwire service.
         TwoDoor.Interlocking.ConfigureInputStateSender(SetInterlockingInputStateAsync);
+
+        // Give Auto Mode the specific service/data callbacks it needs for simulation.
+        //
+        // Auto Mode does not own SoftwireService directly. MainViewModel remains the
+        // application-level coordinator and passes only the operations Auto Mode needs.
+        AutoMode.ConfigureSimulationDependencies(
+            getDoorsAsync: _softwireService.GetDoorsAsync,
+            getCardholders: () => Cardholders.AllCardholders,
+            getInputStateAsync: _softwireService.GetInputStateAsync,
+            setInputStateAsync: _softwireService.SetInputStateAsync,
+            swipeRawAsync: _softwireService.SwipeRawAsync,
+            swipeWiegand26Async: _softwireService.SwipeWiegand26Async);
+
+        // Watch Auto Mode so the main menu can disable Mode switching while a simulation is running.
+        AutoMode.PropertyChanged += AutoMode_PropertyChanged;
+
+        // Watch Auto Mode for Softwire/API failures.
+        // If Softwire stops while Auto Mode is running, AutoModeViewModel raises this event and MainViewModel performs the same safe disconnect used by Manual Mode.
+        AutoMode.ConnectionLost += AutoMode_ConnectionLost;
+
     }
 
 
@@ -190,12 +233,71 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(IsTwoDoorViewSelected));
     }
 
+    // Refreshes Mode menu checkmarks when Manual/Auto mode changes.
+    partial void OnCurrentAppModeChanged(string value)
+    {
+        OnPropertyChanged(nameof(IsManualModeSelected));
+        OnPropertyChanged(nameof(IsAutoModeSelected));
+        OnPropertyChanged(nameof(CanUseViewMenu));
+    }
+
+    partial void OnIsConnectedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanUseViewMenu));
+        OnPropertyChanged(nameof(CanUseModeMenu));
+    }
+
+    // Refreshes main menu state when Auto Mode starts or stops.
+    private void AutoMode_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AutoModeViewModel.IsSimulationRunning))
+        {
+            OnPropertyChanged(nameof(CanUseModeMenu));
+        }
+    }
+
+    // Handles Softwire/API failure reported by Auto Mode.
+    // Auto Mode does not own the application connection state. If it detects that Softwire became unavailable while running, MainViewModel performs the same safe disconnect used by the manual polling timers.
+    private void AutoMode_ConnectionLost(string reason)
+    {
+        HandleConnectionLost(reason);
+    }
+
 
     /*
      #############################################################################
                                 Refresh Helpers
      #############################################################################
    */
+
+    // Safely moves DoorSim back to a disconnected state.
+    //
+    // This is used when Softwire becomes unavailable while background polling is running.
+    // Without this, one of the refresh timers may hit a failed API call and crash the app.
+    //
+    // The goal is simple:
+    //      - stop all polling timers,
+    //      - mark the app as disconnected,
+    //      - re-enable Connect,
+    //      - show a clear message to the trainer.
+    //
+    // We do not try to preserve live door state here because the Softwire session is no longer trustworthy. The user can reconnect and reload fresh data.
+    private void HandleConnectionLost(string reason)
+    {
+        _connectionTimer?.Stop();
+        _selectedDoorTimer?.Stop();
+        _readerTimer?.Stop();
+
+        IsConnected = false;
+        CanConnect = true;
+
+        StatusText = "Connection lost";
+        StatusColor = new SolidColorBrush(Color.FromRgb(220, 80, 80));
+
+        MainMessage = string.IsNullOrWhiteSpace(reason)
+            ? "Connection lost. Use 'Connect' to reconnect."
+            : $"Connection lost. {reason} Use 'Connect' to reconnect.";
+    }
 
     // Refreshes the cardholder list from SQL and updates the Cardholders panel
     private async Task RefreshCardholdersAsync()
@@ -380,7 +482,7 @@ public partial class MainViewModel : ObservableObject
      #############################################################################
    */
 
-    // Starts a timer that checks connection status and refreshes doors/cardholders every 3 seconds
+    // Starts a timer that checks connection status and refreshes doors/cardholders every 3 seconds.
     private void StartConnectionMonitoring()
     {
         _connectionTimer?.Stop();
@@ -392,28 +494,21 @@ public partial class MainViewModel : ObservableObject
 
         _connectionTimer.Tick += async (s, e) =>
         {
-            // Ask service if connection is still valid
-            var stillConnected = await _softwireService.CheckConnectionAsync();
-
-            if (!stillConnected)
+            try
             {
-                // Stop timer to avoid repeated checks and background polling.
-                _connectionTimer?.Stop();
-                _selectedDoorTimer?.Stop();
-                _readerTimer?.Stop();
+                // Ask Softwire if the current connection/session is still valid.
+                var stillConnected = await _softwireService.CheckConnectionAsync();
 
-                // Reset UI to disconnected state
-                IsConnected = false;
-                CanConnect = true;
+                if (!stillConnected)
+                {
+                    HandleConnectionLost("");
+                    return;
+                }
 
-                StatusText = "Connection lost";
-                StatusColor = new SolidColorBrush(Color.FromRgb(220, 80, 80));
-
-                MainMessage = "Connection lost. Use 'Connect' to reconnect.";
-            }
-            else
-            {
-                // Connection is still valid, so refresh live data (cardholders from SQL and doors from Softwire)
+                // Connection is still valid, so refresh live data:
+                //      - cardholders from SQL,
+                //      - doors from Softwire,
+                //      - available simulated inputs for interlocking controls.
                 await RefreshCardholdersAsync();
 
                 var doorCount = await RefreshDoorsAsync();
@@ -428,6 +523,12 @@ public partial class MainViewModel : ObservableObject
                 {
                     MainMessage = $"Connected to Softwire and loaded {doorCount} doors, select a door to begin.";
                 }
+            }
+            catch
+            {
+                // If Softwire restarts or the API becomes unavailable while this timer
+                // is refreshing, disconnect safely instead of letting the app crash.
+                HandleConnectionLost("Softwire could not be reached during refresh.");
             }
         };
 
@@ -499,6 +600,9 @@ public partial class MainViewModel : ObservableObject
 
                 if (inRexState != null)
                 {
+                    // For testing - comment out when not used! Needs: using System.Diagnostics;
+                    //Debug.WriteLine($"[DoorSim DEBUG] In REX state for {targetDoors.SelectedDoor.Name}: Active={inRexState.Active}, Shunted={inRexState.IsShunted}, Path={targetDoors.SelectedDoor.RexSideInDevicePath}");
+
                     var inRexIsShunted = inRexState.IsShunted;
 
                     var inRexIsActive = inRexIsShunted
@@ -517,6 +621,9 @@ public partial class MainViewModel : ObservableObject
 
                 if (outRexState != null)
                 {
+                    // For testing - comment out when not used! Needs: using System.Diagnostics;
+                    //Debug.WriteLine($"[DoorSim DEBUG] Out REX state for {targetDoors.SelectedDoor.Name}: Active={outRexState.Active}, Shunted={outRexState.IsShunted}, Path={targetDoors.SelectedDoor.RexSideOutDevicePath}");
+
                     var outRexIsShunted = outRexState.IsShunted;
 
                     var outRexIsActive = outRexIsShunted
@@ -535,6 +642,9 @@ public partial class MainViewModel : ObservableObject
 
                 if (noSideRexState != null)
                 {
+                    // For testing - comment out when not used! Needs: using System.Diagnostics;
+                    //Debug.WriteLine($"[DoorSim DEBUG] No-side REX state for {targetDoors.SelectedDoor.Name}: Active={noSideRexState.Active}, Shunted={noSideRexState.IsShunted}, Path={targetDoors.SelectedDoor.RexNoSideDevicePath}");
+
                     var noSideRexIsShunted = noSideRexState.IsShunted;
 
                     var noSideRexIsActive = noSideRexIsShunted
@@ -553,6 +663,9 @@ public partial class MainViewModel : ObservableObject
 
                 if (breakGlassState != null)
                 {
+                    // For testing - comment out when not used! Needs: using System.Diagnostics;
+                    //Debug.WriteLine($"[DoorSim DEBUG] Breakglass state for {targetDoors.SelectedDoor.Name}: Active={breakGlassState.Active}, Shunted={breakGlassState.IsShunted}, Path={targetDoors.SelectedDoor.BreakGlassDevicePath}");
+
                     var breakGlassIsShunted = breakGlassState.IsShunted;
 
                     var breakGlassIsActive = breakGlassIsShunted
@@ -573,7 +686,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    // Starts a fast timer to refresh the selected door state every second
+    // Starts a fast timer to refresh the selected door state every second.
     private void StartSelectedDoorMonitoring()
     {
         _selectedDoorTimer?.Stop();
@@ -604,6 +717,13 @@ public partial class MainViewModel : ObservableObject
                 {
                     await RefreshSelectedDoorStateAsync(Doors);
                 }
+            }
+            catch
+            {
+                // If Softwire restarts or becomes unavailable while this timer is
+                // refreshing door hardware state, disconnect safely instead of
+                // letting the app crash.
+                HandleConnectionLost("Softwire could not be reached while refreshing door hardware state.");
             }
             finally
             {
@@ -697,6 +817,13 @@ public partial class MainViewModel : ObservableObject
                 {
                     await RefreshReaderStateAsync(Doors);
                 }
+            }
+            catch
+            {
+                // If Softwire restarts or becomes unavailable while this timer is
+                // refreshing reader state, disconnect safely instead of letting the
+                // app crash.
+                HandleConnectionLost("Softwire could not be reached while refreshing reader state.");
             }
             finally
             {
@@ -823,6 +950,21 @@ public partial class MainViewModel : ObservableObject
         TwoDoor.PrepareFromSingleDoorSelection(Doors.SelectedDoor);
 
         CurrentViewMode = "TwoDoor";
+    }
+
+    // The below both control the switch between manual mode and auto mode.
+    // Note: this does not change CurrentViewMode. So if you were in Two Door View, switch to Auto Mode, then switch back to Manual Mode, you should still be in Two Door View.
+
+    [RelayCommand]
+    private void ShowManualMode()
+    {
+        CurrentAppMode = "Manual";
+    }
+
+    [RelayCommand]
+    private void ShowAutoMode()
+    {
+        CurrentAppMode = "Auto";
     }
 
 }

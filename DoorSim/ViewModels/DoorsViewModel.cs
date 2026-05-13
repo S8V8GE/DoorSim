@@ -388,11 +388,11 @@ public partial class DoorsViewModel : ObservableObject
             if (!SelectedDoor.HasRexSideIn)
                 return "";
 
-            if (!string.IsNullOrWhiteSpace(InRexDecisionText))
-                return InRexDecisionText;
-
             if (SelectedDoor.RexSideInIsShunted)
                 return "Shunted";
+
+            if (!string.IsNullOrWhiteSpace(InRexDecisionText))
+                return InRexDecisionText;
 
             return SelectedDoor.RexSideInIsActive ? "Active" : "Normal";
         }
@@ -408,11 +408,11 @@ public partial class DoorsViewModel : ObservableObject
             if (!SelectedDoor.HasRexSideOut)
                 return "";
 
-            if (!string.IsNullOrWhiteSpace(OutRexDecisionText))
-                return OutRexDecisionText;
-
             if (SelectedDoor.RexSideOutIsShunted)
                 return "Shunted";
+
+            if (!string.IsNullOrWhiteSpace(OutRexDecisionText))
+                return OutRexDecisionText;
 
             return SelectedDoor.RexSideOutIsActive ? "Active" : "Normal";
         }
@@ -428,11 +428,11 @@ public partial class DoorsViewModel : ObservableObject
             if (!SelectedDoor.HasRexNoSide)
                 return "";
 
-            if (!string.IsNullOrWhiteSpace(NoSideRexDecisionText))
-                return NoSideRexDecisionText;
-
             if (SelectedDoor.RexNoSideIsShunted)
                 return "Shunted";
+
+            if (!string.IsNullOrWhiteSpace(NoSideRexDecisionText))
+                return NoSideRexDecisionText;
 
             return SelectedDoor.RexNoSideIsActive ? "Active" : "Normal";
         }
@@ -609,14 +609,14 @@ public partial class DoorsViewModel : ObservableObject
             if (SelectedDoor == null)
                 return NeutralBrush;
 
+            if (SelectedDoor.RexSideInIsShunted)
+                return WarningBrush;
+
             if (InRexDecisionText == "Access granted")
                 return GoodBrush;
 
             if (InRexDecisionText == "Access denied")
                 return BadBrush;
-
-            if (SelectedDoor.RexSideInIsShunted)
-                return WarningBrush;
 
             return SelectedDoor.RexSideInIsActive ? BadBrush : GoodBrush;
         }
@@ -629,14 +629,14 @@ public partial class DoorsViewModel : ObservableObject
             if (SelectedDoor == null)
                 return NeutralBrush;
 
+            if (SelectedDoor.RexSideOutIsShunted)
+                return WarningBrush;
+
             if (OutRexDecisionText == "Access granted")
                 return GoodBrush;
 
             if (OutRexDecisionText == "Access denied")
                 return BadBrush;
-
-            if (SelectedDoor.RexSideOutIsShunted)
-                return WarningBrush;
 
             return SelectedDoor.RexSideOutIsActive ? BadBrush : GoodBrush;
         }
@@ -649,14 +649,14 @@ public partial class DoorsViewModel : ObservableObject
             if (SelectedDoor == null)
                 return NeutralBrush;
 
+            if (SelectedDoor.RexNoSideIsShunted)
+                return WarningBrush;
+
             if (NoSideRexDecisionText == "Access granted")
                 return GoodBrush;
 
             if (NoSideRexDecisionText == "Access denied")
                 return BadBrush;
-
-            if (SelectedDoor.RexNoSideIsShunted)
-                return WarningBrush;
 
             return SelectedDoor.RexNoSideIsActive ? BadBrush : GoodBrush;
         }
@@ -783,9 +783,9 @@ public partial class DoorsViewModel : ObservableObject
             if (!SelectedDoor.HasRexSideOut)
                 return "";
 
-            if (SelectedDoor.RexSideInIsShunted)
+            if (SelectedDoor.RexSideOutIsShunted)
             {
-                return SelectedDoor.RexSideInIsActive
+                return SelectedDoor.RexSideOutIsActive
                     ? "Out REX is shunted - Release Out REX"
                     : "Out REX is shunted - Press Out REX";
             }
@@ -806,9 +806,9 @@ public partial class DoorsViewModel : ObservableObject
             if (!SelectedDoor.HasRexNoSide)
                 return "";
 
-            if (SelectedDoor.RexSideInIsShunted)
+            if (SelectedDoor.RexNoSideIsShunted)
             {
-                return SelectedDoor.RexSideInIsActive
+                return SelectedDoor.RexNoSideIsActive
                     ? "REX is shunted - Release REX"
                     : "REX is shunted - Press REX";
             }

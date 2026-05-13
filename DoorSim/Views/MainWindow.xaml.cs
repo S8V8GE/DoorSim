@@ -28,50 +28,84 @@ public partial class MainWindow : Window
 
         DataContext = mainViewModel;
 
-        // Listen for view mode changes so the window can jump between the fixed Single Door and Two Door sizes. 
+        // Listen for mode/view changes so the window can jump between fixed Manual and Auto sizes.
         mainViewModel.PropertyChanged += MainViewModel_PropertyChanged;
 
-        // Apply the starting Single Door size.
-        ApplyWindowSizeForViewMode(mainViewModel.CurrentViewMode);
+        // Apply the starting window size.
+        ApplyWindowSizeForCurrentMode(mainViewModel);
     }
 
-    // Handles property changes from MainViewModel. We only care when CurrentViewMode changes.
+    // Handles property changes from MainViewModel.
+    //
+    // Window size depends on:
+    //      - CurrentAppMode: Manual or Auto
+    //      - CurrentViewMode: SingleDoor or TwoDoor
+    //
+    // Auto Mode always uses the compact window size.
+    // Manual Mode uses the Single Door or Two Door size as normal.
     private void MainViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(MainViewModel.CurrentViewMode))
+        if (e.PropertyName != nameof(MainViewModel.CurrentAppMode) &&
+            e.PropertyName != nameof(MainViewModel.CurrentViewMode))
+        {
             return;
+        }
 
         if (sender is not MainViewModel vm)
             return;
 
-        ApplyWindowSizeForViewMode(vm.CurrentViewMode);
+        ApplyWindowSizeForCurrentMode(vm);
     }
 
-    // Applies fixed window sizes for each main view mode.
-    //      Single Door: current compact app width
-    //      Two Door: wider layout so two interactive door panels can sit side by side
-    private void ApplyWindowSizeForViewMode(string viewMode)
+    // Applies the fixed window size for the current app mode.
+    //
+    // Manual Mode:
+    //      - Single Door uses the compact size.
+    //      - Two Door uses the wider layout.
+    //
+    // Auto Mode:
+    //      - Always uses the compact size.
+    //      - It does not change CurrentViewMode, so returning to Manual Mode restores
+    //        whichever manual view was previously selected.
+    private void ApplyWindowSizeForCurrentMode(MainViewModel vm)
     {
-        if (viewMode == "TwoDoor")
+        if (vm.CurrentAppMode == "Auto")
         {
-            Width = 1600;
-            MinWidth = 1600;
-            MaxWidth = 1600;
-
-            Height = 800;
-            MinHeight = 800;
-            MaxHeight = 800;
+            ApplyCompactWindowSize();
+            return;
         }
-        else
+
+        if (vm.CurrentViewMode == "TwoDoor")
         {
-            Width = 800;
-            MinWidth = 800;
-            MaxWidth = 800;
-
-            Height = 800;
-            MinHeight = 800;
-            MaxHeight = 800;
+            ApplyTwoDoorWindowSize();
+            return;
         }
+
+        ApplyCompactWindowSize();
+    }
+
+    // Applies the compact fixed window size used by Single Door View and Auto Mode.
+    private void ApplyCompactWindowSize()
+    {
+        Width = 800;
+        MinWidth = 800;
+        MaxWidth = 800;
+
+        Height = 800;
+        MinHeight = 800;
+        MaxHeight = 800;
+    }
+
+    // Applies the wide fixed window size used by Two Door View.
+    private void ApplyTwoDoorWindowSize()
+    {
+        Width = 1600;
+        MinWidth = 1600;
+        MaxWidth = 1600;
+
+        Height = 800;
+        MinHeight = 800;
+        MaxHeight = 800;
     }
 
     // Opens the DoorSim help guide.

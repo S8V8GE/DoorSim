@@ -1,0 +1,547 @@
+DoorSim Project Map
+===================
+
+Purpose
+-------
+DoorSim is a WPF desktop training/demo tool for interacting with Genetec Softwire simulated access control doors.
+
+It is designed for local/training Softwire environments only. It is not intended for production access control systems.
+
+DoorSim supports:
+	- Manual single-door simulation
+	- Manual two-door simulation
+	- Cardholder drag/drop onto readers
+	- PIN and Card + PIN testing
+	- REX, breakglass/manual station, and door sensor interaction
+	- Auto-enrolment (in manual mode)
+	- Interlocking override/lockdown input controls
+	- Auto Mode busy-site simulation
+	- Forced-door and held-open event generation
+	- Help/About windows
+
+
+Project Folders
+===============
+
+Help
+----
+Contains user-facing help/documentation files.
+
+Files:
+	- DoorSim_UserGuide.pdf
+		This is the bundled user guide opened from the Help menu in DoorSim.
+
+
+Images
+------
+Contains image assets used by the application UI.
+
+Typical contents include:
+	- App icon
+	- Door hardware images
+	- Reader/card images
+	- REX/breakglass/manual station images
+	- LinkedIn/About window image assets
+
+
+Sounds
+------
+Contains sound files used by DoorSim.
+
+Files currently include:
+	- Reader beep sound
+	- Optional/easter-egg related sounds
+
+
+Models
+======
+
+AutoSimulationLogEntry.cs
+-------------------------
+Represents one row in the Auto Mode event log.
+
+Used for:
+	- Time text
+	- Event number text
+	- Log level
+	- Event type
+	- Door name
+	- Message text
+	- Separator rows between event groups
+	- Colour-coding log levels such as Info, Success, Warning, and Error
+
+
+Cardholder.cs
+-------------
+Represents a cardholder loaded from the Genetec Directory database.
+
+Used for:
+	- Displaying cardholders in the UI (manual-mode)
+	- Drag/drop card presentation
+	- Auto Mode cardholder selection
+	- Card-only and Card + PIN simulation
+
+Important fields include:
+	- Cardholder name
+	- Credential/card value
+	- Trimmed credential
+	- Bit count
+	- PIN availability (HasPin)
+
+
+CredentialFormatResult.cs
+-------------------------
+Represents the result of credential parsing/formatting.
+
+Used by CredentialFormatService when converting card values into the format needed for Softwire reader simulation/auto-enrolment.
+
+
+InputState.cs
+-------------
+Represents the state of a simulated Softwire input.
+
+Used for:
+	- Door sensor state
+	- REX state
+	- Breakglass/manual station state
+	- Interlocking input state
+
+Typical state includes:
+	- Active/inactive
+	- Shunted/not shunted
+
+
+ReaderState.cs
+--------------
+Represents the state of a Softwire reader.
+
+Used for:
+	- Reader online/offline state
+	- Reader shunted state
+	- Reader LED colour/status
+
+
+SimulatedInput.cs
+-----------------
+Represents a generic simulated input discovered from Softwire sim devices.
+
+Used mainly by the Door Interlocking Controls area, where any available simulated input may be used for override/lockdown testing.
+
+
+SoftwireDoor.cs
+---------------
+Represents a Softwire door and its related hardware/configuration.
+
+This is one of the core models in DoorSim.
+
+Used for:
+	- Door display
+	- Reader paths
+	- REX paths
+	- Door sensor path/state
+	- Breakglass/manual station path/state
+	- Lock state
+	- Last access decision
+	- Forced-door settings
+	- Held-open settings
+	- Card + PIN reader settings
+	- Auto Mode door/candidate selection
+
+Important note:
+Softwire may display some states differently in the UI than in the API. DoorSim handles these differences where required.
+
+
+Services
+========
+
+CardholderSqlService.cs
+-----------------------
+Loads cardholders and credentials from the Genetec Directory SQL database.
+
+Used by MainViewModel to refresh the shared cardholder list.
+
+The loaded cardholders are passed into CardholdersViewModel and also made available to Auto Mode.
+
+
+CredentialFormatService.cs
+--------------------------
+Handles credential formatting/parsing logic.
+
+Used when DoorSim needs to convert cardholder credential data into the format expected by Softwire reader simulation methods.
+
+
+ISoftwireService.cs
+-------------------
+Interface for SoftwireService.
+
+Used so ViewModels can depend on an abstraction rather than directly depending on the concrete SoftwireService implementation.
+
+
+SoftwireService.cs
+------------------
+Main service for communicating with the Softwire HTTP API.
+
+Used for:
+	- Logging in / checking connection
+	- Loading doors
+	- Loading devices/simulated inputs
+	- Reading input states
+	- Setting input states
+	- Reading reader states
+	- Swiping raw card credentials
+	- Sending Wiegand/PIN values
+
+Important note:
+This service is intended for local/training/demo Softwire environments. Certificate handling and API usage should not be treated as production security design!
+
+
+SoundService.cs
+---------------
+Centralised service for playing DoorSim sounds.
+
+Used for:
+	- Reader credential beep
+	- Access granted sound
+	- Access denied sound
+	- Optional/easter-egg sounds
+
+Keeping audio here prevents sound logic being scattered across multiple ViewModels.
+
+
+ViewModels
+==========
+
+AutoModeViewModel.cs
+--------------------
+ViewModel for Auto Mode.
+
+Responsible for:
+	- Auto Mode settings
+	- Event profile percentages
+	- Start/stop/clear commands
+	- Running counters
+	- Event log entries
+	- Random event selection
+	- Retry guard
+	- Door reservation tracking
+	- Normal access events
+	- Forced-door events
+	- Held-open events
+	- Cleanup of held-open doors
+
+Auto Mode can generate:
+	- Normal reader/cardholder events
+	- Normal Card + PIN events
+	- Normal REX events
+	- Forced-door events
+	- Held-open reader events
+	- Held-open REX events
+
+Important design:
+Auto Mode does not own SoftwireService directly. MainViewModel passes it safe callbacks for the specific operations it needs.
+
+
+CardholdersViewModel.cs
+-----------------------
+ViewModel for the cardholder list/panel (in manual-mode only).
+
+Responsible for:
+	- Holding loaded cardholders
+	- Displaying/searching cardholders
+	- Supporting drag/drop cardholder actions onto readers
+
+
+DoorInterlockingControlsViewModel.cs
+------------------------------------
+ViewModel for the interlocking controls area in Two Door View (manual-mode).
+
+Responsible for:
+	- Loading available simulated inputs
+	- Selecting override/lockdown inputs
+	- Setting selected inputs Active/Inactive
+	- Handling the API/UI difference where Softwire may display Normal but the API expects Inactive
+
+
+DoorPanelViewModel.cs
+---------------------
+ViewModel for a single interactive door panel (manual-mode).
+
+Used by:
+	- Single Door View
+	- Left panel in Two Door View
+	- Right panel in Two Door View
+
+Responsible for:
+	- Selected door state
+	- Door sensor interaction
+	- REX interaction
+	- Breakglass/manual station interaction
+	- Reader/card/PIN actions
+	- Reader feedback text
+	- Reader LED/status display
+	- Auto-enrol actions
+	- Hardware button/image state
+
+
+DoorsViewModel.cs
+-----------------
+ViewModel for a set of doors and one selected door/panel state.
+
+Used by:
+	- Single Door View
+	- DoorPanelViewModel
+	- Two Door left/right panel states
+
+Responsible for:
+	- Loaded door list
+	- Selected door
+	- Door search/selection
+	- Reader/cardholder actions
+	- Door/REX/breakglass/manual station commands
+	- Updating live door state from Softwire refreshes
+
+
+MainViewModel.cs
+----------------
+Main application ViewModel and coordinator.
+
+Responsible for:
+	- Softwire connection state
+	- Status bar text/colour
+	- Main message text
+	- View mode selection
+	- Manual Mode / Auto Mode switching
+	- Creating and wiring child ViewModels
+	- Loading doors/cardholders/interlocking inputs
+	- Starting refresh timers
+	- Polling selected door hardware state
+	- Polling reader state
+	- Matching reader actions to Softwire access decisions
+	- Passing safe callbacks into AutoModeViewModel
+
+Important design:
+MainViewModel owns the services. Child ViewModels receive either data or narrow callbacks rather than owning service/session logic themselves.
+
+
+TwoDoorViewModel.cs
+-------------------
+ViewModel for Two Door View.
+
+Responsible for:
+	- Managing the left door panel
+	- Managing the right door panel
+	- Sharing the same cardholder list
+	- Managing interlocking controls
+	- Preserving independent left/right door state
+	- Preventing the same door from being selected on both sides where appropriate
+
+
+Views
+=====
+
+AboutWindow.xaml / AboutWindow.xaml.cs
+--------------------------------------
+Custom About window.
+
+Displays:
+	- DoorSim name
+	- Version
+	- Author
+	- Disclaimer
+	- Project description
+	- LinkedIn/profile link
+	- Application image/icon
+
+The code-behind handles clickable external links.
+
+
+AppMessageWindow.xaml / AppMessageWindow.xaml.cs
+------------------------------------------------
+Small custom message window used by DoorSim where a styled app-specific message is preferred over a standard MessageBox.
+
+
+AutoEnrollCardWindow.xaml / AutoEnrollCardWindow.xaml.cs
+--------------------------------------------------------
+Window used for auto-enrol credential generation.
+
+Allows a trainer/user to generate or present a new credential value for enrolment/testing.
+
+
+AutoModeView.xaml / AutoModeView.xaml.cs
+----------------------------------------
+View for Auto Mode.
+
+XAML provides:
+	- Simulation settings
+	- Start/stop/clear controls
+	- Running summary
+	- Event profile percentages
+	- Executed event counters
+	- Scrollable event log
+
+Code-behind provides lightweight UI input filtering for numeric fields.
+Simulation logic lives in AutoModeViewModel.
+
+
+CardholdersView.xaml / CardholdersView.xaml.cs
+----------------------------------------------
+View for the cardholder panel.
+
+Displays loaded cardholders and supports drag/drop onto readers.
+
+
+ConnectWindow.xaml / ConnectWindow.xaml.cs
+------------------------------------------
+Connection dialog shown when the user clicks Connect.
+
+Collects:
+	- Hostname
+	- Password
+
+MainViewModel uses these details to attempt login to Softwire.
+
+
+DoorInterlockingControlsView.xaml / DoorInterlockingControlsView.xaml.cs
+------------------------------------------------------------------------
+View for interlocking override/lockdown controls.
+
+Allows the user to select simulated inputs and set them Active/Inactive for interlocking testing.
+
+
+DoorPanelSelectorView.xaml / DoorPanelSelectorView.xaml.cs
+----------------------------------------------------------
+Selector view used around door panel selection.
+
+Helps support selecting doors in panel-based layouts, especially Two Door View.
+
+
+DoorPanelView.xaml / DoorPanelView.xaml.cs
+------------------------------------------
+Reusable interactive door panel view.
+
+Used by both Single Door and Two Door layouts.
+
+Displays and controls:
+	- Door lock/sensor state
+	- In/Out/No-side REX
+	- Breakglass/manual station
+	- In/Out readers
+	- PIN/Card + PIN behaviour
+	- Reader feedback
+	- Hardware images/buttons
+
+
+DoorSelectorView.xaml / DoorSelectorView.xaml.cs
+------------------------------------------------
+Door selector view used in Single Door View.
+
+Allows the user to choose which Softwire door to interact with.
+
+
+MainWindow.xaml / MainWindow.xaml.cs
+------------------------------------
+Main application window.
+
+XAML provides:
+	- Top menu
+	- Manual/Auto mode switching
+	- Single Door / Two Door view switching
+	- Help/About menu items
+	- Status bar
+	- Main content hosting
+
+Code-behind:
+	- Creates MainViewModel
+	- Applies fixed window sizes for Single Door, Two Door, and Auto Mode layouts
+	- Opens the Help PDF
+	- Opens the About window
+
+
+PinEntryWindow.xaml / PinEntryWindow.xaml.cs
+--------------------------------------------
+Window used when a reader requires PIN or Card + PIN input.
+
+Allows the trainer/user to enter a PIN value and send it to the selected reader.
+
+
+SearchableSelectorView.xaml / SearchableSelectorView.xaml.cs
+------------------------------------------------------------
+Reusable searchable selector control.
+
+Created to avoid issues with editable ComboBox refresh/flicker.
+
+Used where DoorSim needs a searchable selection list that remains stable while data refreshes in the background.
+
+
+SingleDoorView.xaml / SingleDoorView.xaml.cs
+--------------------------------------------
+Manual single-door layout.
+
+Hosts:
+	- One selected door/panel
+	- Manual interaction controls through DoorPanelView
+
+
+TwoDoorView.xaml / TwoDoorView.xaml.cs
+--------------------------------------
+Manual two-door layout.
+
+Hosts:
+	- Left DoorPanelView
+	- Right DoorPanelView
+	- Shared cardholder panel
+	- Door interlocking controls
+
+Used for testing scenarios involving two doors, interlocking, lockdown/override inputs, and side-by-side comparison.
+
+
+Developer Notes
+===============
+
+Polling
+-------
+DoorSim uses multiple timers:
+	- Slow connection/data refresh
+	- Selected door hardware refresh
+	- Fast reader state refresh
+
+Reader polling is faster because LED/status changes can be brief.
+
+Door State
+----------
+DoorSim keeps selected door state separate from the full refreshed door list so the UI does not flicker or lose the selected door during background refreshes.
+
+Two Door View
+-------------
+Two Door View keeps left and right door panel state independent. When moving from Single Door View to Two Door View, the current single-door selection is carried into the left panel. When returning from Two Door View to Single Door View, the left panel state is carried back (the RHS panel always starts blank/empty).
+
+Auto Mode
+---------
+Auto Mode generates real Softwire simulation events using callbacks supplied by MainViewModel. It deliberately avoids directly owning SoftwireService.
+
+Held-open events reserve doors while their sensors are left open. 
+This prevents another automated event from selecting the same door and accidentally interrupting the held-open scenario.
+
+If a reserved door disappears from Softwire, DoorSim releases the reservation and continues cleanly.
+
+Input States
+------------
+Softwire UI names and API state names may not always match. DoorSim generally uses the state values expected by the API when setting simulated inputs.
+
+Shunted Inputs
+--------------
+When an input is shunted, Softwire may not report Active in the usual way. 
+DoorSim preserves the local visual state where needed so the trainer can still understand what was done in the UI.
+
+
+Potential Public Release Checks
+===============================
+
+Before making the repository public:
+	- Review/remove any copyrighted audio
+	- Add/update README
+	- Add licence
+	- Confirm no internal-only information is included
+	- Confirm help guide and About disclaimer are final
+	- Confirm package/release workflow
+	- Test installer/deployment approach

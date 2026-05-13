@@ -5,7 +5,8 @@
         - Overall application shell layout
         - Top navigation menu
         - Status bar
-        - Hosting either Single Door View or Two Door View
+        - Hosting Manual Mode views and Auto Mode
+        - Switching between Single Door, Two Door, and Auto Mode content
 
     Behaviour and state are provided by MainViewModel.
 -->
@@ -72,8 +73,9 @@
 
                 Contains:
                     - Connect → triggers connection to Softwire
-                    - View → switches between single/two door views (enabled only when connected)
-                    - Help/About → informational views
+                    - Mode → switches between Manual Mode and Auto Mode
+                    - View → switches between Single Door and Two Door manual layouts
+                    - Help/About → help guide and application information
 
                 Visibility and behaviour controlled via MainViewModel bindings.
             -->
@@ -94,6 +96,26 @@
                               Command="{Binding ConnectCommand}"
                               IsEnabled="{Binding CanConnect}"/>
 
+                    <!--    
+                        Mode selection:
+                            - Switches between Manual Mode and Auto Mode
+                            - Shows a check mark beside the active mode
+                    -->
+                    <MenuItem Header="_Mode"
+                              IsEnabled="{Binding CanUseModeMenu}">
+
+                        <MenuItem Header="_Manual Mode"
+                                  IsCheckable="True"
+                                  IsChecked="{Binding IsManualModeSelected, Mode=OneWay}"
+                                  Command="{Binding ShowManualModeCommand}"/>
+
+                        <MenuItem Header="_Auto Mode"
+                                  IsCheckable="True"
+                                  IsChecked="{Binding IsAutoModeSelected, Mode=OneWay}"
+                                  Command="{Binding ShowAutoModeCommand}"/>
+
+                    </MenuItem>
+
                     <!--
                         View selection:
                             - Switches between Single Door and Two Door layouts
@@ -101,7 +123,7 @@
                             - Enabled only when connected to Softwire
                     -->
                     <MenuItem Header="_View"
-                              IsEnabled="{Binding IsConnected}">
+                              IsEnabled="{Binding CanUseViewMenu}">
 
                         <MenuItem Header="_Single Door"
                                   IsCheckable="True"
@@ -115,7 +137,7 @@
 
                     </MenuItem>
 
-                    <!-- menu items for help/documentation. -->
+                    <!-- Help/documentation and About window. -->
                     <MenuItem Header="_Help"
                               Click="HelpMenuItem_Click"/>
                     
@@ -165,11 +187,13 @@
             <!--
                 Main content area.
 
-                Hosts either:
-                    - Single Door layout
-                    - Two Door layout
+                Hosts one of:
+                    - Single Door manual layout
+                    - Two Door manual layout
+                    - Auto Mode layout
 
-                The View menu controls which layout is visible.
+                The Mode menu controls Manual vs Auto.
+                The View menu controls Single Door vs Two Door while in Manual Mode.
             -->
             <Grid>
 
@@ -182,26 +206,40 @@
                         - Shared cardholders panel
                 -->
                 <Grid>
-                    
+
                     <Grid.Style>
-                        
+
                         <Style TargetType="Grid">
-                            
+
                             <Setter Property="Visibility" Value="Collapsed"/>
 
                             <Style.Triggers>
-                                
-                                <DataTrigger Binding="{Binding IsSingleDoorViewSelected}"
-                                             Value="True">
+
+                                <!--
+                                    Show Single Door layout only when:
+                                        - app is in Manual Mode
+                                        - Single Door View is selected
+                                -->
+                                <MultiDataTrigger>
                                     
+                                    <MultiDataTrigger.Conditions>
+                                        
+                                        <Condition Binding="{Binding CurrentAppMode}"
+                                                   Value="Manual"/>
+
+                                        <Condition Binding="{Binding IsSingleDoorViewSelected}"
+                                                   Value="True"/>
+                                        
+                                    </MultiDataTrigger.Conditions>
+
                                     <Setter Property="Visibility" Value="Visible"/>
                                     
-                                </DataTrigger>
-                                
+                                </MultiDataTrigger>
+
                             </Style.Triggers>
-                            
+
                         </Style>
-                        
+
                     </Grid.Style>
 
                     <Grid.RowDefinitions>
@@ -317,29 +355,74 @@
                         - Door interlocking controls area
                 -->
                 <views:TwoDoorView DataContext="{Binding TwoDoor}">
-                    
+
                     <views:TwoDoorView.Style>
-                        
+
                         <Style TargetType="views:TwoDoorView">
-                            
+
                             <Setter Property="Visibility" Value="Collapsed"/>
 
                             <Style.Triggers>
-                                
-                                <DataTrigger Binding="{Binding DataContext.IsTwoDoorViewSelected, RelativeSource={RelativeSource AncestorType=Window}}"
-                                             Value="True">
+
+                                <!--
+                                    Show Two Door layout only when:
+                                        - app is in Manual Mode
+                                        - Two Door View is selected
+                                -->
+                                <MultiDataTrigger>
                                     
+                                    <MultiDataTrigger.Conditions>
+                                        
+                                        <Condition Binding="{Binding DataContext.CurrentAppMode, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                   Value="Manual"/>
+
+                                        <Condition Binding="{Binding DataContext.IsTwoDoorViewSelected, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                   Value="True"/>
+                                        
+                                    </MultiDataTrigger.Conditions>
+
                                     <Setter Property="Visibility" Value="Visible"/>
                                     
-                                </DataTrigger>
-                                
+                                </MultiDataTrigger>
+
                             </Style.Triggers>
-                            
+
                         </Style>
-                        
+
                     </views:TwoDoorView.Style>
-                    
+
                 </views:TwoDoorView>
+
+                <!--
+                    Auto Mode layout.
+
+                    Hosts the automated busy-site simulation controls, running summary, and event log. 
+                    It is shown only when Mode > Auto Mode is selected.
+                -->
+                <views:AutoModeView DataContext="{Binding AutoMode}">
+
+                    <views:AutoModeView.Style>
+
+                        <Style TargetType="views:AutoModeView">
+
+                            <Setter Property="Visibility" Value="Collapsed"/>
+
+                            <Style.Triggers>
+
+                                <DataTrigger Binding="{Binding DataContext.CurrentAppMode, RelativeSource={RelativeSource AncestorType=Window}}"
+                                             Value="Auto">
+
+                                    <Setter Property="Visibility" Value="Visible"/>
+
+                                </DataTrigger>
+
+                            </Style.Triggers>
+
+                        </Style>
+
+                    </views:AutoModeView.Style>
+
+                </views:AutoModeView>
 
             </Grid>
 
