@@ -6,6 +6,11 @@
 # It checks required local services, enables Softwire simulation if needed, copies
 # the DoorSim application files, and creates a desktop shortcut.
 
+param(
+    [switch]$Silent,
+    [string]$LogPath = "C:\Genetec\DoorSim_Install.log"
+)
+
 $ErrorActionPreference = "Stop"
 
 $InstallRoot = "C:\Genetec"
@@ -26,31 +31,54 @@ $ShortcutPath = Join-Path ([Environment]::GetFolderPath("CommonDesktopDirectory"
 $InstalledExePath = Join-Path $InstallPath "DoorSim.exe"
 $InstalledIconPath = Join-Path $InstallPath "Images\AppIcon.ico"
 
+function Write-Log {
+    param(
+        [string]$Message,
+        [string]$Level = "INFO"
+    )
+
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $line = "[$timestamp] [$Level] $Message"
+
+    Add-Content -Path $LogPath -Value $line
+
+    if (-not $Silent) {
+        switch ($Level) {
+            "OK"      { Write-Host $Message -ForegroundColor Green }
+            "WARN"    { Write-Host $Message -ForegroundColor Yellow }
+            "ERROR"   { Write-Host $Message -ForegroundColor Red }
+            "STEP"    { Write-Host ""; Write-Host $Message -ForegroundColor Cyan }
+            default   { Write-Host $Message }
+        }
+    }
+}
+
 function Write-Step {
     param([string]$Message)
-    Write-Host ""
-    Write-Host $Message -ForegroundColor Cyan
+    Write-Log $Message "STEP"
 }
 
 function Write-Ok {
     param([string]$Message)
-    Write-Host "OK: $Message" -ForegroundColor Green
+    Write-Log "OK: $Message" "OK"
 }
 
 function Write-Warn {
     param([string]$Message)
-    Write-Host "WARNING: $Message" -ForegroundColor Yellow
+    Write-Log "WARNING: $Message" "WARN"
 }
 
 function Stop-Install {
     param([string]$Message)
 
-    Write-Host ""
-    Write-Host "INSTALLATION STOPPED" -ForegroundColor Red
-    Write-Host $Message -ForegroundColor Red
-    Write-Host ""
-    Write-Host "Press Enter to close this window..."
-    Read-Host | Out-Null
+    Write-Log "INSTALLATION STOPPED: $Message" "ERROR"
+
+    if (-not $Silent) {
+        Write-Host ""
+        Write-Host "Press Enter to close this window..."
+        Read-Host | Out-Null
+    }
+
     exit 1
 }
 
@@ -174,11 +202,14 @@ $shortcut.Save()
 
 Write-Ok "Desktop shortcut created: $ShortcutPath"
 
-Write-Host ""
-Write-Host "DoorSim installation completed successfully." -ForegroundColor Green
-Write-Host ""
-Write-Host "Installed to: $InstallPath"
-Write-Host "Shortcut:     $ShortcutPath"
-Write-Host ""
-Write-Host "Press Enter to close this window..."
-Read-Host | Out-Null
+Write-Log "DoorSim installation completed successfully." "OK"
+Write-Log "Installed to: $InstallPath"
+Write-Log "Shortcut: $ShortcutPath"
+
+if (-not $Silent) {
+    Write-Host ""
+    Write-Host "Press Enter to close this window..."
+    Read-Host | Out-Null
+}
+
+exit 0
