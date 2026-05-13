@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+	<ApplicationIcon>Images\AppIcon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -41,7 +42,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Resource Include="Images\AppIcon.ico" />
+    <Content Include="Images\AppIcon.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Resource Include="Images\Breakglass_Active.png" />
     <Resource Include="Images\Breakglass_Normal.png" />
     <Resource Include="Images\Credential.png" />
