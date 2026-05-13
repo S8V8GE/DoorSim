@@ -176,3 +176,59 @@ ViewModels/
 
 Views/
     WPF windows and user controls
+```
+For a more detailed developer-focused file map, see: ```Help/DoorSim_Project_Map.txt```
+
+---
+
+## Known Limitations
+
+DoorSim is designed for simulation and training environments only.
+
+Known considerations:
+
+- DoorSim expects Softwire, Security Center, and SQL to be available on the same server.
+- DoorSim is not designed for production access control systems.
+- If Softwire is stopped or restarted during use, DoorSim will safely return to a reconnect state where possible.
+- Some Softwire/Security Center states may persist after deleting and recreating doors. For example, REX or breakglass inputs may remain reported as shunted until maintenance mode is toggled in Security Desk.
+- Auto Mode relies on the current door, cardholder, and Softwire configuration. If no suitable doors or cardholders exist, Auto Mode will retry and eventually stop using its retry guard.
+
+---
+
+## Reporting Issues
+
+Please report bugs, problems, or improvement ideas using GitHub Issues:
+
+[Report an issue](https://github.com/S8V8GE/DoorSim/issues)
+
+When reporting an issue, please include:
+
+- DoorSim version
+- Security Center / Softwire version if known
+- What you were trying to do
+- What happened
+- What you expected to happen
+- Screenshots or log output if available
+- Whether the issue occurred in Manual Mode or Auto Mode
+
+---
+
+## Source Code
+
+The source code is available here:
+
+[https://github.com/S8V8GE/DoorSim](https://github.com/S8V8GE/DoorSim)
+
+---
+
+## License
+
+DoorSim is released under the MIT License.
+
+See the [LICENSE](LICENSE) file for details.
+
+---
+
+## Author
+
+Created by **James Savage**.
