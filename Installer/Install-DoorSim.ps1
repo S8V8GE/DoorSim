@@ -94,8 +94,10 @@ function Get-ServiceOrNull {
     return Get-Service -Name $Name -ErrorAction SilentlyContinue
 }
 
-Write-Host "DoorSim Installer" -ForegroundColor Cyan
-Write-Host "=================" -ForegroundColor Cyan
+if (-not $Silent) {
+    Write-Host "DoorSim Installer" -ForegroundColor Cyan
+    Write-Host "=================" -ForegroundColor Cyan
+}
 
 Write-Step "Checking administrator permissions..."
 if (-not (Test-IsAdministrator)) {
