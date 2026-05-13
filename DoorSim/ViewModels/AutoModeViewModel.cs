@@ -8,7 +8,7 @@ namespace DoorSim.ViewModels;
 
 // ViewModel for Auto Mode.
 // ------------------------
-// Auto Mode generates automated access-control activity against a connected Softwire simulation environment.
+// Auto Mode generates automated access-control activity against a connected Softwire simulation environment. 
 //
 // It can currently generate:
 //      - normal access events using readers/cardholders or REX inputs,
