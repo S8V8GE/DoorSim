@@ -1,1 +1,178 @@
 # DoorSim
+
+**Softwire Door Simulation & Testing Tool**
+
+![C#](https://img.shields.io/badge/C%23-WPF-blue)
+![.NET](https://img.shields.io/badge/.NET-8.0-purple)
+![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
+![Status](https://img.shields.io/badge/status-v1.0%20stable--release-brightgreen)
+![License](https://img.shields.io/badge/license-MIT-green)
+
+DoorSim is a Windows desktop training, testing, and demonstration tool for interacting with simulated Genetec Softwire access control doors.
+
+It provides a visual way to work with simulated doors, cardholders, readers, REX inputs, breakglass/manual station inputs, interlocking scenarios, and automated busy-site event generation — without requiring physical access control hardware.
+
+---
+
+## Overview
+
+DoorSim was created to support technical training, demos, testing, and troubleshooting in lab environments where access control behaviour needs to be demonstrated clearly.
+
+It connects to a local Genetec Softwire simulation environment and allows trainers or technical users to interact with simulated access control hardware visually.
+
+DoorSim is intended for:
+
+- Training sessions
+- Lab testing
+- Demo environments
+- Access control behaviour demonstrations
+- Softwire simulation exercises
+- Internal learning and troubleshooting scenarios
+
+It is **not** intended for production use.
+
+---
+
+## Features
+
+### Manual Mode
+
+DoorSim includes a full manual simulation mode for interacting with one or two simulated doors.
+
+Manual Mode supports:
+
+- Connecting to a local Softwire environment
+- Loading doors from Softwire
+- Loading cardholders from the Genetec Security Center Directory database
+- Single Door View
+- Two Door View
+- Searchable door selectors
+- Cardholder drag/drop onto readers
+- Card-only reader testing
+- PIN and Card + PIN testing
+- Auto-enrol credential generation
+- Reader feedback text and audio
+- Door sensor open/close interaction
+- REX press/release interaction
+- Breakglass/manual station activation/reset
+- Interlocking override/lockdown controls
+- Live polling of door, reader, input, and lock state
+
+### Auto Mode
+
+Auto Mode generates automated access control activity for training, demos, and stress testing.
+
+Auto Mode supports:
+
+- Configurable number of events
+- Extreme, relaxed, and custom delay modes
+- Event profiles with weighted Normal / Forced / Held event generation
+- Live event log
+- Running summary counters
+- Normal reader/cardholder events
+- Normal Card + PIN events
+- Normal REX events
+- Forced-door events
+- Held-open reader events
+- Held-open REX events
+- Held-door reservation to prevent event overlap
+- Cleanup when stopping Auto Mode
+- Retry guard to prevent infinite loops when the environment cannot generate valid events
+- Safe handling if Softwire becomes unavailable during simulation
+
+---
+
+## Requirements
+
+DoorSim is designed for Windows lab environments using Genetec Security Center and Softwire simulation.
+
+Required:
+
+- Windows
+- Genetec Security Center installed
+- A Security Center licence that includes Softwire
+- Softwire downloaded and installed on the same server
+- Genetec Security Center SQL database on the same server
+- Softwire simulation enabled
+- Local/training/demo environment
+
+DoorSim is built with:
+
+- C#
+- WPF
+- .NET 8
+
+The release installer is intended to package the required .NET runtime, so end users should not normally need to install .NET manually.
+
+---
+
+## Important Disclaimer
+
+DoorSim is an independent training, testing, and demonstration tool designed to interact with simulated Genetec Softwire environments.
+
+DoorSim is **not** an official Genetec Inc. product and is not endorsed, supported, maintained, or warranted by Genetec Inc.
+
+This tool is intended for local training, lab testing, and demonstration use only. It should not be used with production systems or live customer environments.
+
+DoorSim sends simulated access control actions to Softwire and can activate simulated inputs such as door sensors, REX inputs, breakglass/manual station inputs, and interlocking inputs. Use it only in environments where you understand the configuration and have permission to test.
+
+---
+
+## Documentation
+
+A full user guide is provided with the application and can be opened from the **Help** menu inside DoorSim.
+
+The bundled guide covers:
+
+- Connecting to Softwire
+- Manual Mode
+- Single Door View
+- Two Door View
+- Cardholder testing
+- PIN and Card + PIN testing
+- Door sensor, REX, and breakglass/manual station controls
+- Interlocking controls
+- Auto Mode
+- Event profiles
+- Event log messages
+- Troubleshooting
+- Known limitations
+
+---
+
+## Quick Start
+
+1. Install or launch DoorSim on the Security Center / Softwire lab server.
+2. Make sure Softwire is installed and running.
+3. Make sure the Security Center Directory SQL database is available locally.
+4. Open DoorSim.
+5. Click **Connect**.
+6. Enter the Softwire host and password.
+7. Select a door in Manual Mode, or switch to **Mode > Auto Mode** for automated simulation.
+
+---
+
+## Project Structure
+
+```text
+Help/
+    DoorSim_UserGuide.pdf
+    DoorSim_Project_Map.txt
+
+Images/
+    Application and hardware UI images
+
+Models/
+    Data models used by the application
+
+Services/
+    Softwire, SQL, credential, and sound services
+
+Sounds/
+    Reader and feedback audio files
+
+ViewModels/
+    MVVM application logic
+
+Views/
+    WPF windows and user controls
