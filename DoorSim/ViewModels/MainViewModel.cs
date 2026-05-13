@@ -6,7 +6,7 @@ using DoorSim.Views;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
-using System.Diagnostics;
+using System.Diagnostics; // used for DEBUG testing. If it's highlighted as unused you commented out all lines :)
 
 namespace DoorSim.ViewModels;
 
@@ -213,6 +213,10 @@ public partial class MainViewModel : ObservableObject
         // Watch Auto Mode so the main menu can disable Mode switching while a simulation is running.
         AutoMode.PropertyChanged += AutoMode_PropertyChanged;
 
+        // Watch Auto Mode for Softwire/API failures.
+        // If Softwire stops while Auto Mode is running, AutoModeViewModel raises this event and MainViewModel performs the same safe disconnect used by Manual Mode.
+        AutoMode.ConnectionLost += AutoMode_ConnectionLost;
+
     }
 
 
@@ -250,6 +254,13 @@ public partial class MainViewModel : ObservableObject
         {
             OnPropertyChanged(nameof(CanUseModeMenu));
         }
+    }
+
+    // Handles Softwire/API failure reported by Auto Mode.
+    // Auto Mode does not own the application connection state. If it detects that Softwire became unavailable while running, MainViewModel performs the same safe disconnect used by the manual polling timers.
+    private void AutoMode_ConnectionLost(string reason)
+    {
+        HandleConnectionLost(reason);
     }
 
 

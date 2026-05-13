@@ -17,8 +17,20 @@ namespace DoorSim.ViewModels;
 //
 // Auto Mode is designed for training, demo, and stress-test scenarios.
 // It keeps its own event log, running counters, retry guard, and held-door reservation tracking so automated events do not interfere with each other.
+// It is NOT intelligent and does not try to "learn" the environment or optimise its selections.
+// It simply generates random events based on the selected profile and retries when it encounters an invalid configuration for the current event.
 public partial class AutoModeViewModel : ObservableObject
 {
+    // Raised when Auto Mode detects that Softwire/API communication has failed.
+    //
+    // MainViewModel listens for this so it can perform the same safe disconnect behaviour used by Manual Mode:
+    //      - stop polling,
+    //      - mark the app disconnected,
+    //      - re-enable Connect,
+    //      - return the trainer to a safe reconnect state.
+    public event Action<string>? ConnectionLost;
+
+
     /*
       #############################################################################
                           Simulation constants and state
@@ -396,6 +408,29 @@ public partial class AutoModeViewModel : ObservableObject
       #############################################################################
     */
 
+    // Handles unexpected Softwire/API failures during Auto Mode.
+    //
+    // This is different from a normal user Stop:
+    //      - Stop is expected and uses OperationCanceledException.
+    //      - Softwire/API failure means one of the callbacks threw unexpectedly.
+    //
+    // Cleanup is deliberately best-effort only. If Softwire is down, cleanup commands may also fail because Softwire cannot receive them.
+    // In that situation the priority is to stop Auto Mode and return the application to a safe reconnect state instead of crashing.
+    private void HandleAutoModeConnectionLost(Exception ex)
+    {
+        SimulationStatus = "Stopped";
+
+        AddLog(
+            level: "Error",
+            eventType: "-",
+            doorName: "-",
+            message: $"Auto Mode stopped because Softwire became unavailable. {ex.Message}");
+
+        _simulationCancellation?.Cancel();
+
+        ConnectionLost?.Invoke("Softwire became unavailable during Auto Mode.");
+    }
+
     [RelayCommand(CanExecute = nameof(CanStartSimulation))]
     private async Task StartSimulationAsync()
     {
@@ -460,6 +495,16 @@ public partial class AutoModeViewModel : ObservableObject
                 eventType: "-",
                 doorName: "-",
                 message: "Auto Mode stopped by user.");
+        }
+        catch (Exception ex)
+        {
+            // Any unexpected exception here is treated as a Softwire/API failure.
+            //
+            // Examples:
+            //      - Softwire service stopped during Auto Mode,
+            //      - HTTP call failed,
+            //      - input/read/swipe callback threw while the simulation was running.
+            HandleAutoModeConnectionLost(ex);
         }
         finally
         {
@@ -2719,13 +2764,33 @@ public partial class AutoModeViewModel : ObservableObject
         {
             if (_setInputStateAsync != null)
             {
-                AddLog(
-                    level: "Info",
-                    eventType: "Held",
-                    doorName: doorName,
-                    message: "Simulation stopped. Closing held-open door sensor.");
+                try
+                {
+                    AddLog(
+                        level: "Info",
+                        eventType: "Held",
+                        doorName: doorName,
+                        message: "Simulation stopped. Attempting to close held-open door sensor.");
 
-                await _setInputStateAsync(doorSensorPath, "Inactive");
+                    var closed = await _setInputStateAsync(doorSensorPath, "Inactive");
+
+                    if (!closed)
+                    {
+                        AddLog(
+                            level: "Error",
+                            eventType: "Held",
+                            doorName: doorName,
+                            message: "DoorSim could not close the held-open door sensor during stop. Manual cleanup may be required.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AddLog(
+                        level: "Error",
+                        eventType: "Held",
+                        doorName: doorName,
+                        message: $"Held-open cleanup could not contact Softwire. Manual cleanup may be required. {ex.Message}");
+                }
             }
 
             ReleaseDoorReservation(
