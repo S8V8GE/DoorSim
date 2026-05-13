@@ -101,7 +101,7 @@
                         <!-- ############################ VERSION & AUTHOR ############################ -->
                         <TextBlock Grid.Row="0"
                                    Grid.Column="1"
-                                   Text="v0.9 pre-release"
+                                   Text="v1.0 (stable - release)"
                                    Foreground="#CCCCCC"/>
 
                         <TextBlock Grid.Row="1"
@@ -203,21 +203,38 @@
                     <TextBlock TextWrapping="Wrap"
                                Foreground="#CCCCCC"
                                Margin="0,2,0,0">
-                        
-                        For help, use the 'Help' menu in DoorSim. 
-                        
+
+                        <Run Text="For help, use the 'Help' menu in DoorSim."/>
+
                         <LineBreak/>
                         <LineBreak/>
+
+                        <Run Text="To download DoorSim or view the source code, visit the DoorSim "/>
                         
-                        To download DoorSim or view the source code, visit the DoorSim project’s GitHub repository: LINK TO FOLLOW
+                        <Hyperlink NavigateUri="https://github.com/S8V8GE/DoorSim"
+                                   RequestNavigate="Hyperlink_RequestNavigate">
+                            
+                            <Run Text="GitHub"/>
+                            
+                        </Hyperlink>
                         
+                        <Run Text=" page."/>
+
                         <LineBreak/>
                         <LineBreak/>
+
+                        <Run Text="To report bugs or request improvements, use the DoorSim "/>
                         
-                        To report bugs or request improvements, use the DoorSim project’s GitHub Issues page: LINK TO FOLLOW
+                        <Hyperlink NavigateUri="https://github.com/S8V8GE/DoorSim/issues"
+                                   RequestNavigate="Hyperlink_RequestNavigate">
+                            
+                            <Run Text="GitHub Issues"/>
+                            
+                        </Hyperlink>
                         
+                        <Run Text=" page."/>
+
                     </TextBlock>
-                               
 
                 </StackPanel>
                 
